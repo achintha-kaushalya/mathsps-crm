@@ -1,0 +1,8 @@
+# Netlify configuration for Next.js (crm-web)
+[build]
+  base = "crm-web"
+  publish = "crm-web/.next"
+  command = "npm run build"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"

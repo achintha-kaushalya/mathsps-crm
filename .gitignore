@@ -1,0 +1,19 @@
+# Node & dependencies
+node_modules
+.next
+out
+build
+dist
+.env*.local
+.env
+
+# Other projects / legacy
+lead-crm-web/
+unified web/
+
+# Temporary / Scratch scripts & backup heavy binaries
+*.pyc
+__pycache__
+*.log
+.DS_Store
+Thumbs.db

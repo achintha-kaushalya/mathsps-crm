@@ -1,0 +1,1557 @@
+/**
+ * LEAD MANAGEMENT TOOLS  (v9 — Google Sheets Edition)
+ * ─────────────────────────────────────────────────────────────────────────
+ * Paste this entire file into:  Extensions › Apps Script
+ * Save (Ctrl+S), then reload the sheet.  A "Lead Tools" menu will appear.
+ *
+ * NEW IN v9 vs v8
+ *  • Add New Member  — adds a member to the Members sheet; dropdown in
+ *                      Master Leads col D auto-updates immediately.
+ *  • Remove Member   — soft-remove: clears the name, keeps all lead history.
+ *  • List All Members — shows the current team roster in a pop-up.
+ *  • Grade prompt    — multi-select grades: type "6" or "6, 8" or "7, 9, 11" (or skip).
+ *  • Status prompt   — set initial status when adding a lead.
+ *  • Richer confirmation dialog — shows all entered details at once.
+ *  • All v8 F-Code / duplicate / repeat logic is 100% unchanged.
+ *
+ * SHEET NAMES (must match exactly):
+ *   "Master Leads"  — the central lead list
+ *   "Members"       — list of team members (col A = names)
+ *
+ * MASTER LEADS COLUMNS  A to P:
+ *   A  Phone (Normalized, formula)   B  Raw Phone        C  F-Code
+ *   D  Assigned Member               E  Date Added       F  Status
+ *   G  Grade                         H  Comments         I  Second Call Done
+ *   J  Second Call Notes             K  Duplicate Check  L  Campaign/Boost
+ *   M  Repeat Student?               N  Previous F-Code  O  Paid
+ *   P  Grade (Final/Interested)
+ * ─────────────────────────────────────────────────────────────────────────
+ */
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const MASTER_SHEET  = "Master Leads";
+const MEMBERS_SHEET = "Members";
+const CODE_PREFIX   = "F";
+const CODE_DIGITS   = 5;   // F00001, F00002, ...
+
+const STATUS_OPTIONS = [
+  "New", "Contacted", "Interested", "Converted",
+  "No Answer", "Not Interested", "Follow-up", "Second Call Pending",
+  "Off", "Invalid", "Wrong number", "Busy", "Call Another Number"
+];
+const GRADE_OPTIONS = ["6", "7", "8", "9", "10", "11"];
+
+// Adjust this number to change your custom starting F-Code.
+// For example, setting it to 1000 starts your F-Codes at F01000.
+const STARTING_CODE_NUMBER = 1000;
+
+// ── onOpen — build the menu ────────────────────────────────────────────────────
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu("Lead Tools")
+    .addItem("Add New Lead",      "addNewLead")
+    .addItem("Look Up a Number",  "lookUpNumber")
+    .addSeparator()
+    .addItem("Add New Member",    "addNewMember")
+    .addItem("Remove a Member",   "removeMember")
+    .addItem("List All Members",  "listMembers")
+    .addSeparator()
+    .addItem("Fix Column Dropdowns", "fixDropdownsAndCleanValidations")
+    .addItem("Rebuild Summary Sheet", "rebuildLeadsSummarySheet")
+    .addToUi();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// onEdit — safety net: auto-fill F-Code + Date when phone is typed into col B
+// ─────────────────────────────────────────────────────────────────────────────
+function onEdit(e) {
+  try {
+    var range = e.range;
+    var sheet = range.getSheet();
+    if (sheet.getName() !== MASTER_SHEET) return;
+    if (range.getColumn() !== 2) return;
+    var row = range.getRow();
+    if (row < 2) return;
+
+    var rawPhone = sheet.getRange(row, 2).getValue();
+    if (!rawPhone) return;
+
+    var normalized = normalizePhone(String(rawPhone));
+    if (normalized.length < 9) return;
+
+    // 1. Auto-fill F-Code if it is currently empty
+    var fcodeCell = sheet.getRange(row, 3);
+    if (!fcodeCell.getValue()) {
+      var lastRow = sheet.getLastRow();
+      var existingCode = null;
+      if (lastRow >= 2) {
+        var data = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+        for (var i = 0; i < data.length; i++) {
+          if (i + 2 === row) continue;
+          if (String(data[i][0]) === normalized && data[i][2]) {
+            existingCode = data[i][2];
+            break;
+          }
+        }
+      }
+      fcodeCell.setValue(existingCode || nextCode_(sheet));
+    }
+
+    // 2. Auto-fill Date if empty
+    var dateCell = sheet.getRange(row, 5);
+    if (!dateCell.getValue()) {
+      var localDate = Utilities.formatDate(new Date(), "GMT+5:30", "yyyy-MM-dd");
+      dateCell.setValue(localDate);
+    }
+
+    // 3. Auto-fill all formula columns (A, K, M, N)
+    fillFormulaColumns_(sheet, row);
+
+  } catch (err) {
+    // Fail silently
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ADD NEW LEAD
+// ─────────────────────────────────────────────────────────────────────────────
+function addNewLead() {
+  var ui    = SpreadsheetApp.getUi();
+  var sheet = getSheet_(MASTER_SHEET);
+
+  // Step 1: Phone
+  var phoneResp = ui.prompt(
+    "Add New Lead (1/5)",
+    "Enter the phone number:",
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (phoneResp.getSelectedButton() !== ui.Button.OK) return;
+  var rawPhone = phoneResp.getResponseText().trim();
+  if (!rawPhone) { ui.alert("No number entered. Cancelled."); return; }
+
+  var normalized = normalizePhone(rawPhone);
+  if (normalized.length < 9) {
+    ui.alert("That number looks incomplete (" + normalized + "). Please check and try again.");
+    return;
+  }
+
+  // Step 2: Campaign
+  var campResp = ui.prompt(
+    "Add New Lead (2/5)",
+    "Campaign / Boost name this lead came from:\n(e.g. B1, B2, Facebook July ...)",
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (campResp.getSelectedButton() !== ui.Button.OK) return;
+  var campaign = campResp.getResponseText().trim();
+  if (!campaign) { ui.alert("No campaign entered. Cancelled."); return; }
+
+  // Duplicate / Repeat check
+  var matches = findAllForPhone_(sheet, normalized);
+  var sameCampMatch = matches.filter(function(m) {
+    return String(m.campaign).trim() === campaign;
+  })[0];
+
+  if (sameCampMatch) {
+    ui.alert(
+      "Already in system",
+      "This number is already logged under the SAME campaign (\"" + campaign + "\"):\n\n" +
+      "F-Code: " + sameCampMatch.code + "\n" +
+      "Handled by: " + sameCampMatch.member + "\n" +
+      "Row: " + sameCampMatch.row + "\n\n" +
+      "This is a TRUE DUPLICATE - no new row created.",
+      ui.ButtonSet.OK
+    );
+    return;
+  }
+
+  var isRepeat = matches.length > 0;
+  if (isRepeat) {
+    var history = matches.map(function(m) {
+      return "- " + m.code + " (" + (m.campaign || "no campaign") + ") - " + m.member;
+    }).join("\n");
+    var proceed = ui.alert(
+      "Returning Student",
+      "This number was contacted before:\n\n" + history +
+      "\n\nThis is a NEW enquiry (\"" + campaign + "\").\n" +
+      "Their existing F-code (" + matches[0].code + ") will be reused.\n\nContinue?",
+      ui.ButtonSet.YES_NO
+    );
+    if (proceed !== ui.Button.YES) return;
+  }
+
+  // Step 3: Assigned Member
+  var membersList = getMembersList_();
+  var memberPromptText = "Your name (assigned member):\n\nTeam: " +
+    (membersList.length ? membersList.join(", ") : "(no members yet - type any name)") +
+    "\n\n(Type exactly as shown above)";
+  var memberResp = ui.prompt(
+    "Add New Lead (3/5)",
+    memberPromptText,
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (memberResp.getSelectedButton() !== ui.Button.OK) return;
+  var member = memberResp.getResponseText().trim();
+  if (!member) { ui.alert("No name entered. Cancelled."); return; }
+
+  // Step 4: Grade  (supports multiple grades — type: 6  or  6,8  or  6, 7, 10)
+  var gradePromptText =
+    "What grade(s) is this student interested in?\n\n" +
+    "Single grade:    6\n" +
+    "Multiple grades: 6, 8   or   7, 9, 11\n" +
+    "Available grades: 6 / 7 / 8 / 9 / 10 / 11\n\n" +
+    "(leave blank and press OK to skip)";
+  var gradeResp = ui.prompt(
+    "Add New Lead (4/5)",
+    gradePromptText,
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (gradeResp.getSelectedButton() !== ui.Button.OK) return;
+
+  // Parse multi-grade input — split on commas and/or spaces, validate each
+  var gradeRaw = gradeResp.getResponseText().trim();
+  var grade = "";
+  if (gradeRaw) {
+    var gradeTokens = gradeRaw.split(/[,\s]+/);
+    var validGrades = [];
+    gradeTokens.forEach(function(tok) {
+      var t = tok.trim();
+      if (t && GRADE_OPTIONS.indexOf(t) !== -1) {
+        // Deduplicate
+        if (validGrades.indexOf(t) === -1) validGrades.push(t);
+      }
+    });
+    // Sort numerically so "6, 8, 10" is always consistent
+    validGrades.sort(function(a, b) { return parseInt(a) - parseInt(b); });
+    grade = validGrades.join(", ");
+  }
+
+  // Step 5: Initial Status
+  var statusPromptText =
+    "Initial Status - type the number:\n\n" +
+    STATUS_OPTIONS.map(function(s, i) { return (i + 1) + ". " + s; }).join("\n") +
+    "\n\n(leave blank for 'New')";
+  var statusResp = ui.prompt(
+    "Add New Lead (5/5)",
+    statusPromptText,
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (statusResp.getSelectedButton() !== ui.Button.OK) return;
+  var statusInput = statusResp.getResponseText().trim();
+  var statusIdx   = parseInt(statusInput, 10) - 1;
+  var status = (statusIdx >= 0 && statusIdx < STATUS_OPTIONS.length)
+    ? STATUS_OPTIONS[statusIdx]
+    : "New";
+
+  // Write the row
+  var fcodeResult = getFCodeForPhone_(sheet, normalized, matches);
+  var lastRow     = sheet.getLastRow();
+  var newRow      = lastRow + 1;
+
+  var localDate = Utilities.formatDate(new Date(), "GMT+5:30", "yyyy-MM-dd");
+  sheet.getRange(newRow, 2, 1, 6).setValues([[
+    rawPhone, fcodeResult.code, member, localDate, status, grade
+  ]]);
+  sheet.getRange(newRow, 9).setValue(campaign);
+
+  fillFormulaColumns_(sheet, newRow);
+
+  ui.alert(
+    "Lead Added",
+    "F-Code:   " + fcodeResult.code + (fcodeResult.isNew ? " (new)" : " (existing, reused)") + "\n" +
+    "Phone:    " + rawPhone + "\n" +
+    "Campaign: " + campaign + "\n" +
+    "Member:   " + member + "\n" +
+    "Grade:    " + (grade || "-") + "\n" +
+    "Status:   " + status + "\n" +
+    (isRepeat
+      ? "\nREPEAT STUDENT (previous F-Code: " + matches[0].code + ")"
+      : "\nNew student"),
+    ui.ButtonSet.OK
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  LOOK UP A NUMBER
+// ─────────────────────────────────────────────────────────────────────────────
+function lookUpNumber() {
+  var ui    = SpreadsheetApp.getUi();
+  var sheet = getSheet_(MASTER_SHEET);
+
+  var resp = ui.prompt(
+    "Look Up a Number",
+    "Enter the phone number to search:",
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (resp.getSelectedButton() !== ui.Button.OK) return;
+  var normalized = normalizePhone(resp.getResponseText().trim());
+  if (normalized.length < 9) {
+    ui.alert("That number looks incomplete (" + normalized + "). Please check.");
+    return;
+  }
+
+  var matches = findAllForPhone_(sheet, normalized);
+  if (matches.length === 0) {
+    ui.alert("Not Found", "This number is not in the system - safe to add as a new lead.", ui.ButtonSet.OK);
+    return;
+  }
+
+  var blocks = matches.map(function(m) {
+    var dateStr = m.dateAdded
+      ? Utilities.formatDate(new Date(m.dateAdded), Session.getScriptTimeZone(), "yyyy-MM-dd")
+      : "-";
+    return (
+      "F-Code:          " + m.code + "\n" +
+      "Assigned Member: " + (m.member || "-") + "\n" +
+      "Campaign:        " + (m.campaign || "-") + "\n" +
+      "Date Added:      " + dateStr + "\n" +
+      "Status:          " + (m.status || "-") + "\n" +
+      "Grade:           " + (m.grade  || "-") + "\n" +
+      "Paid:            " + (m.paid   || "-") + "\n" +
+      "Comments:        " + (m.comments || "-") + "\n" +
+      "2nd Call Done:   " + (m.secondCallDone || "-") + "\n" +
+      "Repeat Student:  " + (m.repeat || "No") + "\n" +
+      "Row:             " + m.row
+    );
+  });
+
+  var title = matches.length > 1
+    ? "Found " + matches.length + " records (same F-code throughout)"
+    : "Found";
+
+  ui.alert(title, blocks.join("\n\n------------------\n\n"), ui.ButtonSet.OK);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  ADD NEW MEMBER
+// ─────────────────────────────────────────────────────────────────────────────
+function addNewMember() {
+  var ui       = SpreadsheetApp.getUi();
+  var memSheet = getSheet_(MEMBERS_SHEET);
+  var current  = getMembersList_();
+
+  var resp = ui.prompt(
+    "Add New Member",
+    "Current team: " + (current.length ? current.join(", ") : "(none yet)") +
+    "\n\nEnter the NEW member's name exactly as they should appear:",
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (resp.getSelectedButton() !== ui.Button.OK) return;
+  var newName = resp.getResponseText().trim();
+  if (!newName) { ui.alert("No name entered. Cancelled."); return; }
+
+  var lower = newName.toLowerCase();
+  var alreadyExists = current.some(function(m) {
+    return m.toLowerCase() === lower;
+  });
+  if (alreadyExists) {
+    ui.alert("Already exists", "\"" + newName + "\" is already in the Members list.", ui.ButtonSet.OK);
+    return;
+  }
+
+  var lastRow = memSheet.getLastRow();
+  var totalRowIdx = -1;
+  for (var r = 1; r <= lastRow; r++) {
+    var val = String(memSheet.getRange(r, 1).getValue()).trim().toUpperCase();
+    if (val === "TOTAL") {
+      totalRowIdx = r;
+      break;
+    }
+  }
+
+  var newRow;
+  if (totalRowIdx !== -1) {
+    memSheet.insertRowBefore(totalRowIdx);
+    newRow = totalRowIdx;
+    // Copy format from the row above to override the TOTAL row background styling
+    if (newRow > 2) {
+      memSheet.getRange(newRow - 1, 1, 1, 9)
+        .copyTo(memSheet.getRange(newRow, 1, 1, 9), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+    }
+  } else {
+    newRow = Math.max(lastRow + 1, 2);
+  }
+
+  memSheet.getRange(newRow, 1).setValue(newName);
+
+  var ML = "'" + MASTER_SHEET + "'";
+  memSheet.getRange(newRow, 2).setFormula("=COUNTIF(" + ML + "!D:D,A" + newRow + ")");
+  memSheet.getRange(newRow, 3).setFormula(
+    "=COUNTIFS(" + ML + "!D:D,A" + newRow + "," + ML + "!F:F,\"Converted\")"
+  );
+  memSheet.getRange(newRow, 4).setFormula(
+    "=COUNTIFS(" + ML + "!D:D,A" + newRow + "," + ML + "!O:O,\"Yes\")"
+  );
+  memSheet.getRange(newRow, 5).setFormula(
+    "=COUNTIFS(" + ML + "!D:D,A" + newRow + "," + ML + "!F:F,\"No Answer\")"
+  );
+  memSheet.getRange(newRow, 6).setFormula("=IFERROR(C" + newRow + "/B" + newRow + ",\"-\")");
+  memSheet.getRange(newRow, 7).setFormula("=IFERROR(D" + newRow + "/B" + newRow + ",\"-\")");
+  memSheet.getRange(newRow, 6).setNumberFormat("0.0%");
+  memSheet.getRange(newRow, 7).setNumberFormat("0.0%");
+
+  // Sync the master sheet dropdown validation
+  refreshMemberDropdowns_();
+
+  ui.alert(
+    "Member Added",
+    "\"" + newName + "\" added to Members sheet (row " + newRow + ").\n\n" +
+    "They will now appear in the Assigned Member dropdown in Master Leads col D.\n" +
+    "Their lead counts and rates will update automatically.",
+    ui.ButtonSet.OK
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  REMOVE A MEMBER  (soft-remove)
+// ─────────────────────────────────────────────────────────────────────────────
+function removeMember() {
+  var ui       = SpreadsheetApp.getUi();
+  var current  = getMembersList_();
+
+  if (current.length === 0) {
+    ui.alert("No members found in the Members sheet.", ui.ButtonSet.OK);
+    return;
+  }
+
+  var numbered = current.map(function(m, i) { return (i + 1) + ". " + m; }).join("\n");
+  var resp = ui.prompt(
+    "Remove a Member",
+    "Current team:\n" + numbered +
+    "\n\nType the NAME of the member to remove:\n" +
+    "(Their lead history is NOT deleted - only removed from the dropdown)",
+    ui.ButtonSet.OK_CANCEL
+  );
+  if (resp.getSelectedButton() !== ui.Button.OK) return;
+  var target = resp.getResponseText().trim().toLowerCase();
+  if (!target) { ui.alert("No name entered. Cancelled."); return; }
+
+  var memSheet = getSheet_(MEMBERS_SHEET);
+  var lastRow  = memSheet.getLastRow();
+  var foundRow = -1, foundName = "";
+  for (var r = 2; r <= lastRow; r++) {
+    var v = String(memSheet.getRange(r, 1).getValue()).trim();
+    if (v.toLowerCase() === target) {
+      foundRow  = r;
+      foundName = v;
+      break;
+    }
+  }
+
+  if (foundRow === -1) {
+    ui.alert("Not found", "\"" + resp.getResponseText().trim() + "\" was not found in the Members list.", ui.ButtonSet.OK);
+    return;
+  }
+
+  var confirm = ui.alert(
+    "Confirm Remove",
+    "Remove \"" + foundName + "\" from the Members dropdown?\n\n" +
+    "Their existing leads in Master Leads are KEPT and unchanged.\n\nContinue?",
+    ui.ButtonSet.YES_NO
+  );
+  if (confirm !== ui.Button.YES) return;
+
+  memSheet.deleteRow(foundRow);
+
+  // Sync the master sheet dropdown validation
+  refreshMemberDropdowns_();
+
+  ui.alert(
+    "Member Removed",
+    "\"" + foundName + "\" removed from the Members dropdown.\n" +
+    "All their leads are preserved in Master Leads.",
+    ui.ButtonSet.OK
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  LIST ALL MEMBERS
+// ─────────────────────────────────────────────────────────────────────────────
+function listMembers() {
+  var ui      = SpreadsheetApp.getUi();
+  var current = getMembersList_();
+
+  if (current.length === 0) {
+    ui.alert("Team Roster", "No members found. Use 'Add New Member' to add your team.", ui.ButtonSet.OK);
+    return;
+  }
+
+  var mlSheet = getSheet_(MASTER_SHEET);
+  var mlData  = mlSheet.getLastRow() > 1
+    ? mlSheet.getRange(2, 4, mlSheet.getLastRow() - 1, 1).getValues()
+    : [];
+
+  var lines = current.map(function(m, i) {
+    var leads = mlData.filter(function(r) {
+      return String(r[0]).trim() === m;
+    }).length;
+    return (i + 1) + ".  " + m + "   (" + leads + " lead" + (leads !== 1 ? "s" : "") + ")";
+  });
+
+  ui.alert(
+    "Team Roster (" + current.length + " members)",
+    lines.join("\n"),
+    ui.ButtonSet.OK
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PRIVATE HELPERS
+// ─────────────────────────────────────────────────────────────────────────────
+
+function getMembersList_() {
+  var sheet   = getSheet_(MEMBERS_SHEET);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return [];
+  var vals = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+  return vals
+    .map(function(r) { return String(r[0]).trim(); })
+    .filter(function(v) { return v !== "" && v.toUpperCase() !== "TOTAL"; });
+}
+
+function refreshMemberDropdowns_(masterSheet) {
+  if (!masterSheet) masterSheet = getSheet_(MASTER_SHEET);
+  var members = getMembersList_();
+  if (members.length > 0) {
+    var memberRule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(members, true)
+      .setAllowInvalid(true)
+      .build();
+    var lastRow = Math.max(masterSheet.getLastRow(), 100);
+    masterSheet.getRange(2, 4, lastRow - 1, 1).setDataValidation(memberRule);
+  }
+}
+
+function normalizePhone(raw) {
+  if (!raw) return "";
+  var digits = String(raw).replace(/\D/g, "");
+  if (digits.length === 11 && digits.substring(0, 2) === "94") digits = digits.substring(2);
+  if (digits.length === 10 && digits.charAt(0) === "0")  digits = digits.substring(1);
+  return digits;
+}
+
+function getSheet_(name) {
+  var ss    = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) throw new Error('Sheet "' + name + '" not found.');
+  return sheet;
+}
+
+function findAllForPhone_(sheet, normalized) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2 || !normalized) return [];
+  var data    = sheet.getRange(2, 1, lastRow - 1, 16).getValues();
+  var matches = [];
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0]) === normalized) {
+      matches.push({
+        row:             i + 2,
+        code:            data[i][2],
+        member:          data[i][3],
+        dateAdded:       data[i][4],
+        status:          data[i][5],
+        grade:           data[i][6],
+        comments:        data[i][7],
+        campaign:        data[i][8],
+        repeat:          data[i][9],
+        secondCallDone:  data[i][12],
+        secondCallNotes: data[i][13],
+        paid:            data[i][14]
+      });
+    }
+  }
+  return matches;
+}
+
+function nextCode_(sheet) {
+  var lastRow = sheet.getLastRow();
+  var maxNum  = 0;
+  if (lastRow >= 2) {
+    var codes = sheet.getRange(2, 3, lastRow - 1, 1).getValues();
+    codes.forEach(function(r) {
+      var m = String(r[0] || "").match(/(\d+)/);
+      if (m) {
+        var n = parseInt(m[1], 10);
+        if (n > maxNum) maxNum = n;
+      }
+    });
+  }
+  // Start from STARTING_CODE_NUMBER if sheet is empty/no codes found, otherwise increment
+  var nextNum = (maxNum === 0) ? STARTING_CODE_NUMBER : (maxNum + 1);
+  return CODE_PREFIX + String(nextNum).padStart(CODE_DIGITS, "0");
+}
+
+function getFCodeForPhone_(sheet, normalized, existingMatches) {
+  if (existingMatches.length > 0) {
+    return { code: existingMatches[0].code, isNew: false };
+  }
+  return { code: nextCode_(sheet), isNew: true };
+}
+
+function fillFormulaColumns_(sheet, newRow) {
+  sheet.getRange(newRow, 1).setFormula(
+    '=IF(B' + newRow + '="","",RIGHT(REGEXREPLACE(B' + newRow + '&"","[^0-9]",""),9))'
+  );
+  sheet.getRange(newRow, 11).setFormula(
+    '=IF(COUNTIFS($A$2:A' + newRow + ',A' + newRow +
+    ',$I$2:I' + newRow + ',I' + newRow + ')>1,"DUPLICATE - CHECK","")'
+  );
+  if (newRow <= 2) {
+    sheet.getRange(newRow, 10).setValue("No");
+    sheet.getRange(newRow, 12).setValue("");
+  } else {
+    sheet.getRange(newRow, 10).setFormula(
+      '=IF(COUNTIF($A$2:A' + (newRow - 1) + ',A' + newRow + ')>0,"Yes - see Previous F-Code","No")'
+    );
+    sheet.getRange(newRow, 12).setFormula(
+      '=IF(COUNTIF($A$2:A' + (newRow - 1) + ',A' + newRow + ')>0,' +
+      'INDEX($C$2:C' + (newRow - 1) + ',MATCH(A' + newRow + ',$A$2:A' + (newRow - 1) + ',0)),"")'
+    );
+  }
+
+  // Dropdown list validations
+  try {
+    // 1. Status (Col 6 / F)
+    var statusRule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(STATUS_OPTIONS, true)
+      .setAllowInvalid(true)
+      .build();
+    sheet.getRange(newRow, 6).setDataValidation(statusRule);
+    // 2. Second Call Done (Col 13 / M)
+    var yesNoRule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(["Yes", "No"], true)
+      .setAllowInvalid(true)
+      .build();
+    sheet.getRange(newRow, 13).setDataValidation(yesNoRule);
+
+    // 4. Paid (Col 15 / O)
+    sheet.getRange(newRow, 15).setDataValidation(yesNoRule);
+  } catch (e) {
+    // Fallback if validations fail
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  FIX DROPDOWNS & CLEAN VALIDATIONS UTILITY
+// ─────────────────────────────────────────────────────────────────────────────
+function fixDropdownsAndCleanValidations() {
+  var ui = SpreadsheetApp.getUi();
+  var sheet = getSheet_(MASTER_SHEET);
+  
+  // Clear Column I validations down to row 100000 to clean up existing stray dropdowns
+  sheet.getRange(2, 9, 99999, 1).clearDataValidations();
+  
+  // Apply correct dropdown validations down to row 100000
+  // 1. Status (Col 6 / F)
+  var statusRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(STATUS_OPTIONS, true)
+    .setAllowInvalid(true)
+    .build();
+  sheet.getRange(2, 6, 99999, 1).setDataValidation(statusRule);
+  
+  // 2. Second Call Done (Col 13 / M)
+  var yesNoRule = SpreadsheetApp.newDataValidation()
+    .requireValueInList(["Yes", "No"], true)
+    .setAllowInvalid(true)
+    .build();
+  sheet.getRange(2, 13, 99999, 1).setDataValidation(yesNoRule);
+  
+  // 3. Paid (Col 15 / O)
+  sheet.getRange(2, 15, 99999, 1).setDataValidation(yesNoRule);
+  
+  // 4. Assigned Member (Col 4 / D)
+  var members = getMembersList_();
+  if (members.length > 0) {
+    var memberRule = SpreadsheetApp.newDataValidation()
+      .requireValueInList(members, true)
+      .setAllowInvalid(true)
+      .build();
+    sheet.getRange(2, 4, 99999, 1).setDataValidation(memberRule);
+  }
+
+  // 5. Apply Row Warning Highlight (Light Yellow if F-Code exists but Status or Campaign is empty)
+  var warningRule = SpreadsheetApp.newConditionalFormatRule()
+    .whenFormulaSatisfied('=AND($C2<>"", OR($F2="", $I2=""))')
+    .setBackground("#FFF9C4") // Premium soft warning yellow
+    .setRanges([sheet.getRange("A2:P100000")])
+    .build();
+  sheet.setConditionalFormatRules([warningRule]);
+
+  ui.alert("Success", "System Updated: Dropdowns refreshed and Light Yellow warning highlights applied!", ui.ButtonSet.OK);
+}
+
+// -----------------------------------------------------------------------------
+//  REBUILD LEADS SUMMARY SHEET
+// -----------------------------------------------------------------------------
+function rebuildLeadsSummarySheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheetName = "Leads Summary";
+  var sheet = ss.getSheetByName(sheetName);
+  
+  if (sheet) {
+    ss.deleteSheet(sheet);
+  }
+  sheet = ss.insertSheet(sheetName, 1);
+  
+  // Set Column Widths
+  sheet.setColumnWidth(1, 200); // Assigned Member / Campaign
+  for (var c = 2; c <= 7; c++) {
+    sheet.setColumnWidth(c, 90); // Grades 6 to 11
+  }
+  sheet.setColumnWidth(8, 120); // Totals
+  sheet.setColumnWidth(9, 120); // Share %
+  sheet.setColumnWidth(10, 130); // Conv % / Actionable Rate
+  
+  // Set Background Fill for whole sheet
+  sheet.getRange("A1:J120").setBackground("#F8FAFC");
+  
+  // Title Banner
+  sheet.setRowHeight(2, 45);
+  sheet.getRange("A2:J2").merge().setValue("  CRM LEADS & PERFORMANCE ANALYTICS")
+    .setBackground("#0D2744")
+    .setFontColor("#FFFFFF")
+    .setFontSize(16)
+    .setFontWeight("bold")
+    .setHorizontalAlignment("left")
+    .setVerticalAlignment("middle");
+    
+  sheet.setRowHeight(3, 26);
+  sheet.getRange("A3:J3").merge()
+    .setValue("  Real-time team analytics, grade distribution, conversion metrics, unresolved pipelines, and campaign effectiveness.")
+    .setBackground("#1976D2")
+    .setFontColor("#BFDBFE")
+    .setFontSize(9)
+    .setHorizontalAlignment("left")
+    .setVerticalAlignment("middle");
+    
+  // Date Controls (Row 5)
+  sheet.setRowHeight(5, 30);
+  sheet.getRange("A5:J5").setBackground("#E0E7FF");
+  
+  sheet.getRange("A5").setValue("  Filter Start Date:")
+    .setFontColor("#312E81")
+    .setFontWeight("bold")
+    .setHorizontalAlignment("left")
+    .setVerticalAlignment("middle");
+    
+  sheet.getRange("B5").setBackground("#FFFFFF")
+    .setFontWeight("bold")
+    .setFontColor("#1E293B")
+    .setNumberFormat("yyyy-mm-dd")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, "#0D2744", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+    
+  sheet.getRange("C5").setValue("End Date:")
+    .setFontColor("#312E81")
+    .setFontWeight("bold")
+    .setHorizontalAlignment("right")
+    .setVerticalAlignment("middle");
+    
+  sheet.getRange("D5").setBackground("#FFFFFF")
+    .setFontWeight("bold")
+    .setFontColor("#1E293B")
+    .setNumberFormat("yyyy-mm-dd")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, "#0D2744", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+    
+  sheet.getRange("E5:J5").merge().setValue("Leave dates blank to view All-Time data. Format: YYYY-MM-DD (e.g. 2026-07-01)")
+    .setFontColor("#64748B")
+    .setFontStyle("italic")
+    .setFontSize(9)
+    .setHorizontalAlignment("left")
+    .setVerticalAlignment("middle");
+
+  var borderStyle = SpreadsheetApp.BorderStyle.SOLID;
+  var thinGray = "#CBD5E1";
+  
+  // ---------------------------------------------------------------------------
+  // TABLE 1: ALL LEADS BY MEMBER & GRADE
+  // ---------------------------------------------------------------------------
+  sheet.getRange("A7").setValue("TABLE 1: ALL LEADS BY MEMBER & GRADE")
+    .setFontColor("#0D2744")
+    .setFontWeight("bold")
+    .setFontSize(11);
+    
+  var hRow1 = 8;
+  sheet.setRowHeight(hRow1, 24);
+  var t1Headers = ["Assigned Member", "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Total Leads", "Share %", ""];
+  for (var c = 1; c <= 9; c++) {
+    var cell = sheet.getRange(hRow1, c);
+    cell.setValue(t1Headers[c-1])
+      .setBackground((c === 1 || c >= 8) ? "#0D2744" : "#1565C0")
+      .setFontColor("#FFFFFF")
+      .setFontWeight("bold")
+      .setFontSize(9)
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, "#0D2744", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  }
+  
+  var maxMembers = 20;
+  var currRow = 9;
+  var ml = "'Master Leads'";
+  
+  for (var i = 0; i < maxMembers; i++) {
+    sheet.setRowHeight(currRow, 20);
+    var bg = (i % 2 === 0) ? "#FFFFFF" : "#F1F5F9";
+    
+    // Member Name (Col A)
+    sheet.getRange(currRow, 1).setFormula('=IF(INDEX(Members!$A:$A,' + (i+2) + ')="","",INDEX(Members!$A:$A,' + (i+2) + '))')
+      .setFontWeight("bold")
+      .setFontColor("#1E293B")
+      .setBackground(bg)
+      .setHorizontalAlignment("left")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+      
+    // Grades (Cols B-G / 2-7)
+    for (var g = 2; g <= 7; g++) {
+      var gradeNum = g + 4; // 6,7,8,9,10,11
+      sheet.getRange(currRow, g).setFormula(
+        '=IF($A' + currRow + '="","",SUMPRODUCT(' +
+        '(' + ml + '!$D:$D=$A' + currRow + ') * ' +
+        '(ISNUMBER(SEARCH("' + gradeNum + '", ' + ml + '!$G:$G))) * ' +
+        '(' + ml + '!$E:$E>=IF(ISBLANK($B$5),0,$B$5)) * ' +
+        '(' + ml + '!$E:$E<=IF(ISBLANK($D$5),99999,$D$5))' +
+        '))'
+      )
+      .setBackground(bg)
+      .setFontColor("#1E293B")
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    }
+    
+    // Total Leads (Col H / 8)
+    sheet.getRange(currRow, 8).setFormula(
+      '=IF($A' + currRow + '="","",COUNTIFS(' +
+      ml + '!$D:$D,$A' + currRow + ',' +
+      ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' +
+      ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)' +
+      '))'
+    )
+    .setFontWeight("bold")
+    .setFontColor("#1565C0")
+    .setBackground(bg)
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+    // Share % (Col I / 9)
+    var totRow1Num = 8 + maxMembers + 1;
+    sheet.getRange(currRow, 9).setFormula(
+      '=IF(OR($A' + currRow + '="",$H$' + totRow1Num + '=0),"",H' + currRow + '/$H$' + totRow1Num + ')'
+    )
+    .setNumberFormat("0.0%")
+    .setBackground(bg)
+    .setFontColor("#1E293B")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+    currRow++;
+  }
+  
+  // Total Row Table 1
+  var totRow1 = currRow;
+  sheet.setRowHeight(totRow1, 22);
+  sheet.getRange(totRow1, 1).setValue("TOTAL")
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#0D2744")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+  for (var g = 2; g <= 7; g++) {
+    var gradeNum = g + 4;
+    sheet.getRange(totRow1, g).setFormula(
+      '=SUMPRODUCT(' +
+      '(ISNUMBER(SEARCH("' + gradeNum + '", ' + ml + '!$G:$G))) * ' +
+      '(' + ml + '!$E:$E>=IF(ISBLANK($B$5),0,$B$5)) * ' +
+      '(' + ml + '!$E:$E<=IF(ISBLANK($D$5),99999,$D$5))' +
+      ')'
+    )
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#0D2744")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+  }
+  
+  sheet.getRange(totRow1, 8).setFormula(
+    '=COUNTIFS(' +
+    ml + '!$D:$D,"<>",' +
+    ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' +
+    ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)' +
+    ')'
+  )
+  .setFontColor("#FFFFFF")
+  .setFontWeight("bold")
+  .setBackground("#0D2744")
+  .setHorizontalAlignment("center")
+  .setVerticalAlignment("middle")
+  .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+  
+  sheet.getRange(totRow1, 9).setValue(1.0)
+    .setNumberFormat("0.0%")
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#0D2744")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+
+  // ---------------------------------------------------------------------------
+  // TABLE 2: PAID LEADS BY MEMBER & GRADE
+  // ---------------------------------------------------------------------------
+  var startRow2 = totRow1 + 3;
+  sheet.getRange(startRow2, 1).setValue("TABLE 2: PAID LEADS BY MEMBER & GRADE")
+    .setFontColor("#166534")
+    .setFontWeight("bold")
+    .setFontSize(11);
+    
+  var hRow2 = startRow2 + 1;
+  sheet.setRowHeight(hRow2, 24);
+  var t2Headers = ["Assigned Member", "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Total Paid", "Paid Share %", "Conversion %"];
+  for (var c = 1; c <= 10; c++) {
+    var cell = sheet.getRange(hRow2, c);
+    cell.setValue(t2Headers[c-1])
+      .setBackground((c === 1 || c >= 8) ? "#166534" : "#134E4A")
+      .setFontColor("#FFFFFF")
+      .setFontWeight("bold")
+      .setFontSize(9)
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, "#166534", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  }
+  
+  currRow = hRow2 + 1;
+  var totRow2Num = hRow2 + maxMembers + 1;
+  
+  for (var i = 0; i < maxMembers; i++) {
+    sheet.setRowHeight(currRow, 20);
+    var bg = (i % 2 === 0) ? "#FFFFFF" : "#F1F5F9";
+    
+    // Member Name (Col A)
+    sheet.getRange(currRow, 1).setFormula('=IF(INDEX(Members!$A:$A,' + (i+2) + ')="","",INDEX(Members!$A:$A,' + (i+2) + '))')
+      .setFontWeight("bold")
+      .setFontColor("#1E293B")
+      .setBackground(bg)
+      .setHorizontalAlignment("left")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+      
+    // Grades (Cols B-G / 2-7)
+    for (var g = 2; g <= 7; g++) {
+      var gradeNum = g + 4;
+      sheet.getRange(currRow, g).setFormula(
+        '=IF($A' + currRow + '="","",SUMPRODUCT(' +
+        '(' + ml + '!$D:$D=$A' + currRow + ') * ' +
+        '(ISNUMBER(SEARCH("' + gradeNum + '", ' + ml + '!$P:$P))) * ' +
+        '(' + ml + '!$O:$O="Yes") * ' +
+        '(' + ml + '!$E:$E>=IF(ISBLANK($B$5),0,$B$5)) * ' +
+        '(' + ml + '!$E:$E<=IF(ISBLANK($D$5),99999,$D$5))' +
+        '))'
+      )
+      .setBackground(bg)
+      .setFontColor("#1E293B")
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    }
+    
+    // Total Paid (Col H / 8)
+    sheet.getRange(currRow, 8).setFormula('=IF($A' + currRow + '="","",SUM(B' + currRow + ':G' + currRow + '))')
+      .setFontWeight("bold")
+      .setFontColor("#166534")
+      .setBackground(bg)
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+      
+    // Paid Share % (Col I / 9)
+    sheet.getRange(currRow, 9).setFormula(
+      '=IF(OR($A' + currRow + '="",$H$' + totRow2Num + '=0),"",H' + currRow + '/$H$' + totRow2Num + ')'
+    )
+    .setNumberFormat("0.0%")
+    .setBackground(bg)
+    .setFontColor("#1E293B")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+    // Conversion % (Col J / 10)
+    var t1Row = currRow - (hRow2 - hRow1);
+    sheet.getRange(currRow, 10).setFormula(
+      '=IF(OR($A' + currRow + '="",H' + t1Row + '=0),"",H' + currRow + '/H' + t1Row + ')'
+    )
+    .setFontWeight("bold")
+    .setNumberFormat("0.0%")
+    .setFontColor("#134E4A")
+    .setBackground(bg)
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+    currRow++;
+  }
+  
+  // Total Row Table 2
+  var totRow2 = currRow;
+  sheet.setRowHeight(totRow2, 22);
+  sheet.getRange(totRow2, 1).setValue("TOTAL PAID")
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#166534")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+  for (var g = 2; g <= 7; g++) {
+    var gradeNum = g + 4;
+    sheet.getRange(totRow2, g).setFormula(
+      '=SUMPRODUCT(' +
+      '(ISNUMBER(SEARCH("' + gradeNum + '", ' + ml + '!$P:$P))) * ' +
+      '(' + ml + '!$O:$O="Yes") * ' +
+      '(' + ml + '!$E:$E>=IF(ISBLANK($B$5),0,$B$5)) * ' +
+      '(' + ml + '!$E:$E<=IF(ISBLANK($D$5),99999,$D$5))' +
+      ')'
+    )
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#166534")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+  }
+  
+  sheet.getRange(totRow2, 8).setFormula('=SUM(B' + totRow2 + ':G' + totRow2 + ')')
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#166534")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+  sheet.getRange(totRow2, 9).setValue(1.0)
+    .setNumberFormat("0.0%")
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#166534")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+  sheet.getRange(totRow2, 10).setFormula('=IF(H' + totRow1 + '=0,"",H' + totRow2 + '/H' + totRow1 + ')')
+    .setNumberFormat("0.0%")
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#166534")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+
+  // ---------------------------------------------------------------------------
+  // TABLE 3: UNRESOLVED / PIPELINE STATUS BY MEMBER
+  // ---------------------------------------------------------------------------
+  var startRow3 = totRow2 + 3;
+  sheet.getRange(startRow3, 1).setValue("TABLE 3: UNRESOLVED LEADS PIPELINE BY MEMBER")
+    .setFontColor("#C2410C")
+    .setFontWeight("bold")
+    .setFontSize(11);
+    
+  var hRow3 = startRow3 + 1;
+  sheet.setRowHeight(hRow3, 24);
+  var t3Headers = ["Assigned Member", "New Leads", "Contacted", "No Answer", "Interested", "Other Pending", "Total Unresolved", "Unresolved %", "Actionable Rate", ""];
+  for (var c = 1; c <= 9; c++) {
+    var cell = sheet.getRange(hRow3, c);
+    cell.setValue(t3Headers[c-1])
+      .setBackground((c === 1 || c >= 7) ? "#C2410C" : "#EA580C")
+      .setFontColor("#FFFFFF")
+      .setFontWeight("bold")
+      .setFontSize(9)
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, "#C2410C", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  }
+  
+  currRow = hRow3 + 1;
+  var totRow3Num = hRow3 + maxMembers + 1;
+  
+  for (var i = 0; i < maxMembers; i++) {
+    sheet.setRowHeight(currRow, 20);
+    var bg = (i % 2 === 0) ? "#FFFFFF" : "#F1F5F9";
+    
+    sheet.getRange(currRow, 1).setFormula('=IF(INDEX(Members!$A:$A,' + (i+2) + ')="","",INDEX(Members!$A:$A,' + (i+2) + '))')
+      .setFontWeight("bold")
+      .setFontColor("#1E293B")
+      .setBackground(bg)
+      .setHorizontalAlignment("left")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+      
+    sheet.getRange(currRow, 2).setFormula('=IF($A' + currRow + '="","",COUNTIFS(' + ml + '!$D:$D,$A' + currRow + ',' + ml + '!$F:$F,"New",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)))');
+    sheet.getRange(currRow, 3).setFormula('=IF($A' + currRow + '="","",COUNTIFS(' + ml + '!$D:$D,$A' + currRow + ',' + ml + '!$F:$F,"Contacted",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)))');
+    sheet.getRange(currRow, 4).setFormula('=IF($A' + currRow + '="","",COUNTIFS(' + ml + '!$D:$D,$A' + currRow + ',' + ml + '!$F:$F,"No Answer",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)))');
+    sheet.getRange(currRow, 5).setFormula('=IF($A' + currRow + '="","",COUNTIFS(' + ml + '!$D:$D,$A' + currRow + ',' + ml + '!$F:$F,"Interested",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)))');
+    
+    // Other Pending
+    sheet.getRange(currRow, 6).setFormula(
+      '=IF($A' + currRow + '="","",COUNTIFS(' + ml + '!$D:$D,$A' + currRow + ',' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)) - ' +
+      'COUNTIFS(' + ml + '!$D:$D,$A' + currRow + ',' + ml + '!$F:$F,"Converted",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)) - ' +
+      'COUNTIFS(' + ml + '!$D:$D,$A' + currRow + ',' + ml + '!$F:$F,"Not Interested",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)) - ' +
+      'COUNTIFS(' + ml + '!$D:$D,$A' + currRow + ',' + ml + '!$F:$F,"Off",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)) - ' +
+      'COUNTIFS(' + ml + '!$D:$D,$A' + currRow + ',' + ml + '!$F:$F,"Invalid",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)) - ' +
+      'COUNTIFS(' + ml + '!$D:$D,$A' + currRow + ',' + ml + '!$F:$F,"Wrong number",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)) - ' +
+      'B' + currRow + ' - C' + currRow + ' - D' + currRow + ' - E' + currRow + ')'
+    );
+    
+    for (var c = 2; c <= 6; c++) {
+      sheet.getRange(currRow, c)
+        .setBackground(bg)
+        .setFontColor("#1E293B")
+        .setHorizontalAlignment("center")
+        .setVerticalAlignment("middle")
+        .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    }
+    
+    // Total Unresolved
+    sheet.getRange(currRow, 7).setFormula('=IF($A' + currRow + '="","",SUM(B' + currRow + ':F' + currRow + '))')
+      .setFontWeight("bold")
+      .setFontColor("#C2410C")
+      .setBackground(bg)
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+      
+    // Unresolved %
+    var t1Row = currRow - (hRow3 - hRow1);
+    sheet.getRange(currRow, 8).setFormula(
+      '=IF(OR($A' + currRow + '="",H' + t1Row + '=0),"",G' + currRow + '/H' + t1Row + ')'
+    )
+    .setNumberFormat("0.0%")
+    .setBackground(bg)
+    .setFontColor("#1E293B")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+    // Actionable Rate
+    sheet.getRange(currRow, 9).setFormula(
+      '=IF(OR($A' + currRow + '="",H' + t1Row + '=0),"",(B' + currRow + '+E' + currRow + '+F' + currRow + ')/H' + t1Row + ')'
+    )
+    .setFontWeight("bold")
+    .setNumberFormat("0.0%")
+    .setFontColor("#EA580C")
+    .setBackground(bg)
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+    currRow++;
+  }
+  
+  // Total Row Table 3
+  var totRow3 = currRow;
+  sheet.setRowHeight(totRow3, 22);
+  sheet.getRange(totRow3, 1).setValue("TOTAL UNRESOLVED")
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#C2410C")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+  for (var c = 2; c <= 5; c++) {
+    var statusVal = ["New", "Contacted", "No Answer", "Interested"][c-2];
+    sheet.getRange(totRow3, c).setFormula(
+      '=COUNTIFS(' + ml + '!$F:$F,"' + statusVal + '",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5))'
+    )
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#C2410C")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+  }
+  
+  // Other Pending Total
+  sheet.getRange(totRow3, 6).setFormula(
+    '=H' + totRow1 + ' - COUNTIFS(' + ml + '!$F:$F,"Converted",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)) - ' +
+    'COUNTIFS(' + ml + '!$F:$F,"Not Interested",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)) - ' +
+    'COUNTIFS(' + ml + '!$F:$F,"Off",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)) - ' +
+    'COUNTIFS(' + ml + '!$F:$F,"Invalid",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)) - ' +
+    'COUNTIFS(' + ml + '!$F:$F,"Wrong number",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5)) - ' +
+    'SUM(B' + totRow3 + ':E' + totRow3 + ')'
+  )
+  .setFontColor("#FFFFFF")
+  .setFontWeight("bold")
+  .setBackground("#C2410C")
+  .setHorizontalAlignment("center")
+  .setVerticalAlignment("middle")
+  .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+  
+  sheet.getRange(totRow3, 7).setFormula('=SUM(B' + totRow3 + ':F' + totRow3 + ')')
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#C2410C")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+  sheet.getRange(totRow3, 8).setFormula('=IF(H' + totRow1 + '=0,"",G' + totRow3 + '/H' + totRow1 + ')')
+    .setNumberFormat("0.0%")
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#C2410C")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+  sheet.getRange(totRow3, 9).setFormula('=IF(H' + totRow1 + '=0,"",(B' + totRow3 + '+E' + totRow3 + '+F' + totRow3 + ')/H' + totRow1 + ')')
+    .setNumberFormat("0.0%")
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#C2410C")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+
+  // ---------------------------------------------------------------------------
+  // TABLE 4: CAMPAIGN ROI & PERFORMANCE
+  // ---------------------------------------------------------------------------
+  var startRow4 = totRow3 + 3;
+  sheet.getRange(startRow4, 1).setValue("TABLE 4: CAMPAIGN ROI & PERFORMANCE MATRIX")
+    .setFontColor("#312E81")
+    .setFontWeight("bold")
+    .setFontSize(11);
+    
+  var hRow4 = startRow4 + 1;
+  sheet.setRowHeight(hRow4, 24);
+  var t4Headers = ["Campaign / Boost", "Total Leads", "Converted", "Paid Students", "Not Interested", "Active Pipeline", "Conversion %", "Paid Share %", "", ""];
+  for (var c = 1; c <= 8; c++) {
+    var cell = sheet.getRange(hRow4, c);
+    cell.setValue(t4Headers[c-1])
+      .setBackground((c === 1 || c === 2 || c >= 7) ? "#312E81" : "#0284C7")
+      .setFontColor("#FFFFFF")
+      .setFontWeight("bold")
+      .setFontSize(9)
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, "#312E81", SpreadsheetApp.BorderStyle.SOLID_MEDIUM);
+  }
+  
+  // Extract unique campaign names dynamically from Master Leads Col I (9)
+  var mlSheet = getSheet_(MASTER_SHEET);
+  var mlLastRow = mlSheet.getLastRow();
+  var campaigns = [];
+  if (mlLastRow >= 2) {
+    var rawCamps = mlSheet.getRange(2, 9, mlLastRow - 1, 1).getValues();
+    var campMap = {};
+    for (var r = 0; r < rawCamps.length; r++) {
+      var cName = String(rawCamps[r][0]).trim();
+      if (cName !== "" && !campMap.hasOwnProperty(cName)) {
+        campMap[cName] = true;
+        campaigns.push(cName);
+      }
+    }
+    campaigns.sort();
+  }
+  if (campaigns.length === 0) {
+    campaigns = ["(none)"];
+  }
+  currRow = hRow4 + 1;
+  var totRow4Num = hRow4 + campaigns.length + 1;
+  
+  for (var ci = 0; ci < campaigns.length; ci++) {
+    sheet.setRowHeight(currRow, 20);
+    var bg = (ci % 2 === 0) ? "#FFFFFF" : "#F1F5F9";
+    var camp = campaigns[ci];
+    
+    sheet.getRange(currRow, 1).setValue(camp)
+      .setFontWeight("bold")
+      .setFontColor("#1E293B")
+      .setBackground(bg)
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+      
+    sheet.getRange(currRow, 2).setFormula('=COUNTIFS(' + ml + '!$I:$I,"' + camp + '",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5))');
+    sheet.getRange(currRow, 3).setFormula('=COUNTIFS(' + ml + '!$I:$I,"' + camp + '",' + ml + '!$F:$F,"Converted",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5))');
+    sheet.getRange(currRow, 4).setFormula('=COUNTIFS(' + ml + '!$I:$I,"' + camp + '",' + ml + '!$O:$O,"Yes",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5))');
+    sheet.getRange(currRow, 5).setFormula('=COUNTIFS(' + ml + '!$I:$I,"' + camp + '",' + ml + '!$F:$F,"Not Interested",' + ml + '!$E:$E,">="&IF(ISBLANK($B$5),0,$B$5),' + ml + '!$E:$E,"<="&IF(ISBLANK($D$5),99999,$D$5))');
+    sheet.getRange(currRow, 6).setFormula('=B' + currRow + ' - C' + currRow + ' - E' + currRow);
+    
+    for (var c = 2; c <= 6; c++) {
+      sheet.getRange(currRow, c)
+        .setBackground(bg)
+        .setFontColor("#1E293B")
+        .setHorizontalAlignment("center")
+        .setVerticalAlignment("middle")
+        .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    }
+    
+    // Conv %
+    sheet.getRange(currRow, 7).setFormula('=IF(B' + currRow + '=0,"",C' + currRow + '/B' + currRow + ')')
+      .setFontWeight("bold")
+      .setNumberFormat("0.0%")
+      .setFontColor("#134E4A")
+      .setBackground(bg)
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+      
+    // Paid Share %
+    sheet.getRange(currRow, 8).setFormula('=IF(OR(B' + currRow + '=0,$D$' + totRow4Num + '=0),"",D' + currRow + '/$D$' + totRow4Num + ')')
+      .setNumberFormat("0.0%")
+      .setBackground(bg)
+      .setFontColor("#1E293B")
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+      
+    currRow++;
+  }
+  
+  // Total Row Table 4
+  var totRow4 = currRow;
+  sheet.setRowHeight(totRow4, 22);
+  sheet.getRange(totRow4, 1).setValue("TOTAL CAMPAIGN")
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#312E81")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+  for (var c = 2; c <= 6; c++) {
+    var colLetter = String.fromCharCode(64 + c);
+    sheet.getRange(totRow4, c).setFormula('=SUM(' + colLetter + (hRow4 + 1) + ':' + colLetter + (totRow4 - 1) + ')')
+      .setFontColor("#FFFFFF")
+      .setFontWeight("bold")
+      .setBackground("#312E81")
+      .setHorizontalAlignment("center")
+      .setVerticalAlignment("middle")
+      .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+  }
+  
+  sheet.getRange(totRow4, 7).setFormula('=IF(B' + totRow4 + '=0,"",C' + totRow4 + '/B' + totRow4 + ')')
+    .setNumberFormat("0.0%")
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#312E81")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+    
+  sheet.getRange(totRow4, 8).setValue(1.0)
+    .setNumberFormat("0.0%")
+    .setFontColor("#FFFFFF")
+    .setFontWeight("bold")
+    .setBackground("#312E81")
+    .setHorizontalAlignment("center")
+    .setVerticalAlignment("middle")
+    .setBorder(true, true, true, true, false, false, thinGray, borderStyle);
+
+  // Auto-alert
+  SpreadsheetApp.getUi().alert("Rebuilt", "Leads Summary sheet successfully rebuilt with robust INDEX formulas!", SpreadsheetApp.getUi().ButtonSet.OK);
+}
+
+// =============================================================================
+//  WEB APP API  (doGet / doPost)
+//  Deploy via: Extensions › Apps Script › Deploy › New deployment › Web App
+//  Execute as: Me   |  Who has access: Anyone
+// =============================================================================
+
+/**
+ * doGet — All API operations (GET avoids CORS preflight issues)
+ *   ?action=getMembers                      → { members: [...] }
+ *   ?action=getLeads&member=Ama             → { leads:[...], total:N }
+ *   ?action=updateLead&fcode=F01025&...     → { success: true }
+ *   ?action=deleteLead&fcode=F01025         → { success: true }
+ */
+function doGet(e) {
+  var action = (e && e.parameter && e.parameter.action) ? e.parameter.action : "getLeads";
+
+  // ── Return Members list ───────────────────────────────────────────
+  if (action === "getMembers") {
+    var members = getMembersList_();
+    return jsonResponse_({ members: members });
+  }
+
+  // ── UPDATE LEAD ───────────────────────────────────────────────────
+  if (action === "updateLead") {
+    var fcode = String(e.parameter.fcode || "").trim();
+    if (!fcode) return jsonResponse_({ success: false, error: "F-Code required" });
+    var sheet   = getSheet_(MASTER_SHEET);
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return jsonResponse_({ success: false, error: "Sheet is empty" });
+    var fcodeCol = sheet.getRange(2, 3, lastRow - 1, 1).getValues();
+    var targetRow = -1;
+    for (var i = 0; i < fcodeCol.length; i++) {
+      if (String(fcodeCol[i][0]).trim() === fcode) { targetRow = i + 2; break; }
+    }
+    if (targetRow === -1) return jsonResponse_({ success: false, error: "F-Code not found: " + fcode });
+    var p = e.parameter;
+    if (p.member)          sheet.getRange(targetRow, 4).setValue(p.member);
+    if (p.status)          sheet.getRange(targetRow, 6).setValue(p.status);
+    if (typeof p.grade   !== "undefined") sheet.getRange(targetRow, 7).setValue(p.grade);
+    if (typeof p.comments !== "undefined") sheet.getRange(targetRow, 8).setValue(p.comments);
+    if (typeof p.campaign !== "undefined") sheet.getRange(targetRow, 9).setValue(p.campaign);
+    if (typeof p.secondCallDone  !== "undefined") sheet.getRange(targetRow, 13).setValue(p.secondCallDone);
+    if (typeof p.secondCallNotes !== "undefined") sheet.getRange(targetRow, 14).setValue(p.secondCallNotes);
+    return jsonResponse_({ success: true, action: "updated", fcode: fcode, updatedRow: targetRow });
+  }
+
+  // ── DELETE LEAD ───────────────────────────────────────────────────
+  if (action === "deleteLead") {
+    var fcode = String(e.parameter.fcode || "").trim();
+    if (!fcode) return jsonResponse_({ success: false, error: "F-Code required" });
+    var sheet   = getSheet_(MASTER_SHEET);
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return jsonResponse_({ success: false, error: "Sheet is empty" });
+    var fcodeCol = sheet.getRange(2, 3, lastRow - 1, 1).getValues();
+    var targetRow = -1;
+    for (var i = 0; i < fcodeCol.length; i++) {
+      if (String(fcodeCol[i][0]).trim() === fcode) { targetRow = i + 2; break; }
+    }
+    if (targetRow === -1) return jsonResponse_({ success: false, error: "F-Code not found: " + fcode });
+    sheet.deleteRow(targetRow);
+    return jsonResponse_({ success: true, action: "deleted", fcode: fcode });
+  }
+
+  // ── Return Leads (filtered by member or all) ──────────────────────
+  var member  = (e && e.parameter && e.parameter.member) ? String(e.parameter.member).trim() : "";
+  var sheet   = getSheet_(MASTER_SHEET);
+  var lastRow = sheet.getLastRow();
+
+  if (lastRow < 2) return jsonResponse_({ leads: [], total: 0 });
+
+  var data  = sheet.getRange(2, 1, lastRow - 1, 16).getValues();
+  var leads = [];
+
+  for (var i = 0; i < data.length; i++) {
+    var row            = data[i];
+    var fcode          = String(row[2]).trim();   // Col C
+    var assignedMember = String(row[3]).trim();   // Col D
+
+    if (!fcode) continue;  // skip rows with no F-Code
+    if (member && assignedMember.toLowerCase() !== member.toLowerCase()) continue;
+
+    // Fast date format without heavy Utilities.formatDate overhead
+    var rawDate = row[4];
+    var dateStr = "";
+    if (rawDate instanceof Date && !isNaN(rawDate.getTime())) {
+      dateStr = rawDate.getFullYear() + "-" + ("0" + (rawDate.getMonth() + 1)).slice(-2) + "-" + ("0" + rawDate.getDate()).slice(-2);
+    } else if (rawDate) {
+      dateStr = String(rawDate).split("T")[0];
+    }
+
+    leads.push({
+      rowIndex:        i + 2,
+      phone:           row[0] ? String(row[0]) : "",
+      rawPhone:        row[1] ? String(row[1]) : "",
+      fcode:           fcode,
+      member:          assignedMember,
+      date:            dateStr,
+      status:          row[5] ? String(row[5]) : "",
+      grade:           row[6] ? String(row[6]) : "",
+      comments:        row[7] ? String(row[7]) : "",
+      campaign:        row[8] ? String(row[8]) : "",
+      secondCallDone:  row[12] ? String(row[12]) : "",
+      secondCallNotes: row[13] ? String(row[13]) : ""
+    });
+  }
+
+  return jsonResponse_({ leads: leads, total: leads.length });
+}
+
+/**
+ * doPost — Full CRUD operations on a lead row
+ *   action: "updateLead"  → update any field(s) on the lead
+ *   action: "deleteLead"  → permanently delete the lead row from Master Leads
+ *
+ *   updateLead payload fields (all optional except fcode):
+ *     fcode, status, member, grade, comments, campaign, secondCallDone, secondCallNotes
+ *
+ *   deleteLead payload:
+ *     { action: "deleteLead", fcode: "F01025" }
+ */
+function doPost(e) {
+  try {
+    var payload = JSON.parse(e.postData.contents);
+    var action  = payload.action || "";
+    var fcode   = String(payload.fcode || "").trim();
+
+    if (!fcode) return jsonResponse_({ success: false, error: "F-Code required" });
+
+    var sheet   = getSheet_(MASTER_SHEET);
+    var lastRow = sheet.getLastRow();
+    if (lastRow < 2) return jsonResponse_({ success: false, error: "Sheet is empty" });
+
+    // ── Find the row by F-Code (Col C = col 3) ─────────────────────
+    var fcodeData = sheet.getRange(2, 3, lastRow - 1, 1).getValues();
+    var targetRow = -1;
+    for (var i = 0; i < fcodeData.length; i++) {
+      if (String(fcodeData[i][0]).trim() === fcode) {
+        targetRow = i + 2;
+        break;
+      }
+    }
+    if (targetRow === -1) return jsonResponse_({ success: false, error: "F-Code not found: " + fcode });
+
+    // ── DELETE ──────────────────────────────────────────────────────
+    if (action === "deleteLead") {
+      sheet.deleteRow(targetRow);
+      return jsonResponse_({ success: true, action: "deleted", fcode: fcode });
+    }
+
+    // ── UPDATE ──────────────────────────────────────────────────────
+    if (action === "updateLead") {
+      // Col D (4) : Assigned Member
+      if (typeof payload.member !== "undefined" && payload.member !== "") {
+        sheet.getRange(targetRow, 4).setValue(payload.member);
+      }
+      // Col F (6) : Status
+      if (typeof payload.status !== "undefined" && payload.status !== "") {
+        sheet.getRange(targetRow, 6).setValue(payload.status);
+      }
+      // Col G (7) : Grade
+      if (typeof payload.grade !== "undefined") {
+        sheet.getRange(targetRow, 7).setValue(payload.grade);
+      }
+      // Col H (8) : Comments
+      if (typeof payload.comments !== "undefined") {
+        sheet.getRange(targetRow, 8).setValue(payload.comments);
+      }
+      // Col I (9) : Campaign / Boost
+      if (typeof payload.campaign !== "undefined") {
+        sheet.getRange(targetRow, 9).setValue(payload.campaign);
+      }
+      // Col M (13) : Second Call Done
+      if (typeof payload.secondCallDone !== "undefined") {
+        sheet.getRange(targetRow, 13).setValue(payload.secondCallDone);
+      }
+      // Col N (14) : Second Call Notes
+      if (typeof payload.secondCallNotes !== "undefined") {
+        sheet.getRange(targetRow, 14).setValue(payload.secondCallNotes);
+      }
+      return jsonResponse_({ success: true, action: "updated", fcode: fcode, updatedRow: targetRow });
+    }
+
+    return jsonResponse_({ success: false, error: "Unknown action: " + action });
+
+  } catch (err) {
+    return jsonResponse_({ success: false, error: err.message });
+  }
+}
+
+/** Helper — wrap data as JSON ContentService response */
+function jsonResponse_(data) {
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}

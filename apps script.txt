@@ -1,0 +1,300 @@
+/**
+ * LEAD MANAGEMENT TOOLS (v8)
+ * Paste this entire file into: Extensions > Apps Script (in your Google Sheet)
+ * Then reload the sheet. A "Lead Tools" menu will appear.
+ *
+ * SHEET NAMES THIS SCRIPT EXPECTS (must match exactly):
+ *   "Master Leads"   - the central lead list
+ *   "Members"        - list of member names
+ *
+ * MASTER LEADS COLUMNS (A to N):
+ *   A: Phone (Normalized, live formula) B: Raw Phone   C: F-Code
+ *   D: Assigned Member   E: Date Added   F: Status
+ *   G: Grade   H: Comments   I: Second Call Done   J: Second Call Notes
+ *   K: Duplicate Check (formula, phone + campaign combo, leave as is)
+ *   L: Campaign / Boost Name
+ *   M: Repeat Student? (formula, leave as is)
+ *   N: Previous F-Code if repeat (formula, leave as is)
+ *
+ * *** THE FIX IN THIS VERSION ***
+ * F-Code is now UNIQUE PER PHONE NUMBER, PERMANENTLY. Before adding a new
+ * row, the script checks column A for this phone number. If it has been
+ * seen before (any earlier row, any campaign), it REUSES that same F-code
+ * instead of generating a new one. A brand new F-code is only ever created
+ * the first time a phone number is seen.
+ *
+ * DUPLICATE LOGIC (unchanged):
+ *   Same phone + same campaign already logged  -> TRUE duplicate, blocked.
+ *   Same phone + a DIFFERENT/new campaign       -> allowed as a new row
+ *     (returning student, new enquiry), tagged "Repeat Student", SAME F-code reused.
+ */
+
+const SHEET_NAME = "Master Leads";
+const CODE_PREFIX = "F";
+const CODE_DIGITS = 5; // F00001, F00002, ...
+
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu("Lead Tools")
+    .addItem("Add New Lead", "addNewLead")
+    .addItem("Look Up a Number", "lookUpNumber")
+    .addToUi();
+}
+
+/**
+ * SAFETY NET: runs automatically whenever anyone types directly into column B
+ * (Raw Phone), whether or not they used the "Add New Lead" menu. Fills in the
+ * F-Code the same way the menu does: reuse if this number exists elsewhere,
+ * otherwise generate the next new code. Never overwrites a code that's
+ * already there.
+ */
+function onEdit(e) {
+  try {
+    var range = e.range;
+    var sheet = range.getSheet();
+    if (sheet.getName() !== SHEET_NAME) return;
+    if (range.getColumn() !== 2) return; // only react to edits in column B (Raw Phone)
+    var row = range.getRow();
+    if (row < 2) return;
+
+    var rawPhone = sheet.getRange(row, 2).getValue();
+    if (!rawPhone) return; // cell was cleared, nothing to fill
+
+    var fcodeCell = sheet.getRange(row, 3);
+    if (fcodeCell.getValue()) return; // already has a code - never overwrite
+
+    var normalized = normalizePhone(String(rawPhone));
+    if (normalized.length < 9) return; // number looks incomplete, wait for a full entry
+
+    var lastRow = sheet.getLastRow();
+    var existingCode = null;
+    if (lastRow >= 2) {
+      var data = sheet.getRange(2, 1, lastRow - 1, 3).getValues(); // A, B, C
+      for (var i = 0; i < data.length; i++) {
+        var rowNum = i + 2;
+        if (rowNum === row) continue;
+        if (String(data[i][0]) === normalized && data[i][2]) {
+          existingCode = data[i][2];
+          break;
+        }
+      }
+    }
+
+    fcodeCell.setValue(existingCode || nextCode_(sheet));
+
+    // Auto-fill Date Added (column E) too, if it's still blank
+    var dateCell = sheet.getRange(row, 5);
+    if (!dateCell.getValue()) {
+      dateCell.setValue(new Date());
+    }
+  } catch (err) {
+    // Never let this block normal typing - fail silently
+  }
+}
+
+/** Strip spaces/dashes/+ and country code, return a 9-digit normalized key */
+function normalizePhone(raw) {
+  if (!raw) return "";
+  var digits = String(raw).replace(/\D/g, "");
+  if (digits.length === 11 && digits.substring(0, 2) === "94") digits = digits.substring(2);
+  if (digits.length === 10 && digits.charAt(0) === "0") digits = digits.substring(1);
+  return digits;
+}
+
+function getSheetData_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(SHEET_NAME);
+  if (!sheet) throw new Error('Sheet "' + SHEET_NAME + '" not found.');
+  return sheet;
+}
+
+/** Every existing row for a normalized phone number, across all campaigns, with full details */
+function findAllForPhone_(sheet, normalized) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2 || !normalized) return [];
+  var data = sheet.getRange(2, 1, lastRow - 1, 14).getValues(); // A:N
+  var matches = [];
+  for (var i = 0; i < data.length; i++) {
+    if (String(data[i][0]) === normalized) {
+      matches.push({
+        row: i + 2,
+        code: data[i][2],
+        member: data[i][3],
+        dateAdded: data[i][4],
+        status: data[i][5],
+        grade: data[i][6],
+        comments: data[i][7],
+        secondCallDone: data[i][8],
+        secondCallNotes: data[i][9],
+        campaign: data[i][11],
+        repeat: data[i][12]
+      });
+    }
+  }
+  return matches;
+}
+
+/** Work out the next brand-new sequential F-code by scanning column C */
+function nextCode_(sheet) {
+  var lastRow = sheet.getLastRow();
+  var maxNum = 0;
+  if (lastRow >= 2) {
+    var codes = sheet.getRange(2, 3, lastRow - 1, 1).getValues();
+    codes.forEach(function (r) {
+      var m = String(r[0] || "").match(/(\d+)/);
+      if (m) { var n = parseInt(m[1], 10); if (n > maxNum) maxNum = n; }
+    });
+  }
+  return CODE_PREFIX + String(maxNum + 1).padStart(CODE_DIGITS, "0");
+}
+
+/**
+ * Gets the F-code to use for this phone number: reuses the existing one if
+ * this number has been seen before (in ANY previous row/campaign), otherwise
+ * generates a brand new one. This is what makes F-codes unique per number.
+ */
+function getFCodeForPhone_(sheet, normalized, existingMatches) {
+  if (existingMatches.length > 0) {
+    return { code: existingMatches[0].code, isNew: false };
+  }
+  return { code: nextCode_(sheet), isNew: true };
+}
+
+/** Sets formulas for columns A (normalize), K (dup check), M:N (repeat-student) for a new row */
+function fillFormulaColumns_(sheet, newRow) {
+  sheet.getRange(newRow, 1).setFormula(
+    '=IF(B' + newRow + '="","",RIGHT(REGEXREPLACE(B' + newRow + '&"","[^0-9]",""),9))'
+  );
+  sheet.getRange(newRow, 11).setFormula(
+    '=IF(COUNTIFS($A$2:A' + newRow + ',A' + newRow + ',$L$2:L' + newRow + ',L' + newRow + ')>1,"DUPLICATE - CHECK","")'
+  );
+  if (newRow < 3) {
+    sheet.getRange(newRow, 13).setValue("No");
+    sheet.getRange(newRow, 14).setValue("");
+  } else {
+    sheet.getRange(newRow, 13).setFormula(
+      '=IF(COUNTIF($A$2:A' + (newRow - 1) + ',A' + newRow + ')>0,"Yes - see Previous F-Code","No")'
+    );
+    sheet.getRange(newRow, 14).setFormula(
+      '=IF(COUNTIF($A$2:A' + (newRow - 1) + ',A' + newRow + ')>0,INDEX($C$2:C' + (newRow - 1) + ',MATCH(A' + newRow + ',$A$2:A' + (newRow - 1) + ',0)),"")'
+    );
+  }
+}
+
+/** Main entry point: menu button "Add New Lead" */
+function addNewLead() {
+  var ui = SpreadsheetApp.getUi();
+  var sheet = getSheetData_();
+
+  var phoneResp = ui.prompt("Add New Lead", "Enter the phone number:", ui.ButtonSet.OK_CANCEL);
+  if (phoneResp.getSelectedButton() !== ui.Button.OK) return;
+  var rawPhone = phoneResp.getResponseText().trim();
+  if (!rawPhone) { ui.alert("No number entered. Cancelled."); return; }
+
+  var normalized = normalizePhone(rawPhone);
+  if (normalized.length < 9) {
+    ui.alert("That number doesn't look complete after cleanup (" + normalized + "). Please check it and try again.");
+    return;
+  }
+
+  var campaignResp = ui.prompt("Add New Lead", "Campaign / Boost name this lead came from:", ui.ButtonSet.OK_CANCEL);
+  if (campaignResp.getSelectedButton() !== ui.Button.OK) return;
+  var campaign = campaignResp.getResponseText().trim();
+  if (!campaign) { ui.alert("No campaign entered. Cancelled."); return; }
+
+  var matches = findAllForPhone_(sheet, normalized);
+  var sameCampaignMatch = matches.filter(function (m) { return String(m.campaign).trim() === campaign; })[0];
+
+  if (sameCampaignMatch) {
+    ui.alert(
+      "Already in the system",
+      "This number is already logged under the SAME campaign (\"" + campaign + "\"):\n\n" +
+      "F-Code: " + sameCampaignMatch.code +
+      "\nHandled by: " + sameCampaignMatch.member +
+      "\nRow: " + sameCampaignMatch.row +
+      "\n\nThis is a true duplicate. No new row was created.",
+      ui.ButtonSet.OK
+    );
+    return;
+  }
+
+  var isRepeat = matches.length > 0;
+  if (isRepeat) {
+    var history = matches.map(function (m) {
+      return "F-Code " + m.code + " (" + (m.campaign || "no campaign recorded") + ") - handled by " + m.member;
+    }).join("\n");
+    var proceedResp = ui.alert(
+      "Returning student",
+      "This number has been contacted before, under a different campaign:\n\n" + history +
+      "\n\nThis looks like a NEW enquiry (\"" + campaign + "\"). Their existing F-code (" + matches[0].code +
+      ") will be reused - continue?",
+      ui.ButtonSet.YES_NO
+    );
+    if (proceedResp !== ui.Button.YES) return;
+  }
+
+  var memberResp = ui.prompt("Add New Lead", "Your name (as it appears in the Members tab):", ui.ButtonSet.OK_CANCEL);
+  if (memberResp.getSelectedButton() !== ui.Button.OK) return;
+  var member = memberResp.getResponseText().trim();
+  if (!member) { ui.alert("No name entered. Cancelled."); return; }
+
+  // *** THE FIX: reuse F-code if this phone number has been seen before ***
+  var fcodeResult = getFCodeForPhone_(sheet, normalized, matches);
+
+  var lastRow = sheet.getLastRow();
+  var newRow = lastRow + 1;
+
+  sheet.getRange(newRow, 2, 1, 5).setValues([[rawPhone, fcodeResult.code, member, new Date(), "New"]]);
+  sheet.getRange(newRow, 12).setValue(campaign); // column L: Campaign / Boost Name
+
+  fillFormulaColumns_(sheet, newRow);
+
+  ui.alert(
+    "Lead added",
+    "Saved as " + fcodeResult.code + (fcodeResult.isNew ? " (new student)" : " (existing student, code reused)") +
+    " under " + member + (isRepeat ? ". Marked as a repeat student." : "."),
+    ui.ButtonSet.OK
+  );
+}
+
+/** Menu button "Look Up a Number" - shows full call details across every campaign this number has touched */
+function lookUpNumber() {
+  var ui = SpreadsheetApp.getUi();
+  var sheet = getSheetData_();
+
+  var phoneResp = ui.prompt("Look Up a Number", "Enter the phone number to check:", ui.ButtonSet.OK_CANCEL);
+  if (phoneResp.getSelectedButton() !== ui.Button.OK) return;
+  var normalized = normalizePhone(phoneResp.getResponseText().trim());
+  if (normalized.length < 9) {
+    ui.alert("That number doesn't look complete (" + normalized + "). Please check it and try again.");
+    return;
+  }
+
+  var matches = findAllForPhone_(sheet, normalized);
+  if (matches.length === 0) {
+    ui.alert("Not found", "This number is not yet in the system - safe to add as a new lead.", ui.ButtonSet.OK);
+    return;
+  }
+
+  var blocks = matches.map(function (m) {
+    var dateStr = m.dateAdded ? Utilities.formatDate(new Date(m.dateAdded), Session.getScriptTimeZone(), "yyyy-MM-dd") : "-";
+    return (
+      "F-Code: " + m.code + "\n" +
+      "Assigned Member (handling this call): " + m.member + "\n" +
+      "Campaign: " + (m.campaign || "-") + "\n" +
+      "Date Added: " + dateStr + "\n" +
+      "Status: " + (m.status || "-") + "\n" +
+      "Grade: " + (m.grade || "-") + "\n" +
+      "Comments: " + (m.comments || "-") + "\n" +
+      "Second Call Done: " + (m.secondCallDone || "-") + "\n" +
+      "Second Call Notes: " + (m.secondCallNotes || "-") + "\n" +
+      "Repeat Student: " + (m.repeat || "No") + "\n" +
+      "Row: " + m.row
+    );
+  });
+
+  var title = matches.length > 1
+    ? "Found " + matches.length + " records (same F-code throughout)"
+    : "Found";
+  ui.alert(title, blocks.join("\n\n----------\n\n"), ui.ButtonSet.OK);
+}
