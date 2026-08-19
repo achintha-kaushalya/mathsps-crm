@@ -1,5 +1,0 @@
-{
-  "buildCommand": "cd crm-web && npm run build",
-  "outputDirectory": "crm-web/.next",
-  "framework": "nextjs"
-}
