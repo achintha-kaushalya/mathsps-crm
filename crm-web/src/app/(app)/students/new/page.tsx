@@ -472,11 +472,11 @@ export default function NewStudentPage() {
                 })}
               </div>
 
-              {/* Selected Classes Tier Config */}
+              {/* Selected Classes List */}
               {selectedClasses.length > 0 && (
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Selected Courses ({selectedClasses.length}):
+                    Enrolled Courses ({selectedClasses.length}):
                   </div>
                   {selectedClasses.map(c => (
                     <div key={c.class_type} style={{
@@ -488,11 +488,6 @@ export default function NewStudentPage() {
                         {c.label || availableClasses[c.class_type] || c.class_type}
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                        <select className="input-field" style={{ width: 150, padding: '4px 8px', fontSize: 12 }}
-                          value={c.tier} onChange={e => updateClassTier(c.class_type, e.target.value as any)}>
-                          <option value="STANDARD">STANDARD (No Tute)</option>
-                          <option value="PREMIUM">PREMIUM (Tute Delivery)</option>
-                        </select>
                         <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-green)', minWidth: 80, textAlign: 'right' }}>
                           Rs. {c.fee_amount.toLocaleString()}
                         </div>
