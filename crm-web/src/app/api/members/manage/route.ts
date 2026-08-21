@@ -64,6 +64,23 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, member })
     }
 
+    if (action === 'update_permissions') {
+      const body = await request.clone().json()
+      const { permissions } = body // e.g. { allowed_members: string[], can_view_all: boolean }
+
+      const notesStr = JSON.stringify(permissions || { allowed_members: [], can_view_all: false })
+
+      const { data: member, error: dbErr } = await supabaseAdmin
+        .from('members')
+        .update({ notes: notesStr })
+        .eq('id', memberId)
+        .select()
+        .single()
+
+      if (dbErr) throw dbErr
+      return NextResponse.json({ success: true, member })
+    }
+
     if (action === 'reset_password') {
       const { newMemberPassword } = await request.json().catch(() => ({})) || {}
       // We can also extract newMemberPassword from outer scope if parsed

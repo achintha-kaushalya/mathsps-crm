@@ -42,6 +42,8 @@ export default function MasterLeadsSpreadsheet() {
   const [currentMemberName, setCurrentMemberName] = useState<string>('')
   const [userRole, setUserRole] = useState<'member' | 'admin' | 'owner'>('member')
   const [userColor, setUserColor] = useState<string>('#3b82f6')
+  const [allowedMembers, setAllowedMembers] = useState<string[]>([])
+  const [canViewAll, setCanViewAll] = useState<boolean>(false)
 
   // Leads & Grid Data
   const [leads, setLeads] = useState<Lead[]>([])
@@ -52,6 +54,9 @@ export default function MasterLeadsSpreadsheet() {
   const [memberFilter, setMemberFilter] = useState('')
   const [members, setMembers] = useState<string[]>([])
   const [page, setPage] = useState(0)
+
+  // Quick Add Row
+  const [newSecondCallNotes, setNewSecondCallNotes] = useState('')
 
   // Real-Time Multiplayer Presence (Who is editing what cell)
   const [activePresences, setActivePresences] = useState<Record<string, PresenceUser>>({})
@@ -66,7 +71,7 @@ export default function MasterLeadsSpreadsheet() {
   const searchTimeout = useRef<NodeJS.Timeout | undefined>(undefined)
   const isAdmin = userRole === 'admin' || userRole === 'owner' || (currentMemberName && currentMemberName.toLowerCase().includes('admin'))
 
-  // Initialize User Info
+  // Initialize User Info & Permissions
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
@@ -74,8 +79,17 @@ export default function MasterLeadsSpreadsheet() {
         let uRole = user.user_metadata?.role || (user.email?.toLowerCase().includes('admin') ? 'admin' : 'member')
 
         if (user.email) {
-          const { data: dbMem } = await supabase.from('members').select('role').eq('email', user.email).single()
-          if (dbMem?.role) uRole = dbMem.role
+          const { data: dbMem } = await supabase.from('members').select('role, notes').eq('email', user.email).single()
+          if (dbMem) {
+            if (dbMem.role) uRole = dbMem.role
+            try {
+              if (dbMem.notes) {
+                const perms = JSON.parse(dbMem.notes)
+                if (perms.allowed_members) setAllowedMembers(perms.allowed_members)
+                if (perms.can_view_all !== undefined) setCanViewAll(perms.can_view_all)
+              }
+            } catch {}
+          }
         }
 
         if (user.email?.toLowerCase().includes('admin')) {
@@ -100,7 +114,7 @@ export default function MasterLeadsSpreadsheet() {
     return () => {
       if (searchTimeout.current) clearTimeout(searchTimeout.current)
     }
-  }, [search, statusFilter, memberFilter])
+  }, [search, statusFilter, memberFilter, currentMemberName, allowedMembers, canViewAll])
 
   useEffect(() => { loadLeads(page) }, [page])
 
@@ -167,6 +181,12 @@ export default function MasterLeadsSpreadsheet() {
     try {
       let q = supabase.from('leads').select('*', { count: 'exact' })
 
+      // Lead Visibility Restriction for regular staff members
+      if (!isAdmin && !canViewAll && currentMemberName) {
+        const visibleMembers = [currentMemberName, ...allowedMembers]
+        q = q.in('assigned_member', visibleMembers)
+      }
+
       if (search.trim()) {
         const s = search.trim()
         if (s.toUpperCase().startsWith('F')) {
@@ -193,10 +213,11 @@ export default function MasterLeadsSpreadsheet() {
   }
 
   function canEditLead(lead: Lead): boolean {
-    if (userRole === 'admin' || userRole === 'owner') return true
-    if (currentMemberName && (currentMemberName.toLowerCase().includes('admin') || currentMemberName.toLowerCase() === 'admin user')) return true
+    if (isAdmin) return true
+    if (canViewAll) return true
     if (!lead.assigned_member) return true
-    return (lead.assigned_member || '').toLowerCase() === (currentMemberName || '').toLowerCase()
+    const visibleMembers = [currentMemberName, ...allowedMembers].map(m => m.toLowerCase())
+    return visibleMembers.includes((lead.assigned_member || '').toLowerCase())
   }
 
   // Lead Deletion with Modal Confirmation
@@ -340,6 +361,7 @@ export default function MasterLeadsSpreadsheet() {
         grade: newGrade.trim() || null,
         campaign: newCampaign.trim() || 'S26',
         comments: newComment.trim() || null,
+        second_call_notes: newSecondCallNotes.trim() || null,
         repeat_student: isRepeat,
         prev_fcode: prevFcodeStr || null,
       }
@@ -348,25 +370,27 @@ export default function MasterLeadsSpreadsheet() {
       if (error) {
         // Fallback: If duplicate F-Code error occurred, bump F-Code by timestamp
         const fallbackFcode = `F${Date.now().toString().slice(-5)}`
-        const { data: fbData, error: fbErr } = await supabase.from('leads').insert({ ...newLead, fcode: fallbackFcode }).select().single()
-        if (fbErr) throw fbErr
-        if (fbData) setLeads(prev => [fbData, ...prev])
+        const { data: retryData, error: retryErr } = await supabase.from('leads').insert({ ...newLead, fcode: fallbackFcode }).select().single()
+        if (retryErr) throw retryErr
+        setLeads(prev => [retryData, ...prev])
       } else if (insertedData) {
         setLeads(prev => [insertedData, ...prev])
       }
 
-      setNewPhone('')
-      setNewGrade('')
-      setNewComment('')
-
+      // 4. Broadcast instant row creation over active multiplayer channel
       if (channelRef.current) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'lead_created',
-          payload: {}
+          payload: { fcode: targetFcode }
         })
       }
 
+      setTotal(t => t + 1)
+      setNewPhone('')
+      setNewGrade('')
+      setNewComment('')
+      setNewSecondCallNotes('')
       loadLeads(0)
     } catch (err: any) {
       alert(`Error adding lead: ${err.message}`)
@@ -413,9 +437,11 @@ export default function MasterLeadsSpreadsheet() {
           <option value="">All Statuses</option>
           {LEAD_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select className="input-field" style={{ width: 150 }} value={memberFilter} onChange={e => setMemberFilter(e.target.value)}>
-          <option value="">All Members</option>
-          {members.map(m => <option key={m} value={m}>{m}</option>)}
+        <select className="input-field" style={{ width: 160 }} value={memberFilter} onChange={e => setMemberFilter(e.target.value)}>
+          <option value="">{isAdmin || canViewAll ? 'All Members' : 'My Visible Team'}</option>
+          {members
+            .filter(m => isAdmin || canViewAll || [currentMemberName, ...allowedMembers].includes(m))
+            .map(m => <option key={m} value={m}>{m}</option>)}
         </select>
         <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
           Page {page + 1} of {Math.ceil(total / PAGE_SIZE)} ({total.toLocaleString()} total)
@@ -438,6 +464,7 @@ export default function MasterLeadsSpreadsheet() {
               <th style={{ width: 150 }}>Duplicate Check</th>
               <th style={{ width: 70 }}>Repeat?</th>
               <th style={{ width: 60 }}>2nd Call</th>
+              <th style={{ width: 180 }}>2nd Call Note</th>
               <th style={{ width: 50 }}>Paid</th>
               <th>Comments / Call Notes</th>
               <th style={{ width: 45, textAlign: 'center' }}>Action</th>
@@ -481,10 +508,26 @@ export default function MasterLeadsSpreadsheet() {
                   onChange={e => setNewCampaign(e.target.value)}
                 />
               </td>
+              {/* Duplicate Check */}
               <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>Auto Checked</td>
+              {/* Repeat */}
               <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
+              {/* 2nd Call */}
               <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
+              {/* 2nd Call Note */}
+              <td>
+                <input
+                  className="input-field"
+                  style={{ padding: '4px 6px', fontSize: 12, width: '100%' }}
+                  placeholder="2nd call note..."
+                  value={newSecondCallNotes}
+                  onChange={e => setNewSecondCallNotes(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAddNewRow(e)}
+                />
+              </td>
+              {/* Paid */}
               <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
+              {/* Comments + Add button */}
               <td style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                 <input
                   className="input-field"
@@ -503,6 +546,7 @@ export default function MasterLeadsSpreadsheet() {
                   {addingRow ? 'Adding...' : '+ Add Row'}
                 </button>
               </td>
+              <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
             </tr>
 
             {/* DATA ROWS */}
@@ -638,6 +682,16 @@ export default function MasterLeadsSpreadsheet() {
                       editable={editable}
                       checked={lead.second_call_done}
                       onSave={v => saveCell(lead.id, 'second_call_done', v, lead)}
+                    />
+                  </td>
+
+                  {/* 2nd Call Note */}
+                  <td>
+                    <GridCell
+                      editable={editable}
+                      value={lead.second_call_notes || '—'}
+                      onFocus={() => broadcastCellFocus(lead.id, 'second_call_notes')}
+                      onSave={v => saveCell(lead.id, 'second_call_notes', v, lead)}
                     />
                   </td>
 

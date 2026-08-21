@@ -67,10 +67,11 @@ export default function MembersPage() {
 
   // Admin Password Verification Modal State
   const [modalAction, setModalAction] = useState<{
-    type: 'role' | 'active' | 'delete' | 'reset_pwd'
+    type: 'role' | 'active' | 'delete' | 'reset_pwd' | 'permissions'
     member: Member
     newRole?: 'member' | 'admin'
     newActive?: boolean
+    permissions?: { allowed_members: string[]; can_view_all: boolean }
   } | null>(null)
   const [adminPasswordInput, setAdminPasswordInput] = useState('')
   const [newStaffPasswordInput, setNewStaffPasswordInput] = useState('')
@@ -88,6 +89,7 @@ export default function MembersPage() {
       if (modalAction.type === 'active') actionType = 'toggle_active'
       if (modalAction.type === 'delete') actionType = 'delete_member'
       if (modalAction.type === 'reset_pwd') actionType = 'reset_password'
+      if (modalAction.type === 'permissions') actionType = 'update_permissions'
 
       const res = await fetch('/api/members/manage', {
         method: 'POST',
@@ -98,6 +100,7 @@ export default function MembersPage() {
           newRole: modalAction.newRole,
           newActive: modalAction.newActive,
           newMemberPassword: newStaffPasswordInput,
+          permissions: modalAction.permissions,
           adminPassword: adminPasswordInput,
         })
       })
@@ -105,7 +108,13 @@ export default function MembersPage() {
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Operation failed')
 
-      setSuccessMsg(modalAction.type === 'reset_pwd' ? `✓ Successfully reset password for ${modalAction.member.name}!` : `✓ Successfully updated ${modalAction.member.name}!`)
+      setSuccessMsg(
+        modalAction.type === 'reset_pwd'
+          ? `✓ Successfully reset password for ${modalAction.member.name}!`
+          : modalAction.type === 'permissions'
+          ? `✓ Lead visibility permissions updated for ${modalAction.member.name}!`
+          : `✓ Successfully updated ${modalAction.member.name}!`
+      )
       setModalAction(null)
       setAdminPasswordInput('')
       setNewStaffPasswordInput('')
@@ -150,12 +159,21 @@ export default function MembersPage() {
                     <th>Member Name</th>
                     <th>Email Account</th>
                     <th style={{ textAlign: 'center' }}>Role</th>
+                    <th style={{ textAlign: 'center' }}>Lead Visibility (2nd Calls)</th>
                     <th style={{ textAlign: 'center' }}>Active Status</th>
                     <th style={{ textAlign: 'center' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {members.map(m => (
+                  {members.map(m => {
+                    let perms: { allowed_members?: string[]; can_view_all?: boolean } = {}
+                    try {
+                      if (m.notes) perms = JSON.parse(m.notes)
+                    } catch {}
+                    const isAll = perms.can_view_all || m.role === 'admin'
+                    const allowed = perms.allowed_members || []
+
+                    return (
                     <tr key={m.id}>
                       <td style={{ fontWeight: 600 }}>{m.name}</td>
                       <td style={{ color: m.email ? 'var(--text-primary)' : 'var(--accent-orange)', fontSize: 12 }}>
@@ -186,6 +204,36 @@ export default function MembersPage() {
                           <option value="member" style={{ background: '#0d1424', color: '#60a5fa' }}>MEMBER</option>
                           <option value="admin" style={{ background: '#0d1424', color: '#c084fc' }}>ADMIN</option>
                         </select>
+                      </td>
+
+                      {/* Lead Visibility Permission Column */}
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          onClick={() => {
+                            setModalAction({
+                              type: 'permissions',
+                              member: m,
+                              permissions: {
+                                can_view_all: isAll,
+                                allowed_members: allowed
+                              }
+                            })
+                            setAdminPasswordInput('')
+                            setModalError('')
+                          }}
+                          style={{
+                            background: isAll ? 'rgba(59, 130, 246, 0.15)' : allowed.length > 0 ? 'rgba(168, 85, 247, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                            border: `1px solid ${isAll ? '#3b82f6' : allowed.length > 0 ? '#a855f7' : 'var(--border)'}`,
+                            color: isAll ? '#60a5fa' : allowed.length > 0 ? '#c084fc' : 'var(--text-muted)',
+                            padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                            cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
+                            transition: 'all 0.15s'
+                          }}
+                          title="Click to configure which members' assigned leads this user can view"
+                        >
+                          <span>{isAll ? '🌐 All Leads' : allowed.length > 0 ? `👥 Own + ${allowed.length} others` : '🔒 Own leads only'}</span>
+                          <span style={{ fontSize: 10 }}>⚙</span>
+                        </button>
                       </td>
 
                       {/* Clean Flat 2D On/Off Button */}
@@ -271,7 +319,8 @@ export default function MembersPage() {
                         </div>
                       </td>
                     </tr>
-                  ))}
+                    )
+                  })}
                 </tbody>
               </table>
             )}
@@ -409,6 +458,7 @@ export default function MembersPage() {
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                   {modalAction.type === 'role' && `Change role for ${modalAction.member.name} to ${modalAction.newRole?.toUpperCase()}`}
                   {modalAction.type === 'active' && `Toggle active status for ${modalAction.member.name} to ${modalAction.newActive ? 'ACTIVE' : 'INACTIVE'}`}
+                  {modalAction.type === 'permissions' && `Configure lead visibility for ${modalAction.member.name}`}
                   {modalAction.type === 'reset_pwd' && `Set new password for ${modalAction.member.name} (${modalAction.member.email})`}
                   {modalAction.type === 'delete' && `Permanently delete ${modalAction.member.name} from team roster`}
                 </div>
@@ -422,6 +472,83 @@ export default function MembersPage() {
             )}
 
             <form onSubmit={handleConfirmAdminAction}>
+              {modalAction.type === 'permissions' && (
+                <div style={{ marginBottom: 16, background: 'rgba(255,255,255,0.03)', padding: 14, borderRadius: 10, border: '1px solid var(--border)' }}>
+                  <div style={{ marginBottom: 12 }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      <input
+                        type="checkbox"
+                        checked={modalAction.permissions?.can_view_all || false}
+                        onChange={(e) => {
+                          const val = e.target.checked
+                          setModalAction(prev => prev ? {
+                            ...prev,
+                            permissions: {
+                              can_view_all: val,
+                              allowed_members: val ? [] : (prev.permissions?.allowed_members || [])
+                            }
+                          } : null)
+                        }}
+                      />
+                      <span>Allow viewing ALL team leads (Global Access)</span>
+                    </label>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginLeft: 24, marginTop: 2 }}>
+                      If checked, this member can view leads assigned to all team members.
+                    </div>
+                  </div>
+
+                  {!modalAction.permissions?.can_view_all && (
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 8, fontWeight: 700 }}>
+                        Select additional team members whose leads {modalAction.member.name} can view:
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, maxHeight: 150, overflowY: 'auto', paddingRight: 4 }}>
+                        {members
+                          .filter(otherM => otherM.name.toLowerCase() !== modalAction.member.name.toLowerCase())
+                          .map(otherM => {
+                            const isChecked = (modalAction.permissions?.allowed_members || []).includes(otherM.name)
+                            return (
+                              <label
+                                key={otherM.id}
+                                style={{
+                                  display: 'flex', alignItems: 'center', gap: 6,
+                                  fontSize: 12, padding: '4px 8px', borderRadius: 6,
+                                  background: isChecked ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255,255,255,0.02)',
+                                  border: `1px solid ${isChecked ? '#3b82f6' : 'var(--border)'}`,
+                                  cursor: 'pointer', color: isChecked ? '#93c5fd' : 'var(--text-secondary)'
+                                }}
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    const checked = e.target.checked
+                                    setModalAction(prev => {
+                                      if (!prev) return null
+                                      const currentList = prev.permissions?.allowed_members || []
+                                      const updatedList = checked
+                                        ? [...currentList, otherM.name]
+                                        : currentList.filter(n => n !== otherM.name)
+                                      return {
+                                        ...prev,
+                                        permissions: {
+                                          can_view_all: false,
+                                          allowed_members: updatedList
+                                        }
+                                      }
+                                    })
+                                  }}
+                                />
+                                <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{otherM.name}</span>
+                              </label>
+                            )
+                          })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {modalAction.type === 'reset_pwd' && (
                 <div style={{ marginBottom: 14 }}>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
@@ -498,7 +625,15 @@ export default function MembersPage() {
                   disabled={actionLoading}
                   style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  {actionLoading ? 'Verifying...' : modalAction.type === 'delete' ? '🗑 Delete Member' : modalAction.type === 'reset_pwd' ? '🔑 Update Password' : '✓ Confirm & Save'}
+                  {actionLoading
+                    ? 'Verifying...'
+                    : modalAction.type === 'delete'
+                    ? '🗑 Delete Member'
+                    : modalAction.type === 'reset_pwd'
+                    ? '🔑 Update Password'
+                    : modalAction.type === 'permissions'
+                    ? '✓ Save Permissions'
+                    : '✓ Confirm & Save'}
                 </button>
               </div>
             </form>
