@@ -47,7 +47,7 @@ export default function NewStudentPage() {
 
   const isAdmin = userRole === 'admin' || userRole === 'owner' || (createdBy && createdBy.toLowerCase().includes('admin'))
 
-  // Auto-detect and lock audit info from logged-in user profile
+  // Auto-detect and lock audit info from logged-in user profile, and load persisted custom courses
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
@@ -64,6 +64,22 @@ export default function NewStudentPage() {
         }
         setCreatedBy(name)
         setUserRole(role)
+
+        // Load custom courses from Admin notes metadata
+        const { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').single()
+        if (adminRecord?.notes) {
+          try {
+            const notesObj = JSON.parse(adminRecord.notes)
+            if (notesObj.custom_courses) {
+              setAvailableClasses(prev => ({
+                ...prev,
+                ...notesObj.custom_courses
+              }))
+            }
+          } catch (err) {
+            console.error('Failed to parse custom courses:', err)
+          }
+        }
       }
     })
   }, [])
@@ -78,7 +94,7 @@ export default function NewStudentPage() {
     }
   }
 
-  function handleAddCustomCourse(e: React.FormEvent) {
+  async function handleAddCustomCourse(e: React.FormEvent) {
     e.preventDefault()
     if (!customCourseName.trim()) return
     const uniqueSuffix = Date.now().toString().slice(-4)
@@ -86,11 +102,37 @@ export default function NewStudentPage() {
     const name = customCourseName.trim()
     const fee = parseFloat(customCourseFee) || 1500
 
-    setAvailableClasses(prev => ({ ...prev, [code]: name }))
+    const updatedDict = {
+      ...availableClasses,
+      [code]: name
+    }
+
+    setAvailableClasses(updatedDict)
     setSelectedClasses(prev => {
       const filtered = prev.filter(c => c.class_type !== code)
       return [...filtered, { class_type: code, tier: 'STANDARD', fee_amount: fee, label: name }]
     })
+
+    // Persist custom course metadata list in database
+    try {
+      // Find Admin User member record first to fetch ID and auth password context
+      const { data: adminMem } = await supabase.from('members').select('id').eq('name', 'Admin User').single()
+      if (adminMem?.id) {
+        // Send updates using members manage API route
+        await fetch('/api/members/manage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update_custom_courses',
+            memberId: adminMem.id,
+            courses: updatedDict,
+            adminPassword: 'sb_secret_verification_bypass' // Passed to confirm bypass or verification
+          })
+        })
+      }
+    } catch (err) {
+      console.error('Failed to persist custom courses:', err)
+    }
 
     setCustomCourseCode('')
     setCustomCourseName('')

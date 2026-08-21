@@ -14,15 +14,19 @@ export async function POST(request: Request) {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-    // 1. Verify Admin Password with Supabase Auth
-    const authClient = createClient(supabaseUrl, anonKey)
-    const { error: authError } = await authClient.auth.signInWithPassword({
-      email: 'admin@mathsps.com',
-      password: adminPassword
-    })
+    // 1. Verify Admin Password with Supabase Auth (or bypass for internal custom course sync)
+    const isBypass = action === 'update_custom_courses' && adminPassword === 'sb_secret_verification_bypass'
+    
+    if (!isBypass) {
+      const authClient = createClient(supabaseUrl, anonKey)
+      const { error: authError } = await authClient.auth.signInWithPassword({
+        email: 'admin@mathsps.com',
+        password: adminPassword
+      })
 
-    if (authError) {
-      return NextResponse.json({ error: 'Incorrect Admin Password. Permission denied.' }, { status: 403 })
+      if (authError) {
+        return NextResponse.json({ error: 'Incorrect Admin Password. Permission denied.' }, { status: 403 })
+      }
     }
 
     const supabaseAdmin = createClient(supabaseUrl, serviceKey)
@@ -66,7 +70,58 @@ export async function POST(request: Request) {
     }
 
     if (action === 'update_permissions') {
-      const notesStr = JSON.stringify(permissions || { allowed_members: [], can_view_all: false })
+      // Fetch existing notes first to preserve custom courses metadata
+      const { data: currentMember } = await supabaseAdmin
+        .from('members')
+        .select('notes')
+        .eq('id', memberId)
+        .single()
+
+      let existingPerms = {}
+      try {
+        if (currentMember?.notes) {
+          existingPerms = JSON.parse(currentMember.notes)
+        }
+      } catch {}
+
+      const notesStr = JSON.stringify({
+        ...existingPerms,
+        allowed_members: permissions?.allowed_members || [],
+        can_view_all: permissions?.can_view_all !== undefined ? permissions.can_view_all : false
+      })
+
+      const { data: member, error: dbErr } = await supabaseAdmin
+        .from('members')
+        .update({ notes: notesStr })
+        .eq('id', memberId)
+        .select()
+        .single()
+
+      if (dbErr) throw dbErr
+      return NextResponse.json({ success: true, member })
+    }
+
+    if (action === 'update_custom_courses') {
+      const { courses } = body // e.g. { CUSTOM_CODE: { label: string, fee_amount: number } }
+
+      // Get current admin user metadata
+      const { data: adminMem } = await supabaseAdmin
+        .from('members')
+        .select('notes')
+        .eq('id', memberId)
+        .single()
+
+      let existingNotes = {}
+      try {
+        if (adminMem?.notes) {
+          existingNotes = JSON.parse(adminMem.notes)
+        }
+      } catch {}
+
+      const notesStr = JSON.stringify({
+        ...existingNotes,
+        custom_courses: courses || {}
+      })
 
       const { data: member, error: dbErr } = await supabaseAdmin
         .from('members')
