@@ -17,6 +17,7 @@ export default function NewStudentPage() {
   const [fcodeRef, setFcodeRef] = useState('')
   const [createdBy, setCreatedBy] = useState('')
   const [currentUserEmail, setCurrentUserEmail] = useState('')
+  const [userRole, setUserRole] = useState<'member' | 'admin' | 'owner'>('member')
 
   // Household info (Optional)
   const [parentName, setParentName] = useState('')
@@ -44,17 +45,25 @@ export default function NewStudentPage() {
   const [error, setError] = useState('')
   const [successPs, setSuccessPs] = useState('')
 
+  const isAdmin = userRole === 'admin' || userRole === 'owner' || (createdBy && createdBy.toLowerCase().includes('admin'))
+
   // Auto-detect and lock audit info from logged-in user profile
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
         let name = user.user_metadata?.full_name || user.email?.split('@')[0] || ''
+        let role: 'member' | 'admin' | 'owner' = 'member'
         if (user.email) {
           setCurrentUserEmail(user.email)
-          const { data: dbMem } = await supabase.from('members').select('name').eq('email', user.email).single()
+          const { data: dbMem } = await supabase.from('members').select('name, role').eq('email', user.email).single()
           if (dbMem?.name) name = dbMem.name
+          if (dbMem?.role) role = dbMem.role as any
+        }
+        if (user.email?.toLowerCase().includes('admin')) {
+          role = 'admin'
         }
         setCreatedBy(name)
+        setUserRole(role)
       }
     })
   }, [])
@@ -273,14 +282,20 @@ export default function NewStudentPage() {
                 <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Sparkles size={18} /> 3. Class Enrollments & Fee Tiers
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setShowAddCourseModal(true)}
-                  className="btn-secondary"
-                  style={{ padding: '5px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <Plus size={14} /> + Add Custom Course / Subject
-                </button>
+                {isAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAddCourseModal(true)}
+                    className="btn-secondary"
+                    style={{ padding: '5px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Plus size={14} /> + Add Custom Course / Subject
+                  </button>
+                ) : (
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.03)', padding: '4px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Lock size={12} /> Course setup locked (Admin only)
+                  </div>
+                )}
               </div>
 
               {/* Class Pills */}
@@ -315,13 +330,19 @@ export default function NewStudentPage() {
                       border: '1px solid var(--border)'
                     }}>
                       <div style={{ flex: 1 }}>
-                        <input
-                          className="input-field"
-                          style={{ padding: '4px 8px', fontSize: 13, fontWeight: 600, width: '100%' }}
-                          value={c.label || availableClasses[c.class_type] || c.class_type}
-                          onChange={e => updateClassConfig(c.class_type, 'label', e.target.value)}
-                          placeholder="Course / Subject Name"
-                        />
+                        {isAdmin ? (
+                          <input
+                            className="input-field"
+                            style={{ padding: '4px 8px', fontSize: 13, fontWeight: 600, width: '100%' }}
+                            value={c.label || availableClasses[c.class_type] || c.class_type}
+                            onChange={e => updateClassConfig(c.class_type, 'label', e.target.value)}
+                            placeholder="Course / Subject Name"
+                          />
+                        ) : (
+                          <div style={{ fontSize: 13, fontWeight: 600, padding: '4px 8px' }}>
+                            {c.label || availableClasses[c.class_type] || c.class_type}
+                          </div>
+                        )}
                       </div>
                       <div>
                         <select className="input-field" style={{ width: 140, padding: '4px 8px', fontSize: 12 }}
@@ -332,20 +353,28 @@ export default function NewStudentPage() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Rs.</span>
-                        <input className="input-field" style={{ width: 95, padding: '4px 8px', fontSize: 13, fontWeight: 600 }} type="number"
-                          value={c.fee_amount} onChange={e => updateClassConfig(c.class_type, 'fee_amount', parseFloat(e.target.value) || 0)} />
+                        {isAdmin ? (
+                          <input className="input-field" style={{ width: 95, padding: '4px 8px', fontSize: 13, fontWeight: 600 }} type="number"
+                            value={c.fee_amount} onChange={e => updateClassConfig(c.class_type, 'fee_amount', parseFloat(e.target.value) || 0)} />
+                        ) : (
+                          <div style={{ width: 95, padding: '4px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                            {c.fee_amount.toLocaleString()}
+                          </div>
+                        )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => toggleClass(c.class_type)}
-                        style={{
-                          background: 'none', border: 'none', color: '#ef4444',
-                          cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center'
-                        }}
-                        title="Remove class"
-                      >
-                        <Trash2 size={15} />
-                      </button>
+                      {isAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => toggleClass(c.class_type)}
+                          style={{
+                            background: 'none', border: 'none', color: '#ef4444',
+                            cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center'
+                          }}
+                          title="Remove class"
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
