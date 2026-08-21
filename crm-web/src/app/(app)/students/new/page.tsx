@@ -94,6 +94,26 @@ export default function NewStudentPage() {
     }
   }
 
+  async function saveCoursesToDatabase(coursesDict: Record<string, string>) {
+    try {
+      const { data: adminMem } = await supabase.from('members').select('id').eq('name', 'Admin User').single()
+      if (adminMem?.id) {
+        await fetch('/api/members/manage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update_custom_courses',
+            memberId: adminMem.id,
+            courses: coursesDict,
+            adminPassword: 'sb_secret_verification_bypass'
+          })
+        })
+      }
+    } catch (err) {
+      console.error('Failed to persist courses:', err)
+    }
+  }
+
   async function handleAddCustomCourse(e: React.FormEvent) {
     e.preventDefault()
     if (!customCourseName.trim()) return
@@ -113,26 +133,7 @@ export default function NewStudentPage() {
       return [...filtered, { class_type: code, tier: 'STANDARD', fee_amount: fee, label: name }]
     })
 
-    // Persist custom course metadata list in database
-    try {
-      // Find Admin User member record first to fetch ID and auth password context
-      const { data: adminMem } = await supabase.from('members').select('id').eq('name', 'Admin User').single()
-      if (adminMem?.id) {
-        // Send updates using members manage API route
-        await fetch('/api/members/manage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'update_custom_courses',
-            memberId: adminMem.id,
-            courses: updatedDict,
-            adminPassword: 'sb_secret_verification_bypass' // Passed to confirm bypass or verification
-          })
-        })
-      }
-    } catch (err) {
-      console.error('Failed to persist custom courses:', err)
-    }
+    await saveCoursesToDatabase(updatedDict)
 
     setCustomCourseCode('')
     setCustomCourseName('')
@@ -140,13 +141,32 @@ export default function NewStudentPage() {
     setShowAddCourseModal(false)
   }
 
-  function updateClassConfig(classType: string, field: 'tier' | 'fee_amount' | 'label', value: any) {
-    setSelectedClasses(selectedClasses.map(c => {
+  async function updateClassConfig(classType: string, field: 'tier' | 'fee_amount' | 'label', value: any) {
+    const updatedSelected = selectedClasses.map(c => {
       if (c.class_type === classType) {
         return { ...c, [field]: value }
       }
       return c
-    }))
+    })
+    setSelectedClasses(updatedSelected)
+
+    if (field === 'label' && value.trim()) {
+      const updatedDict = {
+        ...availableClasses,
+        [classType]: value.trim()
+      }
+      setAvailableClasses(updatedDict)
+      await saveCoursesToDatabase(updatedDict)
+    }
+  }
+
+  async function deleteCourseCompletely(classType: string) {
+    if (!confirm(`Are you sure you want to completely delete "${availableClasses[classType] || classType}"?`)) return
+
+    const { [classType]: removed, ...updatedDict } = availableClasses
+    setAvailableClasses(updatedDict)
+    setSelectedClasses(prev => prev.filter(c => c.class_type !== classType))
+    await saveCoursesToDatabase(updatedDict)
   }
 
   async function submit() {
@@ -407,12 +427,12 @@ export default function NewStudentPage() {
                       {isAdmin && (
                         <button
                           type="button"
-                          onClick={() => toggleClass(c.class_type)}
+                          onClick={() => deleteCourseCompletely(c.class_type)}
                           style={{
                             background: 'none', border: 'none', color: '#ef4444',
                             cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center'
                           }}
-                          title="Remove class"
+                          title="Delete course completely from database"
                         >
                           <Trash2 size={15} />
                         </button>
