@@ -27,7 +27,7 @@ export default function NewStudentPage() {
   // Custom courses state
   const [customCourseCode, setCustomCourseCode] = useState('')
   const [customCourseName, setCustomCourseName] = useState('')
-  const [customCourseFee, setCustomCourseFee] = useState(1500)
+  const [customCourseFee, setCustomCourseFee] = useState<string>('1500')
   const [showAddCourseModal, setShowAddCourseModal] = useState(false)
 
   // Available classes dictionary (predefined + custom added)
@@ -72,19 +72,20 @@ export default function NewStudentPage() {
   function handleAddCustomCourse(e: React.FormEvent) {
     e.preventDefault()
     if (!customCourseName.trim()) return
-    const code = (customCourseCode.trim() || customCourseName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_')).slice(0, 30)
+    const uniqueSuffix = Date.now().toString().slice(-4)
+    const code = (customCourseCode.trim() ? customCourseCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_') : `CUSTOM_${uniqueSuffix}`).slice(0, 30)
     const name = customCourseName.trim()
-    const fee = Number(customCourseFee) || 1500
+    const fee = parseFloat(customCourseFee) || 1500
 
     setAvailableClasses(prev => ({ ...prev, [code]: name }))
     setSelectedClasses(prev => {
-      if (prev.find(c => c.class_type === code)) return prev
-      return [...prev, { class_type: code, tier: 'STANDARD', fee_amount: fee, label: name }]
+      const filtered = prev.filter(c => c.class_type !== code)
+      return [...filtered, { class_type: code, tier: 'STANDARD', fee_amount: fee, label: name }]
     })
 
     setCustomCourseCode('')
     setCustomCourseName('')
-    setCustomCourseFee(1500)
+    setCustomCourseFee('1500')
     setShowAddCourseModal(false)
   }
 
@@ -433,10 +434,10 @@ export default function NewStudentPage() {
                 <input
                   className="input-field"
                   type="number"
-                  placeholder="1500"
+                  placeholder="e.g. 1500"
                   required
                   value={customCourseFee}
-                  onChange={e => setCustomCourseFee(parseFloat(e.target.value) || 0)}
+                  onChange={e => setCustomCourseFee(e.target.value)}
                 />
               </div>
 
