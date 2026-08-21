@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, UserPlus, CheckCircle, Home } from 'lucide-react'
+import { ArrowLeft, UserPlus, CheckCircle, Home, Plus, Trash2, Lock, Sparkles } from 'lucide-react'
 import { CLASS_TYPES, CLASS_LABELS } from '@/lib/types'
 
 export default function NewStudentPage() {
@@ -16,6 +16,7 @@ export default function NewStudentPage() {
   const [notes, setNotes] = useState('')
   const [fcodeRef, setFcodeRef] = useState('')
   const [createdBy, setCreatedBy] = useState('')
+  const [currentUserEmail, setCurrentUserEmail] = useState('')
 
   // Household info (Optional)
   const [parentName, setParentName] = useState('')
@@ -23,26 +24,71 @@ export default function NewStudentPage() {
   const [address, setAddress] = useState('')
   const [area, setArea] = useState('')
 
+  // Custom courses state
+  const [customCourseCode, setCustomCourseCode] = useState('')
+  const [customCourseName, setCustomCourseName] = useState('')
+  const [customCourseFee, setCustomCourseFee] = useState(1500)
+  const [showAddCourseModal, setShowAddCourseModal] = useState(false)
+
+  // Available classes dictionary (predefined + custom added)
+  const [availableClasses, setAvailableClasses] = useState<Record<string, string>>({
+    ...CLASS_LABELS,
+  })
+
   // Class Enrollments
-  const [selectedClasses, setSelectedClasses] = useState<{ class_type: string; tier: 'STANDARD' | 'PREMIUM'; fee_amount: number }[]>([
-    { class_type: 'MAIN_GR11', tier: 'STANDARD', fee_amount: 1500 }
+  const [selectedClasses, setSelectedClasses] = useState<{ class_type: string; tier: 'STANDARD' | 'PREMIUM'; fee_amount: number; label?: string }[]>([
+    { class_type: 'MAIN_GR11', tier: 'STANDARD', fee_amount: 1500, label: 'Main Class Grade 11' }
   ])
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [successPs, setSuccessPs] = useState('')
 
-  function toggleClass(classType: string) {
+  // Auto-detect and lock audit info from logged-in user profile
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (user) {
+        let name = user.user_metadata?.full_name || user.email?.split('@')[0] || ''
+        if (user.email) {
+          setCurrentUserEmail(user.email)
+          const { data: dbMem } = await supabase.from('members').select('name').eq('email', user.email).single()
+          if (dbMem?.name) name = dbMem.name
+        }
+        setCreatedBy(name)
+      }
+    })
+  }, [])
+
+  function toggleClass(classType: string, label?: string) {
     const exists = selectedClasses.find(c => c.class_type === classType)
     if (exists) {
       setSelectedClasses(selectedClasses.filter(c => c.class_type !== classType))
     } else {
       const defaultFee = classType.includes('GR10') || classType.includes('GR11') ? 1800 : 1500
-      setSelectedClasses([...selectedClasses, { class_type: classType, tier: 'STANDARD', fee_amount: defaultFee }])
+      setSelectedClasses([...selectedClasses, { class_type: classType, tier: 'STANDARD', fee_amount: defaultFee, label: label || availableClasses[classType] || classType }])
     }
   }
 
-  function updateClassConfig(classType: string, field: 'tier' | 'fee_amount', value: any) {
+  function handleAddCustomCourse(e: React.FormEvent) {
+    e.preventDefault()
+    if (!customCourseName.trim()) return
+    const code = (customCourseCode.trim() || customCourseName.trim().toUpperCase().replace(/[^A-Z0-9]/g, '_')).slice(0, 30)
+    const name = customCourseName.trim()
+    const fee = Number(customCourseFee) || 1500
+
+    setAvailableClasses(prev => ({ ...prev, [code]: name }))
+    setSelectedClasses(prev => {
+      if (prev.find(c => c.class_type === code)) return prev
+      return [...prev, { class_type: code, tier: 'STANDARD', fee_amount: fee, label: name }]
+    })
+
+    setCustomCourseCode('')
+    setCustomCourseName('')
+    setCustomCourseFee(1500)
+    setShowAddCourseModal(false)
+  }
+
+  function updateClassConfig(classType: string, field: 'tier' | 'fee_amount' | 'label', value: any) {
     setSelectedClasses(selectedClasses.map(c => {
       if (c.class_type === classType) {
         return { ...c, [field]: value }
@@ -222,23 +268,35 @@ export default function NewStudentPage() {
 
             {/* Section 3: Class Enrollments & Fee Tiers */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 18, color: 'var(--accent-purple)' }}>
-                3. Class Enrollments & Fee Tiers
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Sparkles size={18} /> 3. Class Enrollments & Fee Tiers
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddCourseModal(true)}
+                  className="btn-secondary"
+                  style={{ padding: '5px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Plus size={14} /> + Add Custom Course / Subject
+                </button>
               </div>
 
+              {/* Class Pills */}
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, marginBottom: 20 }}>
-                {CLASS_TYPES.map(ct => {
+                {Object.entries(availableClasses).map(([ct, label]) => {
                   const active = !!selectedClasses.find(c => c.class_type === ct)
                   return (
-                    <div key={ct} onClick={() => toggleClass(ct)}
+                    <div key={ct} onClick={() => toggleClass(ct, label)}
                       style={{
                         padding: '10px 14px', borderRadius: 8, cursor: 'pointer', border: '1px solid',
                         borderColor: active ? 'var(--accent-blue)' : 'var(--border)',
                         background: active ? 'rgba(59,130,246,0.12)' : 'var(--bg-base)',
                         color: active ? 'var(--text-primary)' : 'var(--text-muted)',
-                        fontSize: 13, fontWeight: 500, transition: 'all 0.15s'
+                        fontSize: 13, fontWeight: 500, transition: 'all 0.15s',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                       }}>
-                      {active ? '✓ ' : '+ '}{CLASS_LABELS[ct] || ct}
+                      <span>{active ? '✓ ' : '+ '}{label}</span>
                     </div>
                   )
                 })}
@@ -246,10 +304,24 @@ export default function NewStudentPage() {
 
               {selectedClasses.length > 0 && (
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 12 }}>CONFIGURE SELECTED CLASSES:</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Configure Selected Courses & Amount:
+                  </div>
                   {selectedClasses.map(c => (
-                    <div key={c.class_type} style={{ display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10, background: 'var(--bg-base)', padding: 10, borderRadius: 8 }}>
-                      <div style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{CLASS_LABELS[c.class_type] || c.class_type}</div>
+                    <div key={c.class_type} style={{
+                      display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10,
+                      background: 'var(--bg-base)', padding: '10px 14px', borderRadius: 8,
+                      border: '1px solid var(--border)'
+                    }}>
+                      <div style={{ flex: 1 }}>
+                        <input
+                          className="input-field"
+                          style={{ padding: '4px 8px', fontSize: 13, fontWeight: 600, width: '100%' }}
+                          value={c.label || availableClasses[c.class_type] || c.class_type}
+                          onChange={e => updateClassConfig(c.class_type, 'label', e.target.value)}
+                          placeholder="Course / Subject Name"
+                        />
+                      </div>
                       <div>
                         <select className="input-field" style={{ width: 140, padding: '4px 8px', fontSize: 12 }}
                           value={c.tier} onChange={e => updateClassConfig(c.class_type, 'tier', e.target.value)}>
@@ -259,25 +331,55 @@ export default function NewStudentPage() {
                       </div>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                         <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Rs.</span>
-                        <input className="input-field" style={{ width: 90, padding: '4px 8px', fontSize: 12 }} type="number"
+                        <input className="input-field" style={{ width: 95, padding: '4px 8px', fontSize: 13, fontWeight: 600 }} type="number"
                           value={c.fee_amount} onChange={e => updateClassConfig(c.class_type, 'fee_amount', parseFloat(e.target.value) || 0)} />
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleClass(c.class_type)}
+                        style={{
+                          background: 'none', border: 'none', color: '#ef4444',
+                          cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center'
+                        }}
+                        title="Remove class"
+                      >
+                        <Trash2 size={15} />
+                      </button>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            {/* Section 4: Audit & Submit */}
+            {/* Section 4: Audit Info (Automatically captured & Locked) */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14, color: 'var(--accent-green)' }}>
-                4. Audit Info
+              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 14, color: 'var(--accent-green)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Lock size={16} /> 4. Audit Info (Auto-Locked)
               </div>
-              <div>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                  Registered By (Your Member Name) <span style={{ color: 'var(--accent-red)' }}>*</span>
-                </label>
-                <input className="input-field" placeholder="Enter your member name" value={createdBy} onChange={e => setCreatedBy(e.target.value)} />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Registered By (Staff Name)
+                  </label>
+                  <div style={{
+                    padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
+                    borderRadius: 8, fontSize: 14, fontWeight: 600, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 8
+                  }}>
+                    <Lock size={14} style={{ color: 'var(--text-muted)' }} />
+                    <span>{createdBy || 'Admin / System User'}</span>
+                  </div>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Staff Account Email
+                  </label>
+                  <div style={{
+                    padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
+                    borderRadius: 8, fontSize: 13, color: 'var(--text-secondary)'
+                  }}>
+                    {currentUserEmail || 'system@mathsps.com'}
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -288,6 +390,68 @@ export default function NewStudentPage() {
           </>
         )}
       </div>
+
+      {/* Modal: Add Custom Course */}
+      {showAddCourseModal && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div className="card" style={{ maxWidth: 420, width: '90%', padding: 24, borderRadius: 14, border: '1px solid var(--border)', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
+            <h3 style={{ margin: '0 0 14px 0', fontSize: 16, fontWeight: 700 }}>+ Add Custom Course / Subject</h3>
+            <form onSubmit={handleAddCustomCourse}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Course / Subject Name *
+                </label>
+                <input
+                  className="input-field"
+                  placeholder="e.g. Grade 11 Science & Revision"
+                  required
+                  value={customCourseName}
+                  onChange={e => setCustomCourseName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Course Code (Optional Identifier)
+                </label>
+                <input
+                  className="input-field"
+                  placeholder="e.g. SCI_GR11"
+                  value={customCourseCode}
+                  onChange={e => setCustomCourseCode(e.target.value)}
+                />
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Default Fee Amount (Rs.)
+                </label>
+                <input
+                  className="input-field"
+                  type="number"
+                  placeholder="1500"
+                  required
+                  value={customCourseFee}
+                  onChange={e => setCustomCourseFee(parseFloat(e.target.value) || 0)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" className="btn-secondary" onClick={() => setShowAddCourseModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary">
+                  ✓ Add Course
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

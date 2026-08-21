@@ -34,21 +34,20 @@ export default function DeliveryPage() {
   async function loadDeliveryList() {
     setLoading(true)
     try {
-      // 1. Get eligible PREMIUM enrollment students who paid for selected month/year
+      // 1. Get eligible paid students where tute_delivered is true or tier is PREMIUM
       let q = supabase
         .from('payments')
         .select(`
-          student_id, class_type, month, year, amount_paid, payment_type,
+          student_id, class_type, month, year, amount_paid, payment_type, tute_delivered, date_paid,
           students!inner(
             id, ps_code, full_name, grade, household_id,
-            households(id, parent_name, address, area),
-            enrollments!inner(tier, active)
+            households(id, parent_name, address, area, parent_phone),
+            enrollments(tier, active)
           )
         `)
         .eq('month', month)
         .eq('year', year)
-        .eq('students.enrollments.tier', 'PREMIUM')
-        .eq('students.enrollments.active', true)
+        .or('tute_delivered.eq.true,amount_paid.gt.0')
 
       if (classFilter) q = q.eq('class_type', classFilter)
 
@@ -180,6 +179,57 @@ export default function DeliveryPage() {
     `)
   }
 
+  function exportDeliveryToExcel() {
+    if (filteredGroups.length === 0) {
+      alert('No delivery records to export for this month.')
+      return
+    }
+
+    const headers = [
+      'Envelope #',
+      'Parent / Guardian Name',
+      'Delivery Address',
+      'Area / Route',
+      'Parent Contact Phone',
+      'PS Codes',
+      'Students (Names & Grades)',
+      'Classes & Tutes Included',
+      'Total Tute Count',
+      'Month / Year',
+    ]
+
+    const rows = filteredGroups.map((g, idx) => {
+      const psList = g.students.map(s => s.ps_code).join(', ')
+      const studentsList = g.students.map(s => `${s.full_name} (Gr ${s.grade})`).join(', ')
+      const classesList = g.students.map(s => `${s.ps_code}: ${CLASS_LABELS[s.class_type] || s.class_type}`).join('; ')
+      const phone = (g as any).parent_phone || ''
+
+      return [
+        `#${idx + 1}`,
+        `"${(g.parent_name || '').replace(/"/g, '""')}"`,
+        `"${(g.address || '').replace(/"/g, '""')}"`,
+        `"${(g.area || '').replace(/"/g, '""')}"`,
+        `"${phone}"`,
+        `"${psList}"`,
+        `"${studentsList.replace(/"/g, '""')}"`,
+        `"${classesList.replace(/"/g, '""')}"`,
+        g.students.length,
+        `"${MONTH_NAMES[month - 1]} ${year}"`,
+      ]
+    })
+
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n')
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `MathsPS_Post_Office_Delivery_List_${MONTH_NAMES[month - 1]}_${year}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   const totalEnvelopes = filteredGroups.length
   const totalTutes = filteredGroups.reduce((acc, g) => acc + g.students.length, 0)
 
@@ -189,15 +239,20 @@ export default function DeliveryPage() {
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Truck size={22} style={{ color: 'var(--accent-orange)' }} />
-            Household Tute Delivery
+            Household Tute Delivery & Post Office Dispatch
           </h1>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-            Grouping paid Premium Tier students into 1 envelope per house
+            Grouping paid & tute-marked students into 1 envelope per house for manual post office delivery
           </div>
         </div>
-        <button onClick={printBatchEnvelopes} className="btn-primary" style={{ background: 'var(--accent-orange)' }}>
-          <Printer size={16} /> Print All Envelope Labels ({totalEnvelopes})
-        </button>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <button onClick={exportDeliveryToExcel} className="btn-primary" style={{ background: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}>
+            📊 Download Post Office Excel / CSV ({totalEnvelopes} Houses)
+          </button>
+          <button onClick={printBatchEnvelopes} className="btn-primary" style={{ background: 'var(--accent-orange)', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Printer size={16} /> Print Envelope Labels ({totalEnvelopes})
+          </button>
+        </div>
       </div>
 
       <div className="page-content">

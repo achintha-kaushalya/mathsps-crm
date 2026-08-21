@@ -169,6 +169,15 @@ export default function StudentDetailPage() {
               )}
             </div>
 
+            {/* Audit & Registration Info */}
+            <div className="glass-card" style={{ padding: 20 }}>
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14, color: 'var(--accent-green)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                🔒 Registration Audit
+              </div>
+              <Info label="Registered By" value={student.created_by || 'Admin / System User'} />
+              <Info label="Date Created" value={student.created_at ? new Date(student.created_at).toLocaleString() : 'Not recorded'} />
+            </div>
+
             {/* Household */}
             <div className="glass-card" style={{ padding: 20 }}>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14 }}>🏠 Household</div>

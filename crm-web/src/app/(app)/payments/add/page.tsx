@@ -27,12 +27,27 @@ function AddPaymentForm() {
     bank_name: 'BOC',
     date_paid: new Date().toISOString().slice(0, 10),
     added_to_group: false,
+    tute_delivered: false,
     notes: '',
   })
 
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
+
+  // Auto-detect logged in member
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (user) {
+        let name = user.user_metadata?.full_name || user.email?.split('@')[0] || ''
+        if (user.email) {
+          const { data: dbMem } = await supabase.from('members').select('name').eq('email', user.email).single()
+          if (dbMem?.name) name = dbMem.name
+        }
+        setMemberName(name)
+      }
+    })
+  }, [])
 
   // Auto-load if ps param present
   useEffect(() => {
@@ -93,6 +108,7 @@ function AddPaymentForm() {
         bank_name: form.payment_type === 'BANK' ? form.bank_name : null,
         date_paid: form.payment_type !== 'FREE' ? form.date_paid : null,
         added_to_group: form.added_to_group,
+        tute_delivered: form.tute_delivered,
         notes: form.notes || null,
         recorded_by: memberName.trim(),
       }, { onConflict: 'student_id,class_type,month,year' })
@@ -225,11 +241,22 @@ function AddPaymentForm() {
                   onChange={e => setForm(f => ({ ...f, date_paid: e.target.value }))} />
               </FormRow>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                <input type="checkbox" id="group" checked={form.added_to_group}
-                  onChange={e => setForm(f => ({ ...f, added_to_group: e.target.checked }))}
-                  style={{ width: 16, height: 16, cursor: 'pointer' }} />
-                <label htmlFor="group" style={{ fontSize: 13, cursor: 'pointer' }}>Added to WhatsApp Group?</label>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                  <input type="checkbox" id="group" checked={form.added_to_group}
+                    onChange={e => setForm(f => ({ ...f, added_to_group: e.target.checked }))}
+                    style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                  <label htmlFor="group" style={{ fontSize: 13, cursor: 'pointer' }}>Added to WhatsApp Group?</label>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: form.tute_delivered ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)', borderRadius: 8, border: `1px solid ${form.tute_delivered ? '#10b981' : 'var(--border)'}` }}>
+                  <input type="checkbox" id="tute" checked={form.tute_delivered}
+                    onChange={e => setForm(f => ({ ...f, tute_delivered: e.target.checked }))}
+                    style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                  <label htmlFor="tute" style={{ fontSize: 13, cursor: 'pointer', fontWeight: 600, color: form.tute_delivered ? '#34d399' : 'var(--text-primary)' }}>
+                    📦 Mark Tute Deliver (Pick tick on)
+                  </label>
+                </div>
               </div>
 
               <FormRow label="Notes (optional)">
@@ -238,13 +265,22 @@ function AddPaymentForm() {
               </FormRow>
             </div>
 
-            {/* Step 3: Who recorded */}
+            {/* Step 3: Who recorded (Auto-Locked from logged in user) */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14, color: 'var(--accent-blue)' }}>
-                3. Recorded By
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14, color: 'var(--accent-green)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                🔒 3. Audit Info (Auto-Locked)
               </div>
-              <input className="input-field" placeholder="Your name (member who checked this payment)"
-                value={memberName} onChange={e => setMemberName(e.target.value)} />
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  Recorded By (Member Name)
+                </label>
+                <div style={{
+                  padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
+                  borderRadius: 8, fontSize: 14, fontWeight: 600, color: 'var(--accent-blue)'
+                }}>
+                  {memberName || 'Admin / System User'}
+                </div>
+              </div>
             </div>
 
             {/* Submit */}
