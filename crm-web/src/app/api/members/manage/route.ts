@@ -3,7 +3,8 @@ import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: Request) {
   try {
-    const { action, memberId, newRole, newActive, adminPassword } = await request.json()
+    const body = await request.json()
+    const { action, memberId, newRole, newActive, adminPassword, newMemberPassword, permissions } = body
 
     if (!action || !memberId || !adminPassword) {
       return NextResponse.json({ error: 'Action, memberId, and admin password are required.' }, { status: 400 })
@@ -65,9 +66,6 @@ export async function POST(request: Request) {
     }
 
     if (action === 'update_permissions') {
-      const body = await request.clone().json()
-      const { permissions } = body // e.g. { allowed_members: string[], can_view_all: boolean }
-
       const notesStr = JSON.stringify(permissions || { allowed_members: [], can_view_all: false })
 
       const { data: member, error: dbErr } = await supabaseAdmin
@@ -82,10 +80,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 'reset_password') {
-      const { newMemberPassword } = await request.json().catch(() => ({})) || {}
-      // We can also extract newMemberPassword from outer scope if parsed
-      const body = await request.clone().json()
-      const pass = body.newMemberPassword
+      const pass = newMemberPassword
 
       if (!pass || pass.length < 6) {
         return NextResponse.json({ error: 'New password must be at least 6 characters.' }, { status: 400 })
