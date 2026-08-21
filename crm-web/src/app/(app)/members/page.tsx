@@ -21,7 +21,20 @@ export default function MembersPage() {
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
 
-  useEffect(() => { loadMembers() }, [])
+  useEffect(() => {
+    loadMembers()
+
+    // Realtime postgres changes subscription for members table
+    const channel = supabase.channel('members-realtime-channel')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => {
+        loadMembers()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [])
 
   async function loadMembers() {
     setLoading(true)

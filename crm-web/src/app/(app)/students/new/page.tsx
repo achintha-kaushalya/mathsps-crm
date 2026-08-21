@@ -73,26 +73,41 @@ export default function NewStudentPage() {
         setCreatedBy(name)
         setUserRole(role)
 
-        // Load custom courses & fee overrides from Admin notes metadata
-        const { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').single()
-        if (adminRecord?.notes) {
-          try {
-            const notesObj = JSON.parse(adminRecord.notes)
-            if (notesObj.custom_courses) {
-              setAvailableClasses(prev => ({
-                ...prev,
-                ...notesObj.custom_courses
-              }))
+        // Function to load admin course setup
+        const loadAdminCourses = async () => {
+          const { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').single()
+          if (adminRecord?.notes) {
+            try {
+              const notesObj = JSON.parse(adminRecord.notes)
+              if (notesObj.custom_courses) {
+                setAvailableClasses(prev => ({
+                  ...prev,
+                  ...notesObj.custom_courses
+                }))
+              }
+              if (notesObj.class_fees) {
+                setClassDefaultFees(prev => ({
+                  ...prev,
+                  ...notesObj.class_fees
+                }))
+              }
+            } catch (err) {
+              console.error('Failed to parse custom courses & fees:', err)
             }
-            if (notesObj.class_fees) {
-              setClassDefaultFees(prev => ({
-                ...prev,
-                ...notesObj.class_fees
-              }))
-            }
-          } catch (err) {
-            console.error('Failed to parse custom courses & fees:', err)
           }
+        }
+
+        await loadAdminCourses()
+
+        // Subscribe to Realtime changes on members table for live course updates
+        const channel = supabase.channel('student-new-courses-realtime')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => {
+            loadAdminCourses()
+          })
+          .subscribe()
+
+        return () => {
+          supabase.removeChannel(channel)
         }
       }
     })
