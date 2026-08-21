@@ -30,6 +30,14 @@ export default function NewStudentPage() {
   const [customCourseName, setCustomCourseName] = useState('')
   const [customCourseFee, setCustomCourseFee] = useState<string>('1500')
   const [showAddCourseModal, setShowAddCourseModal] = useState(false)
+  const [editingCourseCode, setEditingCourseCode] = useState<string | null>(null)
+
+  // Class default fees mapping
+  const [classDefaultFees, setClassDefaultFees] = useState<Record<string, number>>({
+    MAIN_GR6: 1500, MAIN_GR7: 1500, MAIN_GR8: 1500, MAIN_GR9: 1500,
+    MAIN_GR10: 1800, MAIN_GR11: 1800, MAIN_MIXED: 1500,
+    SHORT_QN: 1500, GEOMETRY_BOOK: 1500, SUPER_REVISION: 1800
+  })
 
   // Available classes dictionary (predefined + custom added)
   const [availableClasses, setAvailableClasses] = useState<Record<string, string>>({
@@ -38,7 +46,7 @@ export default function NewStudentPage() {
 
   // Class Enrollments
   const [selectedClasses, setSelectedClasses] = useState<{ class_type: string; tier: 'STANDARD' | 'PREMIUM'; fee_amount: number; label?: string }[]>([
-    { class_type: 'MAIN_GR11', tier: 'STANDARD', fee_amount: 1500, label: 'Main Class Grade 11' }
+    { class_type: 'MAIN_GR11', tier: 'STANDARD', fee_amount: 1800, label: 'Main Class Grade 11' }
   ])
 
   const [saving, setSaving] = useState(false)
@@ -65,7 +73,7 @@ export default function NewStudentPage() {
         setCreatedBy(name)
         setUserRole(role)
 
-        // Load custom courses from Admin notes metadata
+        // Load custom courses & fee overrides from Admin notes metadata
         const { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').single()
         if (adminRecord?.notes) {
           try {
@@ -76,8 +84,14 @@ export default function NewStudentPage() {
                 ...notesObj.custom_courses
               }))
             }
+            if (notesObj.class_fees) {
+              setClassDefaultFees(prev => ({
+                ...prev,
+                ...notesObj.class_fees
+              }))
+            }
           } catch (err) {
-            console.error('Failed to parse custom courses:', err)
+            console.error('Failed to parse custom courses & fees:', err)
           }
         }
       }
@@ -89,12 +103,12 @@ export default function NewStudentPage() {
     if (exists) {
       setSelectedClasses(selectedClasses.filter(c => c.class_type !== classType))
     } else {
-      const defaultFee = classType.includes('GR10') || classType.includes('GR11') ? 1800 : 1500
+      const defaultFee = classDefaultFees[classType] || (classType.includes('GR10') || classType.includes('GR11') ? 1800 : 1500)
       setSelectedClasses([...selectedClasses, { class_type: classType, tier: 'STANDARD', fee_amount: defaultFee, label: label || availableClasses[classType] || classType }])
     }
   }
 
-  async function saveCoursesToDatabase(coursesDict: Record<string, string>) {
+  async function saveCoursesToDatabase(coursesDict: Record<string, string>, feesDict?: Record<string, number>) {
     try {
       const { data: adminMem } = await supabase.from('members').select('id').eq('name', 'Admin User').single()
       if (adminMem?.id) {
@@ -105,6 +119,7 @@ export default function NewStudentPage() {
             action: 'update_custom_courses',
             memberId: adminMem.id,
             courses: coursesDict,
+            fees: feesDict || classDefaultFees,
             adminPassword: 'sb_secret_verification_bypass'
           })
         })
@@ -126,47 +141,66 @@ export default function NewStudentPage() {
       ...availableClasses,
       [code]: name
     }
+    const updatedFees = {
+      ...classDefaultFees,
+      [code]: fee
+    }
 
     setAvailableClasses(updatedDict)
+    setClassDefaultFees(updatedFees)
     setSelectedClasses(prev => {
       const filtered = prev.filter(c => c.class_type !== code)
       return [...filtered, { class_type: code, tier: 'STANDARD', fee_amount: fee, label: name }]
     })
 
-    await saveCoursesToDatabase(updatedDict)
+    await saveCoursesToDatabase(updatedDict, updatedFees)
 
     setCustomCourseCode('')
     setCustomCourseName('')
     setCustomCourseFee('1500')
     setShowAddCourseModal(false)
+    setEditingCourseCode(null)
   }
 
-  async function updateClassConfig(classType: string, field: 'tier' | 'fee_amount' | 'label', value: any) {
-    const updatedSelected = selectedClasses.map(c => {
-      if (c.class_type === classType) {
-        return { ...c, [field]: value }
+  async function handleSaveEditCourse(code: string, newName: string, newFee: number) {
+    if (!newName.trim()) return
+    const updatedDict = { ...availableClasses, [code]: newName.trim() }
+    const updatedFees = { ...classDefaultFees, [code]: newFee }
+
+    setAvailableClasses(updatedDict)
+    setClassDefaultFees(updatedFees)
+
+    // Also update selectedClasses if currently selected
+    setSelectedClasses(prev => prev.map(c => {
+      if (c.class_type === code) {
+        return { ...c, label: newName.trim(), fee_amount: newFee }
       }
       return c
-    })
-    setSelectedClasses(updatedSelected)
+    }))
 
-    if (field === 'label' && value.trim()) {
-      const updatedDict = {
-        ...availableClasses,
-        [classType]: value.trim()
+    await saveCoursesToDatabase(updatedDict, updatedFees)
+    setEditingCourseCode(null)
+  }
+
+  function updateClassTier(classType: string, tier: 'STANDARD' | 'PREMIUM') {
+    setSelectedClasses(prev => prev.map(c => {
+      if (c.class_type === classType) {
+        return { ...c, tier }
       }
-      setAvailableClasses(updatedDict)
-      await saveCoursesToDatabase(updatedDict)
-    }
+      return c
+    }))
   }
 
   async function deleteCourseCompletely(classType: string) {
     if (!confirm(`Are you sure you want to completely delete "${availableClasses[classType] || classType}"?`)) return
 
     const { [classType]: removed, ...updatedDict } = availableClasses
+    const { [classType]: removedFee, ...updatedFees } = classDefaultFees
+
     setAvailableClasses(updatedDict)
+    setClassDefaultFees(updatedFees)
     setSelectedClasses(prev => prev.filter(c => c.class_type !== classType))
-    await saveCoursesToDatabase(updatedDict)
+    await saveCoursesToDatabase(updatedDict, updatedFees)
   }
 
   async function submit() {
@@ -341,17 +375,27 @@ export default function NewStudentPage() {
             {/* Section 3: Class Enrollments & Fee Tiers */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Sparkles size={18} /> 3. Class Enrollments & Fee Tiers
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Sparkles size={18} /> 3. Class Enrollments & Fee Tiers
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Click a course pill to enroll student. Select STANDARD or PREMIUM tier per course below.
+                  </div>
                 </div>
                 {isAdmin ? (
                   <button
                     type="button"
-                    onClick={() => setShowAddCourseModal(true)}
+                    onClick={() => {
+                      setCustomCourseCode('')
+                      setCustomCourseName('')
+                      setCustomCourseFee('1500')
+                      setShowAddCourseModal(true)
+                    }}
                     className="btn-secondary"
-                    style={{ padding: '5px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                    style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
                   >
-                    <Plus size={14} /> + Add Custom Course / Subject
+                    <Plus size={14} /> + Add Custom Course
                   </button>
                 ) : (
                   <div style={{ fontSize: 11, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.03)', padding: '4px 10px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
@@ -360,83 +404,110 @@ export default function NewStudentPage() {
                 )}
               </div>
 
-              {/* Class Pills */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10, marginBottom: 20 }}>
+              {/* Course Cards Grid with Name, Fee, and Admin Edit/Delete */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12, marginBottom: 20 }}>
                 {Object.entries(availableClasses).map(([ct, label]) => {
                   const active = !!selectedClasses.find(c => c.class_type === ct)
+                  const fee = classDefaultFees[ct] || (ct.includes('GR10') || ct.includes('GR11') ? 1800 : 1500)
+
                   return (
-                    <div key={ct} onClick={() => toggleClass(ct, label)}
+                    <div key={ct}
                       style={{
-                        padding: '10px 14px', borderRadius: 8, cursor: 'pointer', border: '1px solid',
+                        padding: '12px 14px', borderRadius: 10, border: '1px solid',
                         borderColor: active ? 'var(--accent-blue)' : 'var(--border)',
-                        background: active ? 'rgba(59,130,246,0.12)' : 'var(--bg-base)',
-                        color: active ? 'var(--text-primary)' : 'var(--text-muted)',
-                        fontSize: 13, fontWeight: 500, transition: 'all 0.15s',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                        background: active ? 'rgba(59,130,246,0.14)' : 'var(--bg-base)',
+                        transition: 'all 0.15s', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 8
                       }}>
-                      <span>{active ? '✓ ' : '+ '}{label}</span>
+                      {/* Top Bar: Checkbox + Name + Fee */}
+                      <div
+                        onClick={() => toggleClass(ct, label)}
+                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}
+                      >
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: active ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                            {active ? '✓ ' : '+ '}{label}
+                          </div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-green)', marginTop: 4 }}>
+                            Rs. {fee.toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Admin Front Controls: Edit & Delete */}
+                      {isAdmin && (
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6, marginTop: 4 }}>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              setEditingCourseCode(ct)
+                              setCustomCourseName(label)
+                              setCustomCourseFee(String(fee))
+                            }}
+                            className="btn-secondary"
+                            style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                            title="Edit course name or fee"
+                          >
+                            ✏ Edit
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              deleteCourseCompletely(ct)
+                            }}
+                            style={{
+                              background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+                              color: '#ef4444', borderRadius: 6, padding: '3px 8px', fontSize: 11,
+                              cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
+                            }}
+                            title="Delete course completely"
+                          >
+                            <Trash2 size={12} /> Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )
                 })}
               </div>
 
+              {/* Selected Classes Tier Config */}
               {selectedClasses.length > 0 && (
                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
                   <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    Configure Selected Courses & Amount:
+                    Selected Courses ({selectedClasses.length}):
                   </div>
                   {selectedClasses.map(c => (
                     <div key={c.class_type} style={{
-                      display: 'flex', alignItems: 'center', gap: 14, marginBottom: 10,
+                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, marginBottom: 10,
                       background: 'var(--bg-base)', padding: '10px 14px', borderRadius: 8,
                       border: '1px solid var(--border)'
                     }}>
-                      <div style={{ flex: 1 }}>
-                        {isAdmin ? (
-                          <input
-                            className="input-field"
-                            style={{ padding: '4px 8px', fontSize: 13, fontWeight: 600, width: '100%' }}
-                            value={c.label || availableClasses[c.class_type] || c.class_type}
-                            onChange={e => updateClassConfig(c.class_type, 'label', e.target.value)}
-                            placeholder="Course / Subject Name"
-                          />
-                        ) : (
-                          <div style={{ fontSize: 13, fontWeight: 600, padding: '4px 8px' }}>
-                            {c.label || availableClasses[c.class_type] || c.class_type}
-                          </div>
-                        )}
+                      <div style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>
+                        {c.label || availableClasses[c.class_type] || c.class_type}
                       </div>
-                      <div>
-                        <select className="input-field" style={{ width: 140, padding: '4px 8px', fontSize: 12 }}
-                          value={c.tier} onChange={e => updateClassConfig(c.class_type, 'tier', e.target.value)}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                        <select className="input-field" style={{ width: 150, padding: '4px 8px', fontSize: 12 }}
+                          value={c.tier} onChange={e => updateClassTier(c.class_type, e.target.value as any)}>
                           <option value="STANDARD">STANDARD (No Tute)</option>
                           <option value="PREMIUM">PREMIUM (Tute Delivery)</option>
                         </select>
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Rs.</span>
-                        {isAdmin ? (
-                          <input className="input-field" style={{ width: 95, padding: '4px 8px', fontSize: 13, fontWeight: 600 }} type="number"
-                            value={c.fee_amount} onChange={e => updateClassConfig(c.class_type, 'fee_amount', parseFloat(e.target.value) || 0)} />
-                        ) : (
-                          <div style={{ width: 95, padding: '4px 8px', fontSize: 13, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                            {c.fee_amount.toLocaleString()}
-                          </div>
-                        )}
-                      </div>
-                      {isAdmin && (
+                        <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--accent-green)', minWidth: 80, textAlign: 'right' }}>
+                          Rs. {c.fee_amount.toLocaleString()}
+                        </div>
                         <button
                           type="button"
-                          onClick={() => deleteCourseCompletely(c.class_type)}
+                          onClick={() => toggleClass(c.class_type)}
                           style={{
                             background: 'none', border: 'none', color: '#ef4444',
                             cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center'
                           }}
-                          title="Delete course completely from database"
+                          title="Deselect class"
                         >
-                          <Trash2 size={15} />
+                          ✕
                         </button>
-                      )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -538,6 +609,57 @@ export default function NewStudentPage() {
                 </button>
                 <button type="submit" className="btn-primary">
                   ✓ Add Course
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Edit Course Name and Fee */}
+      {editingCourseCode && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
+        }}>
+          <div className="card" style={{ maxWidth: 420, width: '90%', padding: 24, borderRadius: 14, border: '1px solid var(--border)', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
+            <h3 style={{ margin: '0 0 14px 0', fontSize: 16, fontWeight: 700 }}>✏ Edit Course Name & Fee</h3>
+            <form onSubmit={(e) => {
+              e.preventDefault()
+              handleSaveEditCourse(editingCourseCode, customCourseName, parseFloat(customCourseFee) || 1500)
+            }}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Course / Subject Name *
+                </label>
+                <input
+                  className="input-field"
+                  required
+                  value={customCourseName}
+                  onChange={e => setCustomCourseName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+
+              <div style={{ marginBottom: 20 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  Default Fee Amount (Rs.)
+                </label>
+                <input
+                  className="input-field"
+                  type="number"
+                  required
+                  value={customCourseFee}
+                  onChange={e => setCustomCourseFee(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                <button type="button" className="btn-secondary" onClick={() => setEditingCourseCode(null)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary">
+                  ✓ Save Changes
                 </button>
               </div>
             </form>

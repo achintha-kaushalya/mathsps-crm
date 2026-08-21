@@ -102,7 +102,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 'update_custom_courses') {
-      const { courses } = body // e.g. { CUSTOM_CODE: { label: string, fee_amount: number } }
+      const { courses, fees } = body
 
       // Get current admin user metadata
       const { data: adminMem } = await supabaseAdmin
@@ -120,7 +120,8 @@ export async function POST(request: Request) {
 
       const notesStr = JSON.stringify({
         ...existingNotes,
-        custom_courses: courses || {}
+        custom_courses: courses || {},
+        class_fees: fees || {}
       })
 
       const { data: member, error: dbErr } = await supabaseAdmin
