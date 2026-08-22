@@ -88,11 +88,25 @@ function AddPaymentForm() {
     if (psSearch) searchStudent()
   }, [])
 
-  function selectStudent(selectedStu: Student) {
+  const [editingAddress, setEditingAddress] = useState(false)
+  const [addressInput, setAddressInput] = useState('')
+  const [areaInput, setAreaInput] = useState('')
+  const [parentNameInput, setParentNameInput] = useState('')
+  const [parentPhoneInput, setParentPhoneInput] = useState('')
+  const [savingAddress, setSavingAddress] = useState(false)
+
+  function selectStudent(selectedStu: any) {
     setStudent(selectedStu)
     setPsSearch(selectedStu.ps_code)
     setShowDropdown(false)
     setError('')
+    setEditingAddress(false)
+
+    const hh = selectedStu.household || {}
+    setAddressInput(hh.address || '')
+    setAreaInput(hh.area || '')
+    setParentNameInput(hh.parent_name || '')
+    setParentPhoneInput(hh.parent_phone || '')
     
     supabase.from('enrollments').select('*').eq('student_id', selectedStu.id).eq('active', true).then(({ data: enrols }) => {
       setEnrollments(enrols || [])
@@ -101,6 +115,57 @@ function AddPaymentForm() {
         loadBalance(selectedStu.id, enrols[0].class_type)
       }
     })
+  }
+
+  async function saveAddress() {
+    if (!student) return
+    setSavingAddress(true)
+    try {
+      const hh = (student as any).household
+      if (hh?.id) {
+        // Update existing household
+        const { error: hhErr } = await supabase.from('households').update({
+          address: addressInput.trim() || null,
+          area: areaInput.trim() || null,
+          parent_name: parentNameInput.trim() || null,
+          parent_phone: parentPhoneInput.trim() || null,
+        }).eq('id', hh.id)
+
+        if (hhErr) throw hhErr
+        setStudent({
+          ...student,
+          household: {
+            ...hh,
+            address: addressInput.trim(),
+            area: areaInput.trim(),
+            parent_name: parentNameInput.trim(),
+            parent_phone: parentPhoneInput.trim()
+          }
+        } as any)
+      } else {
+        // Create new household and link to student
+        const { data: newHh, error: hhErr } = await supabase.from('households').insert({
+          address: addressInput.trim() || null,
+          area: areaInput.trim() || null,
+          parent_name: parentNameInput.trim() || null,
+          parent_phone: parentPhoneInput.trim() || null,
+        }).select().single()
+
+        if (hhErr) throw hhErr
+
+        await supabase.from('students').update({ household_id: newHh.id }).eq('id', student.id)
+        setStudent({
+          ...student,
+          household_id: newHh.id,
+          household: newHh
+        } as any)
+      }
+      setEditingAddress(false)
+    } catch (e: any) {
+      alert('Failed to save address: ' + e.message)
+    } finally {
+      setSavingAddress(false)
+    }
   }
 
   async function searchStudent() {
@@ -334,21 +399,97 @@ function AddPaymentForm() {
                   onChange={e => setForm(f => ({ ...f, date_paid: e.target.value }))} />
               </FormRow>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                  <input type="checkbox" id="group" checked={form.added_to_group}
-                    onChange={e => setForm(f => ({ ...f, added_to_group: e.target.checked }))}
-                    style={{ width: 16, height: 16, cursor: 'pointer' }} />
-                  <label htmlFor="group" style={{ fontSize: 13, cursor: 'pointer' }}>Added to WhatsApp Group?</label>
-                </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 14 }}>
+                <input type="checkbox" id="group" checked={form.added_to_group}
+                  onChange={e => setForm(f => ({ ...f, added_to_group: e.target.checked }))}
+                  style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                <label htmlFor="group" style={{ fontSize: 13, cursor: 'pointer' }}>Added to WhatsApp Group?</label>
+              </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: form.tute_delivered ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)', borderRadius: 8, border: `1px solid ${form.tute_delivered ? '#10b981' : 'var(--border)'}` }}>
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: form.tute_delivered ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)', borderRadius: 8, border: `1px solid ${form.tute_delivered ? '#10b981' : 'var(--border)'}`, marginBottom: 8 }}>
                   <input type="checkbox" id="tute" checked={form.tute_delivered}
                     onChange={e => setForm(f => ({ ...f, tute_delivered: e.target.checked }))}
                     style={{ width: 16, height: 16, cursor: 'pointer' }} />
                   <label htmlFor="tute" style={{ fontSize: 13, cursor: 'pointer', fontWeight: 600, color: form.tute_delivered ? '#34d399' : 'var(--text-primary)' }}>
                     📦 Mark Tute Deliver (Pick tick on)
                   </label>
+                </div>
+
+                {/* Show & Verify Current Address under Tute Deliver */}
+                <div style={{
+                  padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)',
+                  marginLeft: 4
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                      📍 Delivery Address Verification:
+                    </div>
+                    {!editingAddress ? (
+                      <button
+                        type="button"
+                        onClick={() => setEditingAddress(true)}
+                        className="btn-secondary"
+                        style={{ padding: '3px 8px', fontSize: 11 }}
+                      >
+                        ✏ Edit Address
+                      </button>
+                    ) : (
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={saveAddress}
+                          disabled={savingAddress}
+                          className="btn-primary"
+                          style={{ padding: '3px 8px', fontSize: 11 }}
+                        >
+                          {savingAddress ? 'Saving...' : '✓ Save Address'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setEditingAddress(false)}
+                          className="btn-secondary"
+                          style={{ padding: '3px 8px', fontSize: 11 }}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {!editingAddress ? (
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: (student?.household as any)?.address ? 'var(--text-primary)' : 'var(--accent-red)' }}>
+                        {(student?.household as any)?.address || '⚠ No postal address registered yet!'}
+                      </div>
+                      {(student?.household as any)?.area && (
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                          Route / Area: {(student?.household as any)?.area}
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
+                      <div>
+                        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>House No / Street / City Address</label>
+                        <input
+                          className="input-field"
+                          placeholder="e.g. No 45, Main Street, Kandy"
+                          value={addressInput}
+                          onChange={e => setAddressInput(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Area / Delivery Route</label>
+                        <input
+                          className="input-field"
+                          placeholder="e.g. Kandy Town"
+                          value={areaInput}
+                          onChange={e => setAreaInput(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
