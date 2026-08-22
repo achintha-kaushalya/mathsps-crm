@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, UserPlus, CheckCircle, Home, Plus, Trash2, Lock, Sparkles } from 'lucide-react'
 import { CLASS_TYPES, CLASS_LABELS } from '@/lib/types'
@@ -53,6 +53,7 @@ export default function NewStudentPage() {
   const [error, setError] = useState('')
   const [successPs, setSuccessPs] = useState('')
 
+  const channelRef = useRef<any>(null)
   const isAdmin = userRole === 'admin' || userRole === 'owner' || (createdBy && createdBy.toLowerCase().includes('admin'))
 
   // Function to load admin course setup
@@ -63,13 +64,11 @@ export default function NewStudentPage() {
         const notesObj = JSON.parse(adminRecord.notes)
         if (notesObj.custom_courses) {
           setAvailableClasses(prev => ({
-            ...prev,
             ...notesObj.custom_courses
           }))
         }
         if (notesObj.class_fees) {
           setClassDefaultFees(prev => ({
-            ...prev,
             ...notesObj.class_fees
           }))
         }
@@ -102,28 +101,25 @@ export default function NewStudentPage() {
     loadAdminCourses()
 
     // Subscribe to Realtime changes and WebSockets Broadcast events for instant live course updates
-    const channel = supabase.channel('mathsps-global-courses-sync')
+    const room = supabase.channel('mathsps-global-courses-sync')
+    channelRef.current = room
+
+    room
       .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => {
         loadAdminCourses()
       })
       .on('broadcast', { event: 'courses_updated' }, (payload: any) => {
         if (payload?.payload?.courses) {
-          setAvailableClasses(prev => ({
-            ...prev,
-            ...payload.payload.courses
-          }))
+          setAvailableClasses(payload.payload.courses)
         }
         if (payload?.payload?.fees) {
-          setClassDefaultFees(prev => ({
-            ...prev,
-            ...payload.payload.fees
-          }))
+          setClassDefaultFees(payload.payload.fees)
         }
       })
       .subscribe()
 
     return () => {
-      supabase.removeChannel(channel)
+      supabase.removeChannel(room)
     }
   }, [])
 
@@ -153,17 +149,14 @@ export default function NewStudentPage() {
           })
         })
 
-        // Send instant WebSockets broadcast to all active sessions
-        const channel = supabase.channel('mathsps-global-courses-sync')
-        channel.subscribe((status) => {
-          if (status === 'SUBSCRIBED') {
-            channel.send({
-              type: 'broadcast',
-              event: 'courses_updated',
-              payload: { courses: coursesDict, fees: feesDict || classDefaultFees }
-            })
-          }
-        })
+        // Broadcast to all active websocket channels
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'courses_updated',
+            payload: { courses: coursesDict, fees: feesDict || classDefaultFees }
+          })
+        }
       }
     } catch (err) {
       console.error('Failed to persist courses:', err)
