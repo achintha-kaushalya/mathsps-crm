@@ -98,6 +98,20 @@ export default function NewStudentPage() {
       }
     })
 
+    // Fetch highest PS number in database to suggest starting at PS10500+
+    supabase.from('students').select('ps_code').order('created_at', { ascending: false }).limit(20).then(({ data }) => {
+      let maxNum = 10499
+      if (data && data.length > 0) {
+        data.forEach(s => {
+          const num = parseInt((s.ps_code || '').replace(/\D/g, ''))
+          if (!isNaN(num) && num > maxNum) {
+            maxNum = num
+          }
+        })
+      }
+      setPsCode(`PS${maxNum + 1}`)
+    })
+
     loadAdminCourses()
 
     // Subscribe to Realtime changes and WebSockets Broadcast events for instant live course updates
@@ -260,8 +274,8 @@ export default function NewStudentPage() {
         householdId = hh.id
       }
 
-      // 2. Create Student Record
-      const { data: stu, error: stuErr } = await supabase.from('students').insert({
+      // 2. Insert or Update Student Record (upsert to handle pre-generated PS1..PS10499)
+      const { data: stu, error: stuErr } = await supabase.from('students').upsert({
         ps_code: formattedPs,
         household_id: householdId,
         full_name: fullName.trim() || null,
@@ -270,7 +284,7 @@ export default function NewStudentPage() {
         notes: notes.trim() || null,
         fcode_ref: fcodeRef.trim() ? fcodeRef.trim().toUpperCase() : null,
         created_by: createdBy.trim(),
-      }).select('id, ps_code').single()
+      }, { onConflict: 'ps_code' }).select('id, ps_code').single()
 
       if (stuErr) throw stuErr
 
