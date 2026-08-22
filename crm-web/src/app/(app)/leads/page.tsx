@@ -28,10 +28,16 @@ const USER_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ec4899', '#06
 
 function normalizePhone(raw: string): string {
   if (!raw) return ''
-  let digits = raw.replace(/\D/g, '')
-  if (digits.length === 11 && digits.startsWith('94')) digits = digits.slice(2)
-  if (digits.length === 10 && digits.startsWith('0')) digits = digits.slice(1)
-  if (digits.length === 9) return `0${digits}`
+  // 1. Remove all non-numeric characters (spaces, +, -, etc.)
+  const digits = raw.replace(/\D/g, '')
+  if (!digits) return ''
+
+  // 2. Excel/CRM Rule: Extract last 9 digits and format standard Sri Lankan 07XXXXXXXX
+  if (digits.length >= 9) {
+    const last9 = digits.slice(-9)
+    return `0${last9}`
+  }
+
   return digits
 }
 
@@ -189,12 +195,14 @@ export default function MasterLeadsSpreadsheet() {
 
       if (search.trim()) {
         const s = search.trim()
+        const normSearch = normalizePhone(s)
+
         if (s.toUpperCase().startsWith('F')) {
           q = q.ilike('fcode', `%${s}%`)
-        } else if (/^\d+/.test(s)) {
-          q = q.ilike('normalized_phone', `%${s}%`)
+        } else if (normSearch.length >= 7) {
+          q = q.or(`normalized_phone.ilike.%${normSearch}%,raw_phone.ilike.%${s}%,fcode.ilike.%${s}%`)
         } else {
-          q = q.or(`fcode.ilike.%${s}%,normalized_phone.ilike.%${s}%,campaign.ilike.%${s}%,comments.ilike.%${s}%`)
+          q = q.or(`fcode.ilike.%${s}%,normalized_phone.ilike.%${s}%,raw_phone.ilike.%${s}%,campaign.ilike.%${s}%,comments.ilike.%${s}%`)
         }
       }
       if (statusFilter) q = q.eq('status', statusFilter)
