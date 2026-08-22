@@ -524,24 +524,16 @@ export default function MasterLeadsSpreadsheet() {
                   onChange={e => setNewCampaign(e.target.value)}
                 />
               </td>
-              {/* Comments + Add button */}
-              <td style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+              {/* Comments */}
+              <td>
                 <input
                   className="input-field"
-                  style={{ padding: '4px 6px', fontSize: 12, flex: 1 }}
-                  placeholder="Enter comments & press Add..."
+                  style={{ padding: '4px 6px', fontSize: 12, width: '100%' }}
+                  placeholder="Comments / Call notes..."
                   value={newComment}
                   onChange={e => setNewComment(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleAddNewRow(e)}
                 />
-                <button
-                  className="btn-primary"
-                  style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap' }}
-                  onClick={handleAddNewRow}
-                  disabled={addingRow || !newPhone.trim()}
-                >
-                  {addingRow ? 'Adding...' : '+ Add Row'}
-                </button>
               </td>
               {/* Duplicate Check */}
               <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>Auto Checked</td>
@@ -564,7 +556,17 @@ export default function MasterLeadsSpreadsheet() {
               <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
               {/* Paid Grade/s */}
               <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
-              <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
+              {/* Action Column Add Button */}
+              <td style={{ textAlign: 'center' }}>
+                <button
+                  className="btn-primary"
+                  style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap' }}
+                  onClick={handleAddNewRow}
+                  disabled={addingRow || !newPhone.trim()}
+                >
+                  {addingRow ? 'Adding...' : '+ Add Row'}
+                </button>
+              </td>
             </tr>
 
             {/* DATA ROWS */}
