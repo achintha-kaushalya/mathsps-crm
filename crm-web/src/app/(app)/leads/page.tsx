@@ -212,6 +212,11 @@ export default function MasterLeadsSpreadsheet() {
     }
   }
 
+  function isOwnLead(lead: Lead): boolean {
+    if (!lead.assigned_member) return true
+    return (lead.assigned_member || '').toLowerCase() === (currentMemberName || '').toLowerCase()
+  }
+
   function canEditLead(lead: Lead): boolean {
     if (isAdmin) return true
     if (canViewAll) return true
@@ -554,7 +559,9 @@ export default function MasterLeadsSpreadsheet() {
 
             {/* DATA ROWS */}
             {leads.map((lead, idx) => {
-              const editable = canEditLead(lead)
+              const ownLead = isOwnLead(lead)
+              const editable = canEditLead(lead) // admin, own lead, or permitted team lead
+              const canEditFullRow = isAdmin || ownLead
               const presence = activePresences[lead.id]
 
               // Apps Script Formula Line 594-597:
@@ -579,8 +586,10 @@ export default function MasterLeadsSpreadsheet() {
                 >
                   {/* Lock / Ownership Status */}
                   <td style={{ textAlign: 'center' }}>
-                    {editable ? (
-                      <span style={{ color: '#10b981', fontSize: 11 }} title="You can edit this row">✏</span>
+                    {canEditFullRow ? (
+                      <span style={{ color: '#10b981', fontSize: 11 }} title="You own and can edit all fields in this row">✏</span>
+                    ) : editable ? (
+                      <span style={{ color: '#38bdf8', fontSize: 11 }} title="Assigned 2nd Call Lead (Only 2nd Call fields editable)">📞</span>
                     ) : (
                       <span title={`Locked (Assigned to ${lead.assigned_member})`} style={{ display: 'inline-flex', alignItems: 'center' }}>
                         <Lock size={12} style={{ color: 'var(--text-muted)' }} />
@@ -598,7 +607,7 @@ export default function MasterLeadsSpreadsheet() {
                   {/* Phone (Display clean normalized number) */}
                   <td>
                     <GridCell
-                      editable={editable}
+                      editable={canEditFullRow}
                       value={lead.normalized_phone || lead.raw_phone || '—'}
                       onFocus={() => broadcastCellFocus(lead.id, 'phone')}
                       onSave={v => saveCell(lead.id, 'normalized_phone', v, lead)}
@@ -629,7 +638,7 @@ export default function MasterLeadsSpreadsheet() {
                   {/* Status Dropdown */}
                   <td>
                     <GridSelect
-                      editable={editable}
+                      editable={canEditFullRow}
                       value={lead.status}
                       options={LEAD_STATUSES}
                       badgeClass={STATUS_COLOR[lead.status] || 'status-default'}
@@ -640,7 +649,7 @@ export default function MasterLeadsSpreadsheet() {
                   {/* Grade */}
                   <td>
                     <GridCell
-                      editable={editable}
+                      editable={canEditFullRow}
                       value={lead.grade || '—'}
                       onFocus={() => broadcastCellFocus(lead.id, 'grade')}
                       onSave={v => saveCell(lead.id, 'grade', v, lead)}
@@ -650,7 +659,7 @@ export default function MasterLeadsSpreadsheet() {
                   {/* Campaign */}
                   <td>
                     <GridCell
-                      editable={editable}
+                      editable={canEditFullRow}
                       value={lead.campaign || '—'}
                       onFocus={() => broadcastCellFocus(lead.id, 'campaign')}
                       onSave={v => saveCell(lead.id, 'campaign', v, lead)}
@@ -729,7 +738,7 @@ export default function MasterLeadsSpreadsheet() {
                       </div>
                     )}
                     <GridCell
-                      editable={editable}
+                      editable={canEditFullRow}
                       value={lead.comments || '—'}
                       onFocus={() => broadcastCellFocus(lead.id, 'comments')}
                       onSave={v => saveCell(lead.id, 'comments', v, lead)}
