@@ -371,13 +371,15 @@ export default function NewStudentPage() {
                     className="input-field"
                     placeholder="Auto-generating..."
                     value={psCode}
-                    readOnly
+                    disabled
+                    autoComplete="off"
                     style={{
                       background: 'rgba(255,255,255,0.03)',
                       borderColor: 'var(--border)',
                       fontWeight: 700,
                       color: 'var(--accent-blue)',
-                      cursor: 'not-allowed'
+                      cursor: 'not-allowed',
+                      opacity: 0.9
                     }}
                   />
                 </div>
