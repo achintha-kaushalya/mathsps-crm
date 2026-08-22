@@ -35,6 +35,40 @@ function AddPaymentForm() {
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
 
+  const [searchResults, setSearchResults] = useState<Student[]>([])
+  const [searching, setSearching] = useState(false)
+  const [showDropdown, setShowDropdown] = useState(false)
+
+  // Live real-time search suggestions as user types (supporting PS5000, pS 5000, 5000, name, etc.)
+  useEffect(() => {
+    if (!psSearch.trim()) {
+      setSearchResults([])
+      setShowDropdown(false)
+      return
+    }
+
+    const term = psSearch.trim()
+    const cleanDigits = term.replace(/\D/g, '')
+    const cleanPs = term.toUpperCase().replace(/\s+/g, '')
+
+    // Perform fuzzy live search query
+    let query = supabase.from('students').select('*, household:households(*)').limit(8)
+
+    if (cleanDigits) {
+      // User typed numbers e.g. "5000" or "ps 5000"
+      query = query.or(`ps_code.ilike.%${cleanDigits}%,full_name.ilike.%${term}%,ps_code.ilike.%${cleanPs}%`)
+    } else {
+      query = query.or(`ps_code.ilike.%${cleanPs}%,full_name.ilike.%${term}%`)
+    }
+
+    setSearching(true)
+    query.then(({ data }) => {
+      setSearchResults(data || [])
+      setShowDropdown(true)
+      setSearching(false)
+    })
+  }, [psSearch])
+
   // Auto-detect logged in member
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -54,17 +88,44 @@ function AddPaymentForm() {
     if (psSearch) searchStudent()
   }, [])
 
+  function selectStudent(selectedStu: Student) {
+    setStudent(selectedStu)
+    setPsSearch(selectedStu.ps_code)
+    setShowDropdown(false)
+    setError('')
+    
+    supabase.from('enrollments').select('*').eq('student_id', selectedStu.id).eq('active', true).then(({ data: enrols }) => {
+      setEnrollments(enrols || [])
+      if (enrols && enrols[0]) {
+        setForm(f => ({ ...f, class_type: enrols[0].class_type }))
+        loadBalance(selectedStu.id, enrols[0].class_type)
+      }
+    })
+  }
+
   async function searchStudent() {
     setStudent(null); setError('')
-    const { data } = await supabase.from('students').select('*, household:households(*)').eq('ps_code', psSearch.trim().toUpperCase()).single()
-    if (!data) { setError(`Student "${psSearch}" not found`); return }
-    setStudent(data)
-    const { data: enrols } = await supabase.from('enrollments').select('*').eq('student_id', data.id).eq('active', true)
-    setEnrollments(enrols || [])
-    if (enrols && enrols[0]) {
-      setForm(f => ({ ...f, class_type: enrols[0].class_type }))
-      loadBalance(data.id, enrols[0].class_type)
+    if (!psSearch.trim()) return
+
+    const rawInput = psSearch.trim()
+    const cleanDigits = rawInput.replace(/\D/g, '')
+    const cleanPs = rawInput.toUpperCase().replace(/\s+/g, '')
+    
+    // Try multiple search strategies: exact match, formatted PS, digits match, or name
+    let { data: matches } = await supabase
+      .from('students')
+      .select('*, household:households(*)')
+      .or(`ps_code.eq.${cleanPs},ps_code.eq.PS${cleanDigits},ps_code.ilike.%${cleanDigits}%,full_name.ilike.%${rawInput}%`)
+      .limit(5)
+
+    if (!matches || matches.length === 0) {
+      setError(`No student found for "${psSearch}". Try typing digits like 5000 or student name.`)
+      return
     }
+
+    // Pick best match (exact PS match first, else first candidate)
+    const bestMatch = matches.find(s => s.ps_code.toUpperCase() === cleanPs || s.ps_code.toUpperCase() === `PS${cleanDigits}`) || matches[0]
+    selectStudent(bestMatch)
   }
 
   async function loadBalance(studentId: string, classType: string) {
@@ -143,14 +204,46 @@ function AddPaymentForm() {
           <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14, color: 'var(--accent-blue)' }}>
             1. Find Student
           </div>
-          <div style={{ display: 'flex', gap: 10 }}>
-            <input className="input-field" placeholder="PS code e.g. PS6359"
-              value={psSearch} onChange={e => setPsSearch(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && searchStudent()}
-            />
-            <button className="btn-primary" onClick={searchStudent}>
-              <Search size={14} /> Search
-            </button>
+          <div style={{ position: 'relative' }}>
+            <div style={{ display: 'flex', gap: 10 }}>
+              <input className="input-field" placeholder="Search by PS Code (e.g. 5000, ps 5000) or Student Name"
+                value={psSearch} onChange={e => setPsSearch(e.target.value)}
+                onFocus={() => psSearch.trim() && setShowDropdown(true)}
+                onKeyDown={e => e.key === 'Enter' && searchStudent()}
+                autoFocus
+              />
+              <button className="btn-primary" onClick={searchStudent}>
+                <Search size={14} /> Search
+              </button>
+            </div>
+
+            {/* Live Search Suggestions Dropdown */}
+            {showDropdown && searchResults.length > 0 && (
+              <div style={{
+                position: 'absolute', top: '100%', left: 0, right: 90, marginTop: 4,
+                background: '#0d1424', border: '1px solid var(--border)', borderRadius: 8,
+                zIndex: 9999, boxShadow: '0 10px 25px rgba(0,0,0,0.5)', maxHeight: 240, overflowY: 'auto'
+              }}>
+                {searchResults.map(st => (
+                  <div
+                    key={st.id}
+                    onClick={() => selectStudent(st)}
+                    style={{
+                      padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.05)',
+                      cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      transition: 'background 0.15s'
+                    }}
+                    onMouseDown={e => e.preventDefault()}
+                  >
+                    <div>
+                      <span style={{ fontWeight: 700, color: 'var(--accent-blue)', fontSize: 14 }}>{st.ps_code}</span>
+                      <span style={{ marginLeft: 10, fontSize: 13, color: 'var(--text-primary)' }}>{st.full_name || 'No name'}</span>
+                    </div>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Gr {st.grade || '?'}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {error && <div style={{ marginTop: 12, color: 'var(--accent-red)', fontSize: 13 }}>⚠ {error}</div>}

@@ -32,11 +32,14 @@ export default function StudentsPage() {
       `, { count: 'exact' })
 
       if (search.trim()) {
-        const s = search.trim().toUpperCase()
-        if (s.startsWith('PS') || s.startsWith('KS')) {
-          q = q.ilike('ps_code', `%${s}%`)
+        const raw = search.trim()
+        const cleanDigits = raw.replace(/\D/g, '')
+        const cleanPs = raw.toUpperCase().replace(/\s+/g, '')
+
+        if (cleanDigits) {
+          q = q.or(`ps_code.ilike.%${cleanDigits}%,ps_code.ilike.%${cleanPs}%,full_name.ilike.%${raw}%,school.ilike.%${raw}%`)
         } else {
-          q = q.or(`ps_code.ilike.%${search}%,full_name.ilike.%${search}%,school.ilike.%${search}%`)
+          q = q.or(`ps_code.ilike.%${cleanPs}%,full_name.ilike.%${raw}%,school.ilike.%${raw}%`)
         }
       }
       if (gradeFilter) q = q.eq('grade', parseInt(gradeFilter))
