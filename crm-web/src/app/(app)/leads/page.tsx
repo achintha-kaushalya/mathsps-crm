@@ -350,17 +350,17 @@ export default function MasterLeadsSpreadsheet() {
         }
       }
 
-      // 2. If BRAND NEW phone number -> generate next sequential F-code (strict standard F70000+ increment)
+      // 2. If BRAND NEW phone number -> generate next sequential F-code starting at F80000+
       if (!targetFcode) {
         const { data: allFcodes } = await supabase.from('leads').select('fcode').order('created_at', { ascending: false }).limit(500)
-        let maxNum = 70000
+        let maxNum = 80000
         if (allFcodes) {
           allFcodes.forEach(f => {
             const fc = (f.fcode || '').trim()
-            // Match strict standard F-codes (F followed by 5 digits, e.g. F75845)
+            // Match strict standard 5-digit F-codes (F80000..F99999)
             if (/^F\d{5}$/i.test(fc)) {
               const n = parseInt(fc.slice(1), 10)
-              if (!isNaN(n) && n > maxNum && n < 99999) {
+              if (!isNaN(n) && n >= maxNum && n < 99999) {
                 maxNum = n
               }
             }
@@ -387,11 +387,7 @@ export default function MasterLeadsSpreadsheet() {
 
       const { data: insertedData, error } = await supabase.from('leads').insert(newLead).select().single()
       if (error) {
-        // Fallback: If duplicate F-Code error occurred, bump F-Code by timestamp
-        const fallbackFcode = `F${Date.now().toString().slice(-5)}`
-        const { data: retryData, error: retryErr } = await supabase.from('leads').insert({ ...newLead, fcode: fallbackFcode }).select().single()
-        if (retryErr) throw retryErr
-        setLeads(prev => [retryData, ...prev])
+        throw error
       } else if (insertedData) {
         setLeads(prev => [insertedData, ...prev])
       }
