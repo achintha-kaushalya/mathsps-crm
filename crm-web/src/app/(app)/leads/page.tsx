@@ -476,13 +476,13 @@ export default function MasterLeadsSpreadsheet() {
               <th style={{ width: 130 }}>Status</th>
               <th style={{ width: 55 }}>Grade</th>
               <th style={{ width: 100 }}>Campaign</th>
-              <th style={{ width: 150 }}>Duplicate Check</th>
+              <th>Comments / Call Notes</th>
+              <th style={{ width: 140 }}>Duplicate Check</th>
               <th style={{ width: 70 }}>Repeat?</th>
               <th style={{ width: 60 }}>2nd Call</th>
-              <th style={{ width: 180 }}>2nd Call Note</th>
+              <th style={{ width: 160 }}>2nd Call Note</th>
               <th style={{ width: 50 }}>Paid</th>
               <th style={{ width: 110 }}>Paid Grade/s</th>
-              <th>Comments / Call Notes</th>
               <th style={{ width: 45, textAlign: 'center' }}>Action</th>
             </tr>
           </thead>
@@ -524,6 +524,25 @@ export default function MasterLeadsSpreadsheet() {
                   onChange={e => setNewCampaign(e.target.value)}
                 />
               </td>
+              {/* Comments + Add button */}
+              <td style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <input
+                  className="input-field"
+                  style={{ padding: '4px 6px', fontSize: 12, flex: 1 }}
+                  placeholder="Enter comments & press Add..."
+                  value={newComment}
+                  onChange={e => setNewComment(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && handleAddNewRow(e)}
+                />
+                <button
+                  className="btn-primary"
+                  style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap' }}
+                  onClick={handleAddNewRow}
+                  disabled={addingRow || !newPhone.trim()}
+                >
+                  {addingRow ? 'Adding...' : '+ Add Row'}
+                </button>
+              </td>
               {/* Duplicate Check */}
               <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>Auto Checked</td>
               {/* Repeat */}
@@ -545,25 +564,6 @@ export default function MasterLeadsSpreadsheet() {
               <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
               {/* Paid Grade/s */}
               <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
-              {/* Comments + Add button */}
-              <td style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                <input
-                  className="input-field"
-                  style={{ padding: '4px 6px', fontSize: 12, flex: 1 }}
-                  placeholder="Enter comments & press Add..."
-                  value={newComment}
-                  onChange={e => setNewComment(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && handleAddNewRow(e)}
-                />
-                <button
-                  className="btn-primary"
-                  style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap' }}
-                  onClick={handleAddNewRow}
-                  disabled={addingRow || !newPhone.trim()}
-                >
-                  {addingRow ? 'Adding...' : '+ Add Row'}
-                </button>
-              </td>
               <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
             </tr>
 
@@ -676,6 +676,25 @@ export default function MasterLeadsSpreadsheet() {
                     />
                   </td>
 
+                  {/* Comments + Multiplayer Working Badge */}
+                  <td style={{ position: 'relative' }}>
+                    {presence && (
+                      <div style={{
+                        position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                        background: presence.color, color: '#fff', fontSize: 10, padding: '2px 6px',
+                        borderRadius: 10, fontWeight: 700, pointerEvents: 'none'
+                      }}>
+                        👤 {presence.user_name} is editing...
+                      </div>
+                    )}
+                    <GridCell
+                      editable={canEditFullRow}
+                      value={lead.comments || '—'}
+                      onFocus={() => broadcastCellFocus(lead.id, 'comments')}
+                      onSave={v => saveCell(lead.id, 'comments', v, lead)}
+                    />
+                  </td>
+
                   {/* DUPLICATE WARNING CHECK BAR (Yellow Highlighted on SAME CAMPAIGN match) */}
                   <td>
                     {isTrueDuplicate ? (
@@ -733,25 +752,6 @@ export default function MasterLeadsSpreadsheet() {
                       value={lead.paid_grades || '—'}
                       onFocus={() => broadcastCellFocus(lead.id, 'paid_grades')}
                       onSave={v => saveCell(lead.id, 'paid_grades', v, lead)}
-                    />
-                  </td>
-
-                  {/* Comments + Multiplayer Working Badge */}
-                  <td style={{ position: 'relative' }}>
-                    {presence && (
-                      <div style={{
-                        position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                        background: presence.color, color: '#fff', fontSize: 10, padding: '2px 6px',
-                        borderRadius: 10, fontWeight: 700, pointerEvents: 'none'
-                      }}>
-                        👤 {presence.user_name} is editing...
-                      </div>
-                    )}
-                    <GridCell
-                      editable={canEditFullRow}
-                      value={lead.comments || '—'}
-                      onFocus={() => broadcastCellFocus(lead.id, 'comments')}
-                      onSave={v => saveCell(lead.id, 'comments', v, lead)}
                     />
                   </td>
 
