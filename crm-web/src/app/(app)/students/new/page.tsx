@@ -55,7 +55,31 @@ export default function NewStudentPage() {
 
   const isAdmin = userRole === 'admin' || userRole === 'owner' || (createdBy && createdBy.toLowerCase().includes('admin'))
 
-  // Auto-detect and lock audit info from logged-in user profile, and load persisted custom courses
+  // Function to load admin course setup
+  const loadAdminCourses = async () => {
+    const { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').single()
+    if (adminRecord?.notes) {
+      try {
+        const notesObj = JSON.parse(adminRecord.notes)
+        if (notesObj.custom_courses) {
+          setAvailableClasses(prev => ({
+            ...prev,
+            ...notesObj.custom_courses
+          }))
+        }
+        if (notesObj.class_fees) {
+          setClassDefaultFees(prev => ({
+            ...prev,
+            ...notesObj.class_fees
+          }))
+        }
+      } catch (err) {
+        console.error('Failed to parse custom courses & fees:', err)
+      }
+    }
+  }
+
+  // Auto-detect user role & subscribe to Realtime course updates
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
@@ -72,45 +96,21 @@ export default function NewStudentPage() {
         }
         setCreatedBy(name)
         setUserRole(role)
-
-        // Function to load admin course setup
-        const loadAdminCourses = async () => {
-          const { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').single()
-          if (adminRecord?.notes) {
-            try {
-              const notesObj = JSON.parse(adminRecord.notes)
-              if (notesObj.custom_courses) {
-                setAvailableClasses(prev => ({
-                  ...prev,
-                  ...notesObj.custom_courses
-                }))
-              }
-              if (notesObj.class_fees) {
-                setClassDefaultFees(prev => ({
-                  ...prev,
-                  ...notesObj.class_fees
-                }))
-              }
-            } catch (err) {
-              console.error('Failed to parse custom courses & fees:', err)
-            }
-          }
-        }
-
-        await loadAdminCourses()
-
-        // Subscribe to Realtime changes on members table for live course updates
-        const channel = supabase.channel('student-new-courses-realtime')
-          .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => {
-            loadAdminCourses()
-          })
-          .subscribe()
-
-        return () => {
-          supabase.removeChannel(channel)
-        }
       }
     })
+
+    loadAdminCourses()
+
+    // Subscribe to Realtime changes on members table for live course updates
+    const channel = supabase.channel('student-new-courses-realtime-' + Math.random().toString(36).substring(7))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => {
+        loadAdminCourses()
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
   }, [])
 
   function toggleClass(classType: string, label?: string) {
