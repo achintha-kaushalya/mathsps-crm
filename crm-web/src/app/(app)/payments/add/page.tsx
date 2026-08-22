@@ -88,6 +88,12 @@ function AddPaymentForm() {
     if (psSearch) searchStudent()
   }, [])
 
+  const [editingStudent, setEditingStudent] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editGrade, setEditGrade] = useState<number | ''>(11)
+  const [editSchool, setEditSchool] = useState('')
+  const [savingStudent, setSavingStudent] = useState(false)
+
   const [editingAddress, setEditingAddress] = useState(false)
   const [addressInput, setAddressInput] = useState('')
   const [areaInput, setAreaInput] = useState('')
@@ -100,7 +106,12 @@ function AddPaymentForm() {
     setPsSearch(selectedStu.ps_code)
     setShowDropdown(false)
     setError('')
+    setEditingStudent(false)
     setEditingAddress(false)
+
+    setEditName(selectedStu.full_name || '')
+    setEditGrade(selectedStu.grade || 11)
+    setEditSchool(selectedStu.school || '')
 
     const hh = selectedStu.household || {}
     setAddressInput(hh.address || '')
@@ -115,6 +126,32 @@ function AddPaymentForm() {
         loadBalance(selectedStu.id, enrols[0].class_type)
       }
     })
+  }
+
+  async function saveStudentProfile() {
+    if (!student) return
+    setSavingStudent(true)
+    try {
+      const { error: err } = await supabase.from('students').update({
+        full_name: editName.trim() || null,
+        grade: editGrade ? parseInt(String(editGrade)) : null,
+        school: editSchool.trim() || null
+      }).eq('id', student.id)
+
+      if (err) throw err
+
+      setStudent({
+        ...student,
+        full_name: editName.trim(),
+        grade: editGrade ? parseInt(String(editGrade)) : null,
+        school: editSchool.trim()
+      } as any)
+      setEditingStudent(false)
+    } catch (e: any) {
+      alert('Failed to update student profile: ' + e.message)
+    } finally {
+      setSavingStudent(false)
+    }
   }
 
   async function saveAddress() {
@@ -315,13 +352,90 @@ function AddPaymentForm() {
 
           {student && (
             <div style={{ marginTop: 14, padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
-              <div style={{ fontWeight: 600, color: '#10b981' }}>✓ Found: {student.ps_code}</div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4 }}>
-                {student.full_name || 'No name set'} · Grade {student.grade || '?'} · {student.school || 'School not set'}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontWeight: 600, color: '#10b981' }}>✓ Found: {student.ps_code}</div>
+                {!editingStudent ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditName(student.full_name || '')
+                      setEditGrade(student.grade || 11)
+                      setEditSchool(student.school || '')
+                      setEditingStudent(true)
+                    }}
+                    className="btn-secondary"
+                    style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    ✏ Edit Student Details
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={saveStudentProfile}
+                      disabled={savingStudent}
+                      className="btn-primary"
+                      style={{ padding: '3px 8px', fontSize: 11 }}
+                    >
+                      {savingStudent ? 'Saving...' : '✓ Save Profile'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingStudent(false)}
+                      className="btn-secondary"
+                      style={{ padding: '3px 8px', fontSize: 11 }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
-              {(student.household as any)?.address && (
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                  📍 {(student.household as any).address}
+
+              {!editingStudent ? (
+                <>
+                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
+                    <span style={{ fontWeight: 600, color: student.full_name ? 'var(--text-primary)' : 'var(--accent-red)' }}>
+                      {student.full_name || '⚠ No name set'}
+                    </span> · Grade {student.grade || '?'} · {student.school || 'School not set'}
+                  </div>
+                  {(student.household as any)?.address && (
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                      📍 {(student.household as any).address}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Student Full Name</label>
+                    <input
+                      className="input-field"
+                      placeholder="e.g. Kasun Perera"
+                      value={editName}
+                      onChange={e => setEditName(e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Grade</label>
+                    <select
+                      className="input-field"
+                      value={editGrade}
+                      onChange={e => setEditGrade(e.target.value ? parseInt(e.target.value) : '')}
+                    >
+                      {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                        <option key={g} value={g}>Grade {g}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>School</label>
+                    <input
+                      className="input-field"
+                      placeholder="e.g. Ananda College"
+                      value={editSchool}
+                      onChange={e => setEditSchool(e.target.value)}
+                    />
+                  </div>
                 </div>
               )}
             </div>
