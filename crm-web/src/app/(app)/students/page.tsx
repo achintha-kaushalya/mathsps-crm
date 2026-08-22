@@ -31,6 +31,9 @@ export default function StudentsPage() {
         *, household:households(parent_name, address, area)
       `, { count: 'exact' })
 
+      const activeTutor = typeof window !== 'undefined' ? (localStorage.getItem('mathsps_active_tutor') || 'prabuddha') : 'prabuddha'
+      const tutorPrefix = activeTutor === 'sanduni' ? 'SM' : 'PS'
+
       if (search.trim()) {
         const raw = search.trim()
         const cleanDigits = raw.replace(/\D/g, '')
@@ -41,10 +44,13 @@ export default function StudentsPage() {
         } else {
           q = q.or(`ps_code.ilike.%${cleanPs}%,full_name.ilike.%${raw}%,school.ilike.%${raw}%`)
         }
+      } else {
+        // Filter by active tutor's code prefix if no search query
+        q = q.ilike('ps_code', `${tutorPrefix}%`)
       }
       if (gradeFilter) q = q.eq('grade', parseInt(gradeFilter))
 
-      q = q.order('ps_code').range(p * PAGE_SIZE, (p + 1) * PAGE_SIZE - 1)
+      q = q.order('created_at', { ascending: false }).range(p * PAGE_SIZE, (p + 1) * PAGE_SIZE - 1)
       const { data, count } = await q
       setStudents(data || [])
       setTotal(count || 0)

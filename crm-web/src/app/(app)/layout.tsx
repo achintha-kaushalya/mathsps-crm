@@ -1,6 +1,7 @@
 import Sidebar from '@/components/Sidebar'
 import ClientOnly from '@/components/ClientOnly'
 import LoginGreeting from '@/components/LoginGreeting'
+import TutorProfileModal from '@/components/TutorProfileModal'
 import PageTransition from '@/components/PageTransition'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -15,6 +16,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </main>
       </div>
       <LoginGreeting />
+      <TutorProfileModal />
     </ClientOnly>
   )
 }

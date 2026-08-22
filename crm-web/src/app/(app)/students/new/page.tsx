@@ -98,19 +98,34 @@ export default function NewStudentPage() {
       }
     })
 
-    // Fetch highest PS number in database to suggest starting at PS10500+
-    supabase.from('students').select('ps_code').order('created_at', { ascending: false }).limit(20).then(({ data }) => {
-      let maxNum = 10499
-      if (data && data.length > 0) {
-        data.forEach(s => {
-          const num = parseInt((s.ps_code || '').replace(/\D/g, ''))
-          if (!isNaN(num) && num > maxNum) {
-            maxNum = num
-          }
-        })
-      }
-      setPsCode(`PS${maxNum + 1}`)
-    })
+    // Check active selected tutor profile ('prabuddha' vs 'sanduni')
+    const activeTutor = localStorage.getItem('mathsps_active_tutor') || 'prabuddha'
+
+    if (activeTutor === 'sanduni') {
+      // Sanduni Malshika -> auto generate SM code starting SM101+
+      supabase.from('students').select('ps_code').ilike('ps_code', 'SM%').order('created_at', { ascending: false }).limit(50).then(({ data }) => {
+        let maxNum = 100
+        if (data && data.length > 0) {
+          data.forEach(s => {
+            const num = parseInt((s.ps_code || '').replace(/\D/g, ''))
+            if (!isNaN(num) && num > maxNum) maxNum = num
+          })
+        }
+        setPsCode(`SM${maxNum + 1}`)
+      })
+    } else {
+      // Prabuddha Sampath -> auto generate PS code starting PS10500+
+      supabase.from('students').select('ps_code').ilike('ps_code', 'PS%').order('created_at', { ascending: false }).limit(50).then(({ data }) => {
+        let maxNum = 10499
+        if (data && data.length > 0) {
+          data.forEach(s => {
+            const num = parseInt((s.ps_code || '').replace(/\D/g, ''))
+            if (!isNaN(num) && num > maxNum) maxNum = num
+          })
+        }
+        setPsCode(`PS${maxNum + 1}`)
+      })
+    }
 
     loadAdminCourses()
 
