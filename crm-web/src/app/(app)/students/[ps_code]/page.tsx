@@ -288,7 +288,7 @@ export default function StudentDetailPage() {
                           <td style={{ fontWeight: 500 }}>{MONTH_NUM_TO_NAME(p.month)} {p.year}</td>
                           <td style={{ color: 'var(--text-muted)' }}>Rs.{(p.amount_due || 0).toLocaleString()}</td>
                           <td style={{ color: '#10b981', fontWeight: 500 }}>
-                            {['FREE','SIPSA'].includes(p.payment_type || '') ? p.payment_type : `Rs.${p.amount_paid.toLocaleString()}`}
+                            {['FREE','IMS','SIPSA'].includes(p.payment_type || '') ? p.payment_type : `Rs.${p.amount_paid.toLocaleString()}`}
                           </td>
                           <td className={p.balance_after < 0 ? 'balance-negative' : p.balance_after > 0 ? 'balance-positive' : 'balance-zero'}>
                             {p.balance_after >= 0 ? '+' : ''}Rs.{p.balance_after.toLocaleString()}

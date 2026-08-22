@@ -421,7 +421,7 @@ function AddPaymentForm() {
                   <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
                     <span style={{ fontWeight: 600, color: student.full_name ? 'var(--text-primary)' : 'var(--accent-red)' }}>
                       {student.full_name || '⚠ No name set'}
-                    </span> · Grade {student.grade || '?'} · {student.school || 'School not set'}
+                    </span> · Grade {student.grade || '?'}
                   </div>
                   {(student.household as any)?.address && (
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -430,7 +430,7 @@ function AddPaymentForm() {
                   )}
                 </>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 10, marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }}>
                   <div>
                     <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Student Full Name</label>
                     <input
@@ -451,15 +451,6 @@ function AddPaymentForm() {
                         <option key={g} value={g}>Grade {g}</option>
                       ))}
                     </select>
-                  </div>
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>School</label>
-                    <input
-                      className="input-field"
-                      placeholder="e.g. Ananda College"
-                      value={editSchool}
-                      onChange={e => setEditSchool(e.target.value)}
-                    />
                   </div>
                 </div>
               )}
@@ -572,7 +563,7 @@ function AddPaymentForm() {
 
               <FormRow label="Payment Type">
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {['BANK', 'CASH', 'FREE', 'SIPSA', 'PHYSICAL'].map(t => (
+                  {['BANK', 'CASH', 'FREE', 'IMS', 'PHYSICAL'].map(t => (
                     <button key={t} onClick={() => setForm(f => ({ ...f, payment_type: t }))}
                       className={form.payment_type === t ? 'btn-primary' : 'btn-secondary'}
                       style={{ padding: '6px 12px', fontSize: 12 }}>

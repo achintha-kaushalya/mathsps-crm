@@ -1,6 +1,6 @@
 // Database type definitions — matches our schema.sql exactly
 
-export type PaymentType = 'BANK' | 'CASH' | 'FREE' | 'SIPSA' | 'PHYSICAL' | 'OTHER'
+export type PaymentType = 'BANK' | 'CASH' | 'FREE' | 'IMS' | 'SIPSA' | 'PHYSICAL' | 'OTHER'
 export type EnrollmentTier = 'STANDARD' | 'PREMIUM'
 export type MemberRole = 'member' | 'admin' | 'owner' | 'callcenter' | 'payments'
 export type LinkConfidence = 'MANUAL' | 'AUTO' | 'CONFIRMED'
