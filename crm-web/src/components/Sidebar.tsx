@@ -110,51 +110,53 @@ export default function Sidebar() {
           </div>
         </div>
 
-        {/* Active Tutor Switcher Bar */}
-        <div
-          onClick={() => {
-            sessionStorage.removeItem('mathsps_tutor_selected_session')
-            window.location.reload()
-          }}
-          style={{
-            marginTop: 14,
-            padding: '8px 12px',
-            background: typeof window !== 'undefined' && localStorage.getItem('mathsps_active_tutor') === 'sanduni'
-              ? 'rgba(236, 72, 153, 0.12)'
-              : 'rgba(59, 130, 246, 0.12)',
-            border: `1px solid ${typeof window !== 'undefined' && localStorage.getItem('mathsps_active_tutor') === 'sanduni' ? 'rgba(236, 72, 153, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
-            borderRadius: 10,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: 8,
-            transition: 'all 0.15s',
-          }}
-          title="Click to switch active Tutor profile (Prabuddha vs Sanduni)"
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <img
-              src={typeof window !== 'undefined' && localStorage.getItem('mathsps_active_tutor') === 'sanduni' ? '/sanduni-profile.jpg' : '/prabuddha-profile.jpg'}
-              alt="Tutor"
-              style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', objectPosition: 'center top' }}
-            />
-            <div>
-              <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>
-                Active Tutor
-              </div>
-              <div style={{
-                fontSize: 12, fontWeight: 800,
-                color: typeof window !== 'undefined' && localStorage.getItem('mathsps_active_tutor') === 'sanduni' ? '#f472b6' : '#60a5fa'
-              }}>
-                {typeof window !== 'undefined' && localStorage.getItem('mathsps_active_tutor') === 'sanduni' ? 'Sanduni (SM)' : 'Prabuddha (PS)'}
+        {/* Active Tutor Switcher Bar (Only visible to Payment System assigned roles) */}
+        {!isCallCenterOnly && (
+          <div
+            onClick={() => {
+              sessionStorage.removeItem('mathsps_tutor_selected_session')
+              window.location.reload()
+            }}
+            style={{
+              marginTop: 14,
+              padding: '8px 12px',
+              background: typeof window !== 'undefined' && localStorage.getItem('mathsps_active_tutor') === 'sanduni'
+                ? 'rgba(236, 72, 153, 0.12)'
+                : 'rgba(59, 130, 246, 0.12)',
+              border: `1px solid ${typeof window !== 'undefined' && localStorage.getItem('mathsps_active_tutor') === 'sanduni' ? 'rgba(236, 72, 153, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+              borderRadius: 10,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 8,
+              transition: 'all 0.15s',
+            }}
+            title="Click to switch active Tutor profile (Prabuddha vs Sanduni)"
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <img
+                src={typeof window !== 'undefined' && localStorage.getItem('mathsps_active_tutor') === 'sanduni' ? '/sanduni-profile.jpg' : '/prabuddha-profile.jpg'}
+                alt="Tutor"
+                style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', objectPosition: 'center top' }}
+              />
+              <div>
+                <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>
+                  Active Tutor
+                </div>
+                <div style={{
+                  fontSize: 12, fontWeight: 800,
+                  color: typeof window !== 'undefined' && localStorage.getItem('mathsps_active_tutor') === 'sanduni' ? '#f472b6' : '#60a5fa'
+                }}>
+                  {typeof window !== 'undefined' && localStorage.getItem('mathsps_active_tutor') === 'sanduni' ? 'Sanduni (SM)' : 'Prabuddha (PS)'}
+                </div>
               </div>
             </div>
+            <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4 }}>
+              Switch ⇄
+            </span>
           </div>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.06)', padding: '2px 6px', borderRadius: 4 }}>
-            Switch ⇄
-          </span>
-        </div>
+        )}
       </div>
 
       {/* Nav */}

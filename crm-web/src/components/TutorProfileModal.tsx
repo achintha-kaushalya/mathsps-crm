@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Sparkles } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 export interface TutorProfile {
   id: 'prabuddha' | 'sanduni'
@@ -43,17 +44,39 @@ export default function TutorProfileModal() {
   const [animatingOut, setAnimatingOut] = useState(false)
 
   useEffect(() => {
-    // Check if user already picked a tutor profile in this session or localStorage
-    const saved = localStorage.getItem('mathsps_active_tutor') as 'prabuddha' | 'sanduni'
-    if (saved) {
-      setSelectedTutor(saved)
-    }
+    // Check user role: Modal only shows for users assigned to Payment System ('payments', 'member', 'admin')
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (user) {
+        let uRole = user.user_metadata?.role || (user.email?.includes('admin') ? 'admin' : 'member')
+        if (user.email) {
+          const { data: dbMem } = await supabase.from('members').select('role, notes').eq('email', user.email).single()
+          if (dbMem) {
+            try {
+              if (dbMem.notes) {
+                const perms = JSON.parse(dbMem.notes)
+                if (perms.sub_role) uRole = perms.sub_role
+              }
+            } catch {}
+          }
+        }
 
-    // Check if modal was already shown during this browser session
-    const sessionSeen = sessionStorage.getItem('mathsps_tutor_selected_session')
-    if (!sessionSeen) {
-      setShowModal(true)
-    }
+        // Call center role does NOT handle payments or tutor switching
+        if (uRole === 'callcenter') {
+          setShowModal(false)
+          return
+        }
+
+        // Check if user already picked a tutor profile
+        const saved = localStorage.getItem('mathsps_active_tutor') as 'prabuddha' | 'sanduni'
+        if (saved) setSelectedTutor(saved)
+
+        const sessionSeen = sessionStorage.getItem('mathsps_tutor_selected_session')
+        if (!sessionSeen) {
+          setShowModal(true)
+        }
+      }
+    })
   }, [])
 
   function selectProfile(profileId: 'prabuddha' | 'sanduni') {
