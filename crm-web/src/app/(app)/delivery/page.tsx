@@ -186,36 +186,35 @@ export default function DeliveryPage() {
     }
 
     const headers = [
-      'Envelope #',
-      'Parent / Guardian Name',
-      'Delivery Address',
-      'Area / Route',
-      'Parent Contact Phone',
-      'PS Codes',
-      'Students (Names & Grades)',
-      'Classes & Tutes Included',
-      'Total Tute Count',
-      'Month / Year',
+      'CODE',
+      'STUDENT NAME',
+      'GRADE',
+      'ADDRESS',
+      'AREA / ROUTE',
+      'PHONE',
+      'ENROLLED CLASSES & TUTES',
+      'NO OF TUTES',
+      'DISPATCH STATUS',
+      'MONTH / YEAR',
     ]
 
-    const rows = filteredGroups.map((g, idx) => {
-      const psList = g.students.map(s => s.ps_code).join(', ')
-      const studentsList = g.students.map(s => `${s.full_name} (Gr ${s.grade})`).join(', ')
-      const classesList = g.students.map(s => `${s.ps_code}: ${CLASS_LABELS[s.class_type] || s.class_type}`).join('; ')
-      const phone = (g as any).parent_phone || ''
+    const rows: string[][] = []
 
-      return [
-        `#${idx + 1}`,
-        `"${(g.parent_name || '').replace(/"/g, '""')}"`,
-        `"${(g.address || '').replace(/"/g, '""')}"`,
-        `"${(g.area || '').replace(/"/g, '""')}"`,
-        `"${phone}"`,
-        `"${psList}"`,
-        `"${studentsList.replace(/"/g, '""')}"`,
-        `"${classesList.replace(/"/g, '""')}"`,
-        g.students.length,
-        `"${MONTH_NAMES[month - 1]} ${year}"`,
-      ]
+    filteredGroups.forEach((g) => {
+      g.students.forEach((st) => {
+        rows.push([
+          `"${st.ps_code}"`,
+          `"${(st.full_name || '').replace(/"/g, '""')}"`,
+          `"Grade ${st.grade || '?'}"`,
+          `"${(g.address || '').replace(/"/g, '""')}"`,
+          `"${(g.area || '').replace(/"/g, '""')}"`,
+          `"${((g as any).parent_phone || '').replace(/"/g, '""')}"`,
+          `"${CLASS_LABELS[st.class_type] || st.class_type}"`,
+          `1`,
+          `"PENDING DISPATCH"`,
+          `"${MONTH_NAMES[month - 1]} ${year}"`,
+        ])
+      })
     })
 
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n')
@@ -223,7 +222,7 @@ export default function DeliveryPage() {
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `MathsPS_Post_Office_Delivery_List_${MONTH_NAMES[month - 1]}_${year}.csv`
+    a.download = `Post_Office_Tute_Dispatch_${MONTH_NAMES[month - 1]}_${year}.csv`
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
