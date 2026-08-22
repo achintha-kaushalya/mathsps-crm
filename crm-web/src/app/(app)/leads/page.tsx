@@ -40,7 +40,7 @@ export default function MasterLeadsSpreadsheet() {
 
   // Current User Context
   const [currentMemberName, setCurrentMemberName] = useState<string>('')
-  const [userRole, setUserRole] = useState<'member' | 'admin' | 'owner'>('member')
+  const [userRole, setUserRole] = useState<'member' | 'admin' | 'owner' | 'callcenter' | 'payments'>('member')
   const [userColor, setUserColor] = useState<string>('#3b82f6')
   const [allowedMembers, setAllowedMembers] = useState<string[]>([])
   const [canViewAll, setCanViewAll] = useState<boolean>(false)
@@ -69,7 +69,7 @@ export default function MasterLeadsSpreadsheet() {
   const [addingRow, setAddingRow] = useState(false)
 
   const searchTimeout = useRef<NodeJS.Timeout | undefined>(undefined)
-  const isAdmin = userRole === 'admin' || userRole === 'owner' || (currentMemberName && currentMemberName.toLowerCase().includes('admin'))
+  const isAdmin = Boolean(userRole === 'admin' || userRole === 'owner' || (currentMemberName && currentMemberName.toLowerCase().includes('admin')))
 
   // Initialize User Info & Permissions
   useEffect(() => {
@@ -466,6 +466,7 @@ export default function MasterLeadsSpreadsheet() {
               <th style={{ width: 60 }}>2nd Call</th>
               <th style={{ width: 180 }}>2nd Call Note</th>
               <th style={{ width: 50 }}>Paid</th>
+              <th style={{ width: 110 }}>Paid Grade/s</th>
               <th>Comments / Call Notes</th>
               <th style={{ width: 45, textAlign: 'center' }}>Action</th>
             </tr>
@@ -526,6 +527,8 @@ export default function MasterLeadsSpreadsheet() {
                 />
               </td>
               {/* Paid */}
+              <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
+              {/* Paid Grade/s */}
               <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
               {/* Comments + Add button */}
               <td style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
@@ -695,12 +698,22 @@ export default function MasterLeadsSpreadsheet() {
                     />
                   </td>
 
-                  {/* Paid */}
+                  {/* Paid (Admin Only Edit) */}
                   <td style={{ textAlign: 'center' }}>
                     <GridCheckbox
-                      editable={editable}
+                      editable={isAdmin}
                       checked={lead.paid}
                       onSave={v => saveCell(lead.id, 'paid', v, lead)}
+                    />
+                  </td>
+
+                  {/* Paid Grade/s (Admin Only Edit) */}
+                  <td>
+                    <GridCell
+                      editable={isAdmin}
+                      value={lead.paid_grades || '—'}
+                      onFocus={() => broadcastCellFocus(lead.id, 'paid_grades')}
+                      onSave={v => saveCell(lead.id, 'paid_grades', v, lead)}
                     />
                   </td>
 

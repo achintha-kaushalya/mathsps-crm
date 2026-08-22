@@ -41,6 +41,10 @@ export async function middleware(request: NextRequest) {
 
   // 2. Authenticated users visiting /login -> Redirect to appropriate home page
   if (session && isAuthPage) {
+    const userRole = session.user.user_metadata?.role || (session.user.email?.includes('admin') ? 'admin' : 'member')
+    if (userRole === 'payments') {
+      return NextResponse.redirect(new URL('/students', request.url))
+    }
     return NextResponse.redirect(new URL('/leads', request.url))
   }
 
@@ -55,8 +59,28 @@ export async function middleware(request: NextRequest) {
                              pathname.startsWith('/members')
 
     if (userRole !== 'admin' && userRole !== 'owner' && isAdminOnlyRoute) {
-      // Redirect regular members to /leads if they try to access restricted pages
+      if (userRole === 'payments') {
+        return NextResponse.redirect(new URL('/students', request.url))
+      }
       return NextResponse.redirect(new URL('/leads', request.url))
+    }
+
+    // Call Center role: CRM system only (block payment routes /students, /payments, /delivery)
+    if (userRole === 'callcenter') {
+      const isPaymentRoute = pathname.startsWith('/students') ||
+                             pathname.startsWith('/payments') ||
+                             pathname.startsWith('/delivery')
+      if (isPaymentRoute) {
+        return NextResponse.redirect(new URL('/leads', request.url))
+      }
+    }
+
+    // Payments role: Payment system only (block CRM routes /leads)
+    if (userRole === 'payments') {
+      const isCrmRoute = pathname.startsWith('/leads')
+      if (isCrmRoute) {
+        return NextResponse.redirect(new URL('/students', request.url))
+      }
     }
   }
 

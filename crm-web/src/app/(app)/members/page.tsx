@@ -198,15 +198,15 @@ export default function MembersPage() {
                         <select
                           className="input-field"
                           style={{
-                            padding: '3px 8px', fontSize: 11, height: 26, width: 95,
-                            background: m.role === 'admin' ? '#2a1a3a' : '#1e3a5f',
-                            color: m.role === 'admin' ? '#c084fc' : '#60a5fa',
+                            padding: '3px 8px', fontSize: 11, height: 26, width: 110,
+                            background: m.role === 'admin' ? '#2a1a3a' : m.role === 'callcenter' ? '#1a2e3b' : m.role === 'payments' ? '#3b2e1a' : '#1e3a5f',
+                            color: m.role === 'admin' ? '#c084fc' : m.role === 'callcenter' ? '#38bdf8' : m.role === 'payments' ? '#fbbf24' : '#60a5fa',
                             fontWeight: 700, border: '1px solid var(--border)',
                             margin: '0 auto'
                           }}
                           value={m.role}
                           onChange={(e) => {
-                            const selectedRole = e.target.value as 'member' | 'admin'
+                            const selectedRole = e.target.value as any
                             if (selectedRole !== m.role) {
                               setModalAction({ type: 'role', member: m, newRole: selectedRole })
                               setAdminPasswordInput('')
@@ -214,8 +214,10 @@ export default function MembersPage() {
                             }
                           }}
                         >
-                          <option value="member" style={{ background: '#0d1424', color: '#60a5fa' }}>MEMBER</option>
-                          <option value="admin" style={{ background: '#0d1424', color: '#c084fc' }}>ADMIN</option>
+                          <option value="member" style={{ background: '#0d1424', color: '#60a5fa' }}>MEMBER (Both)</option>
+                          <option value="callcenter" style={{ background: '#0d1424', color: '#38bdf8' }}>CALL CENTER (CRM Only)</option>
+                          <option value="payments" style={{ background: '#0d1424', color: '#fbbf24' }}>PAYMENTS (Payment System Only)</option>
+                          <option value="admin" style={{ background: '#0d1424', color: '#c084fc' }}>ADMIN (Full)</option>
                         </select>
                       </td>
 
@@ -436,8 +438,10 @@ export default function MembersPage() {
                   value={newMemberRole}
                   onChange={e => setNewMemberRole(e.target.value as any)}
                 >
-                  <option value="member">Member (Regular Staff - No Reports/Dashboard)</option>
-                  <option value="admin">Admin (Manager - Full Access)</option>
+                  <option value="member">Member (Access to Both CRM & Payment System)</option>
+                  <option value="callcenter">Call Center (CRM System Access Only)</option>
+                  <option value="payments">Payments (Payment System Access Only)</option>
+                  <option value="admin">Admin (Manager - Full System Access)</option>
                 </select>
               </div>
 

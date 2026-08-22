@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     // First request to get total count and first batch
     let query = supabase
       .from('leads')
-      .select('assigned_member,grade,status,campaign,date_added', { count: 'exact' })
+      .select('assigned_member,grade,status,campaign,date_added,paid,paid_grades', { count: 'exact' })
 
     if (startDate) query = query.gte('date_added', startDate)
     if (endDate) query = query.lte('date_added', endDate)
@@ -42,7 +42,7 @@ export async function GET(req: Request) {
           (async () => {
             let pQuery = supabase
               .from('leads')
-              .select('assigned_member,grade,status,campaign,date_added')
+              .select('assigned_member,grade,status,campaign,date_added,paid,paid_grades')
 
             if (startDate) pQuery = pQuery.gte('date_added', startDate)
             if (endDate) pQuery = pQuery.lte('date_added', endDate)

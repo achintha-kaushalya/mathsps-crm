@@ -2,7 +2,7 @@
 
 export type PaymentType = 'BANK' | 'CASH' | 'FREE' | 'SIPSA' | 'PHYSICAL' | 'OTHER'
 export type EnrollmentTier = 'STANDARD' | 'PREMIUM'
-export type MemberRole = 'member' | 'admin' | 'owner'
+export type MemberRole = 'member' | 'admin' | 'owner' | 'callcenter' | 'payments'
 export type LinkConfidence = 'MANUAL' | 'AUTO' | 'CONFIRMED'
 
 export type LeadStatus =
@@ -133,6 +133,7 @@ export interface Lead {
   second_call_done: boolean
   second_call_notes: string | null
   paid: boolean
+  paid_grades: string | null
   ps_code_ref: string | null
   created_at: string
   updated_at: string

@@ -29,6 +29,8 @@ interface LeadRow {
   status: string
   campaign: string | null
   date_added: string | null
+  paid?: boolean
+  paid_grades?: string | null
 }
 
 const NOW = new Date()
@@ -460,20 +462,28 @@ export default function AnalyticsDashboard() {
           </div>
         </div>
 
-        {/* ── Member Leaderboard + Recent Payments ───────── */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.6fr', gap: 18 }}>
+        {/* ── Member Leaderboard ───────── */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 18 }}>
 
           {/* Leaderboard */}
           <div className="glass-card" style={{ padding: 20 }}>
             <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>🏆 Member Leaderboard</div>
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 16 }}>Ranked by total leads assigned</div>
-            {members.slice(0, 8).map((m, i) => {
+            {members.map((m, i) => {
               const pct = totalFiltered > 0 ? (m.total / totalFiltered) * 100 : 0
               const COLORS = ['#3b82f6','#8b5cf6','#10b981','#f59e0b','#ef4444','#06b6d4','#ec4899','#a855f7']
               const col = COLORS[i % COLORS.length]
               const medals = ['🥇','🥈','🥉']
               const memberLeads = filtered.filter(l => (l.assigned_member || 'Unassigned') === m.name)
-              const conv = memberLeads.filter(l => l.status === 'Converted').length
+              // Calculate converted counts based on paid_grades / paid flag
+              let conv = 0
+              memberLeads.forEach(l => {
+                if (l.paid_grades) {
+                  conv += extractGrades(l.paid_grades).length || 1
+                } else if (l.paid) {
+                  conv += extractGrades(l.grade).length || 1
+                }
+              })
               return (
                 <div key={m.name} style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 13 }}>
                   <div style={{ width: 22, textAlign: 'center', fontSize: 14, flexShrink: 0 }}>
@@ -501,51 +511,6 @@ export default function AnalyticsDashboard() {
                 </div>
               )
             })}
-          </div>
-
-          {/* Recent Payments */}
-          <div className="glass-card" style={{ overflow: 'hidden' }}>
-            <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ fontWeight: 700, fontSize: 14 }}>💳 Recent Payments</div>
-              <a href="/payments" style={{ fontSize: 12, color: 'var(--accent-blue)', textDecoration: 'none' }}>View all →</a>
-            </div>
-            <div style={{ overflowX: 'auto' }}>
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>PS Code</th>
-                    <th>Student</th>
-                    <th>Amount</th>
-                    <th>Type</th>
-                    <th>Month</th>
-                    <th>By</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentPayments.map((p: any) => (
-                    <tr key={p.id}>
-                      <td>
-                        <a href={`/students/${encodeURIComponent(p.students?.ps_code||'')}`}
-                          style={{ color:'var(--accent-blue)',textDecoration:'none',fontWeight:500 }}>
-                          {p.students?.ps_code||'—'}
-                        </a>
-                      </td>
-                      <td style={{ color:'var(--text-secondary)' }}>{p.students?.full_name||'—'}</td>
-                      <td style={{ fontWeight:600,color:'#10b981' }}>
-                        {p.payment_type==='FREE'?'FREE':p.payment_type==='SIPSA'?'SIPSA':`Rs. ${(p.amount_paid||0).toLocaleString()}`}
-                      </td>
-                      <td>
-                        <PayTypeBadge type={p.payment_type} bank={p.bank_name} />
-                      </td>
-                      <td style={{ color:'var(--text-muted)',fontSize:12 }}>
-                        {MONTH_NAMES[(p.month||1)-1]?.slice(0,3)} {p.year}
-                      </td>
-                      <td style={{ color:'var(--text-muted)',fontSize:12 }}>{p.recorded_by}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </div>
         </div>
 
