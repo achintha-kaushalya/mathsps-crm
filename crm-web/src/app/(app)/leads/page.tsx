@@ -350,14 +350,20 @@ export default function MasterLeadsSpreadsheet() {
         }
       }
 
-      // 2. If BRAND NEW phone number -> generate next sequential F-code
+      // 2. If BRAND NEW phone number -> generate next sequential F-code (strict standard F70000+ increment)
       if (!targetFcode) {
-        const { data: allFcodes } = await supabase.from('leads').select('fcode').order('created_at', { ascending: false }).limit(200)
+        const { data: allFcodes } = await supabase.from('leads').select('fcode').order('created_at', { ascending: false }).limit(500)
         let maxNum = 70000
         if (allFcodes) {
           allFcodes.forEach(f => {
-            const n = parseInt((f.fcode || '').replace(/\D/g, ''))
-            if (n && n > maxNum) maxNum = n
+            const fc = (f.fcode || '').trim()
+            // Match strict standard F-codes (F followed by 5 digits, e.g. F75845)
+            if (/^F\d{5}$/i.test(fc)) {
+              const n = parseInt(fc.slice(1), 10)
+              if (!isNaN(n) && n > maxNum && n < 99999) {
+                maxNum = n
+              }
+            }
           })
         }
         targetFcode = `F${maxNum + 1}`
