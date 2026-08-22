@@ -13,20 +13,33 @@ import { clsx } from 'clsx'
 export default function Sidebar() {
   const pathname = usePathname()
   const supabase = createClient()
-  const [role, setRole] = useState<'member' | 'admin' | 'owner'>('member')
+  const [role, setRole] = useState<'member' | 'admin' | 'owner' | 'callcenter' | 'payments'>('member')
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
     setMounted(true)
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
-        const uRole = user.user_metadata?.role || (user.email?.includes('admin') ? 'admin' : 'member')
-        setRole(uRole)
+        let uRole = user.user_metadata?.role || (user.email?.includes('admin') ? 'admin' : 'member')
+        if (user.email) {
+          const { data: dbMem } = await supabase.from('members').select('role, notes').eq('email', user.email).single()
+          if (dbMem) {
+            try {
+              if (dbMem.notes) {
+                const perms = JSON.parse(dbMem.notes)
+                if (perms.sub_role) uRole = perms.sub_role
+              }
+            } catch {}
+          }
+        }
+        setRole(uRole as any)
       }
     })
   }, [])
 
   const isAdmin = mounted && (role === 'admin' || role === 'owner')
+  const isCallCenterOnly = mounted && role === 'callcenter'
+  const isPaymentsOnly = mounted && role === 'payments'
 
   const navGroups = [
     ...(isAdmin ? [{
@@ -35,14 +48,14 @@ export default function Sidebar() {
         { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
       ]
     }] : []),
-    {
+    ...(!isPaymentsOnly ? [{
       group: 'CRM — Leads',
       items: [
         { label: 'Master Leads', href: '/leads', icon: Phone },
         ...(isAdmin ? [{ label: 'Members & Roles', href: '/members', icon: Users }] : []),
       ]
-    },
-    {
+    }] : []),
+    ...(!isCallCenterOnly ? [{
       group: 'Payment System',
       items: [
         { label: 'Students', href: '/students', icon: Building2 },
@@ -51,7 +64,7 @@ export default function Sidebar() {
         { label: 'Delivery', href: '/delivery', icon: Truck },
         ...(isAdmin ? [{ label: 'Reports & Debts', href: '/reports', icon: BarChart2 }] : []),
       ]
-    },
+    }] : []),
     {
       group: 'System',
       items: [

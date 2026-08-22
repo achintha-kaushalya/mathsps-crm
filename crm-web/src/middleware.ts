@@ -51,7 +51,20 @@ export async function middleware(request: NextRequest) {
   // 3. Role-Based Access Control (RBAC)
   if (session) {
     const email = session.user.email
-    const userRole = session.user.user_metadata?.role || (email?.includes('admin') ? 'admin' : 'member')
+    let userRole = session.user.user_metadata?.role || (email?.includes('admin') ? 'admin' : 'member')
+
+    // Fetch database member notes for sub_role fallback
+    if (email && (userRole === 'member' || !userRole)) {
+      const { data: dbMem } = await supabase.from('members').select('role, notes').eq('email', email).single()
+      if (dbMem) {
+        try {
+          if (dbMem.notes) {
+            const perms = JSON.parse(dbMem.notes)
+            if (perms.sub_role) userRole = perms.sub_role
+          }
+        } catch {}
+      }
+    }
 
     // Admin-only routes
     const isAdminOnlyRoute = pathname.startsWith('/dashboard') ||
