@@ -33,17 +33,38 @@ export async function POST(request: Request) {
 
     // 2. Perform requested management action
     if (action === 'update_role') {
-      // Update role in members table
+      // Postgres table constraint check: role must be 'member', 'admin', or 'owner'
+      // Store 'callcenter' / 'payments' as sub_role inside notes JSON metadata
+      const isCustomSubRole = ['callcenter', 'payments'].includes(newRole)
+      const baseRole = isCustomSubRole ? 'member' : newRole
+
+      // Get current notes to preserve permissions/custom settings
+      const { data: currentMember } = await supabaseAdmin
+        .from('members')
+        .select('notes')
+        .eq('id', memberId)
+        .single()
+
+      let existingNotes = {}
+      try {
+        if (currentMember?.notes) existingNotes = JSON.parse(currentMember.notes)
+      } catch {}
+
+      const updatedNotes = JSON.stringify({
+        ...existingNotes,
+        sub_role: newRole
+      })
+
       const { data: member, error: dbErr } = await supabaseAdmin
         .from('members')
-        .update({ role: newRole })
+        .update({ role: baseRole, notes: updatedNotes })
         .eq('id', memberId)
         .select()
         .single()
 
       if (dbErr) throw dbErr
 
-      // If member has auth account, sync user_metadata role
+      // If member has auth account, sync user_metadata role with exact requested role
       if (member.email) {
         const { data: users } = await supabaseAdmin.auth.admin.listUsers()
         const targetUser = users.users.find(u => u.email?.toLowerCase() === member.email?.toLowerCase())

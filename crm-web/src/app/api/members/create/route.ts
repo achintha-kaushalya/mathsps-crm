@@ -31,10 +31,15 @@ export async function POST(request: Request) {
     }
 
     // 2. Insert or update in database members table
+    const isCustomSubRole = ['callcenter', 'payments'].includes(role)
+    const dbRole = isCustomSubRole ? 'member' : (role || 'member')
+    const notesData = isCustomSubRole ? JSON.stringify({ sub_role: role }) : null
+
     const { error: dbError } = await supabaseAdmin.from('members').upsert({
       name: name.trim(),
       email: email.trim(),
-      role: role || 'member',
+      role: dbRole,
+      notes: notesData,
       active: true,
     }, { onConflict: 'name' })
 
