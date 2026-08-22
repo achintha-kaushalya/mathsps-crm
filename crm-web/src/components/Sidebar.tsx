@@ -134,9 +134,11 @@ export default function Sidebar() {
           title="Click to switch active Tutor profile (Prabuddha vs Sanduni)"
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 16 }}>
-              {typeof window !== 'undefined' && localStorage.getItem('mathsps_active_tutor') === 'sanduni' ? '👩‍🏫' : '👨‍🏫'}
-            </span>
+            <img
+              src={typeof window !== 'undefined' && localStorage.getItem('mathsps_active_tutor') === 'sanduni' ? '/sanduni-profile.jpg' : '/prabuddha-profile.jpg'}
+              alt="Tutor"
+              style={{ width: 24, height: 24, borderRadius: '50%', objectFit: 'cover', objectPosition: 'center top' }}
+            />
             <div>
               <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.05em' }}>
                 Active Tutor

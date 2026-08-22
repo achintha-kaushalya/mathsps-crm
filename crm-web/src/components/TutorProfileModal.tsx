@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Sparkles, Check, ChevronRight } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 
 export interface TutorProfile {
   id: 'prabuddha' | 'sanduni'
@@ -9,7 +9,7 @@ export interface TutorProfile {
   title: string
   codePrefix: 'PS' | 'SM'
   subject: string
-  avatar: string
+  image: string
   themeColor: string
   bgGradient: string
 }
@@ -21,9 +21,9 @@ export const TUTOR_PROFILES: TutorProfile[] = [
     title: 'Lead Mathematics Tutor',
     codePrefix: 'PS',
     subject: 'Mathematics (Theory & Revision)',
-    avatar: '👨‍🏫',
+    image: '/prabuddha-profile.jpg',
     themeColor: '#3b82f6',
-    bgGradient: 'linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(139, 92, 246, 0.25))',
+    bgGradient: 'linear-gradient(135deg, rgba(59, 130, 246, 0.22), rgba(139, 92, 246, 0.22))',
   },
   {
     id: 'sanduni',
@@ -31,9 +31,9 @@ export const TUTOR_PROFILES: TutorProfile[] = [
     title: 'Mathematics Tutor',
     codePrefix: 'SM',
     subject: 'Mathematics (Theory & Paper Class)',
-    avatar: '👩‍🏫',
+    image: '/sanduni-profile.jpg',
     themeColor: '#ec4899',
-    bgGradient: 'linear-gradient(135deg, rgba(236, 72, 153, 0.25), rgba(168, 85, 247, 0.25))',
+    bgGradient: 'linear-gradient(135deg, rgba(236, 72, 153, 0.22), rgba(168, 85, 247, 0.22))',
   },
 ]
 
@@ -66,7 +66,7 @@ export default function TutorProfileModal() {
       setShowModal(false)
       setAnimatingOut(false)
       window.location.reload() // Refresh page to re-initialize active tutor views
-    }, 400)
+    }, 350)
   }
 
   if (!showModal) return null
@@ -78,7 +78,7 @@ export default function TutorProfileModal() {
           position: fixed;
           inset: 0;
           z-index: 999999;
-          background: rgba(5, 8, 18, 0.88);
+          background: rgba(5, 8, 18, 0.92);
           backdrop-filter: blur(28px);
           -webkit-backdrop-filter: blur(28px);
           display: flex;
@@ -101,42 +101,53 @@ export default function TutorProfileModal() {
         .tutor-card-option {
           background: rgba(255, 255, 255, 0.04);
           border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 20px;
-          padding: 28px 24px;
+          border-radius: 24px;
+          padding: 32px 24px;
           cursor: pointer;
           transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
           position: relative;
           overflow: hidden;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          text-align: center;
         }
         .tutor-card-option:hover {
-          transform: translateY(-4px) scale(1.02);
-          border-color: rgba(255, 255, 255, 0.25);
-          box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+          transform: translateY(-6px) scale(1.03);
+          border-color: rgba(255, 255, 255, 0.3);
+          box-shadow: 0 20px 50px rgba(0, 0, 0, 0.6);
+        }
+        .tutor-avatar-img {
+          width: 100px;
+          height: 100px;
+          border-radius: 50%;
+          object-fit: cover;
+          object-position: center top;
+          margin-bottom: 16px;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+          transition: transform 0.25s ease;
+        }
+        .tutor-card-option:hover .tutor-avatar-img {
+          transform: scale(1.08);
         }
       `}</style>
 
       <div className={`tutor-modal-overlay ${animatingOut ? 'out' : ''}`}>
-        <div style={{ maxWidth: 640, width: '100%', textAlign: 'center' }}>
+        <div style={{ maxWidth: 580, width: '100%', textAlign: 'center' }}>
           {/* Header */}
-          <div style={{ marginBottom: 32 }}>
+          <div style={{ marginBottom: 36 }}>
             <div style={{
-              display: 'inline-flex', alignItems: 'center', gap: 6,
+              display: 'inline-flex', alignItems: 'center', gap: 8,
               background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.3)',
-              color: '#60a5fa', padding: '5px 14px', borderRadius: 20, fontSize: 12, fontWeight: 700,
-              textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 16
+              color: '#60a5fa', padding: '8px 20px', borderRadius: 30, fontSize: 13, fontWeight: 800,
+              textTransform: 'uppercase', letterSpacing: '0.1em'
             }}>
-              <Sparkles size={14} /> Select Tutor Account
+              <Sparkles size={15} /> Select Tutor Account
             </div>
-            <h1 style={{ fontSize: 28, fontWeight: 800, color: '#fff', margin: '0 0 8px', letterSpacing: '-0.5px' }}>
-              Who is handling today&apos;s workspace?
-            </h1>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: 0 }}>
-              Choose tutor profile to switch between <b>PS Code System</b> (Prabuddha) and <b>SM Code System</b> (Sanduni).
-            </p>
           </div>
 
           {/* Cards Grid */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 24 }}>
             {TUTOR_PROFILES.map((p) => {
               const isSelected = selectedTutor === p.id
               return (
@@ -146,36 +157,45 @@ export default function TutorProfileModal() {
                   onClick={() => selectProfile(p.id)}
                   style={{
                     background: p.bgGradient,
-                    borderColor: isSelected ? p.themeColor : 'rgba(255,255,255,0.1)',
-                    boxShadow: isSelected ? `0 0 30px ${p.themeColor}40` : undefined,
+                    borderColor: isSelected ? p.themeColor : 'rgba(255,255,255,0.12)',
+                    boxShadow: isSelected ? `0 0 35px ${p.themeColor}50` : undefined,
                   }}
                 >
-                  <div style={{ fontSize: 52, marginBottom: 14, lineHeight: 1 }}>{p.avatar}</div>
-
-                  <div style={{
-                    display: 'inline-block', padding: '3px 10px', borderRadius: 12,
-                    background: 'rgba(0,0,0,0.4)', color: p.themeColor, fontSize: 11,
-                    fontWeight: 800, letterSpacing: '0.06em', marginBottom: 10
-                  }}>
-                    {p.codePrefix} CODE SYSTEM ({p.codePrefix}1 - {p.codePrefix}10000+)
+                  {/* Photo Ring */}
+                  <div style={{ position: 'relative', width: 104, height: 104, marginBottom: 16 }}>
+                    <div style={{
+                      position: 'absolute', inset: -3,
+                      borderRadius: '50%',
+                      background: `linear-gradient(135deg, ${p.themeColor}, #ffffff80)`,
+                      opacity: isSelected ? 1 : 0.6,
+                    }} />
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={p.image}
+                      alt={p.name}
+                      className="tutor-avatar-img"
+                      style={{ position: 'relative', zIndex: 1, margin: 0 }}
+                    />
                   </div>
 
-                  <h3 style={{ fontSize: 18, fontWeight: 800, color: '#fff', margin: '0 0 4px' }}>
+                  {/* Code System Pill */}
+                  <div style={{
+                    display: 'inline-block', padding: '4px 12px', borderRadius: 20,
+                    background: 'rgba(0,0,0,0.5)', color: p.themeColor, fontSize: 11,
+                    fontWeight: 800, letterSpacing: '0.06em', marginBottom: 10,
+                    border: `1px solid ${p.themeColor}40`
+                  }}>
+                    {p.codePrefix} CODE SYSTEM
+                  </div>
+
+                  {/* Name */}
+                  <h3 style={{ fontSize: 20, fontWeight: 800, color: '#fff', margin: '0 0 4px', letterSpacing: '-0.3px' }}>
                     {p.name}
                   </h3>
 
-                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)', marginBottom: 16 }}>
+                  {/* Title */}
+                  <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.7)' }}>
                     {p.title}
-                  </div>
-
-                  <div style={{
-                    display: 'inline-flex', alignItems: 'center', gap: 6,
-                    padding: '8px 16px', borderRadius: 10,
-                    background: p.themeColor, color: '#fff',
-                    fontSize: 13, fontWeight: 700
-                  }}>
-                    <span>Select Profile</span>
-                    <ChevronRight size={14} />
                   </div>
                 </div>
               )
