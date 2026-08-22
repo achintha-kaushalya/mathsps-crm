@@ -18,8 +18,11 @@ function AddPaymentForm() {
   const [balance, setBalance] = useState<StudentBalance | null>(null)
   const [memberName, setMemberName] = useState('')
 
+  const [selectedClassTypes, setSelectedClassTypes] = useState<string[]>([])
+  const [classAmountPaid, setClassAmountPaid] = useState<Record<string, string>>({})
+  const [allBalances, setAllBalances] = useState<Record<string, StudentBalance>>({})
+
   const [form, setForm] = useState({
-    class_type: '',
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
     payment_type: 'BANK' as string,
@@ -119,11 +122,32 @@ function AddPaymentForm() {
     setParentNameInput(hh.parent_name || '')
     setParentPhoneInput(hh.parent_phone || '')
     
-    supabase.from('enrollments').select('*').eq('student_id', selectedStu.id).eq('active', true).then(({ data: enrols }) => {
+    supabase.from('enrollments').select('*').eq('student_id', selectedStu.id).eq('active', true).then(async ({ data: enrols }) => {
       setEnrollments(enrols || [])
-      if (enrols && enrols[0]) {
-        setForm(f => ({ ...f, class_type: enrols[0].class_type }))
-        loadBalance(selectedStu.id, enrols[0].class_type)
+      if (enrols && enrols.length > 0) {
+        const defaultSelected = enrols.map(e => e.class_type)
+        setSelectedClassTypes(defaultSelected)
+
+        // Load balances for all enrolled classes
+        const { data: bData } = await supabase.from('student_balances').select('*').eq('student_id', selectedStu.id)
+        const bMap: Record<string, StudentBalance> = {}
+        const initialAmounts: Record<string, string> = {}
+
+        ;(bData || []).forEach(b => {
+          bMap[b.class_type] = b
+        })
+        setAllBalances(bMap)
+
+        enrols.forEach(e => {
+          const bVal = bMap[e.class_type]?.current_balance || 0
+          const suggested = Math.max(0, e.fee_amount - bVal)
+          initialAmounts[e.class_type] = String(suggested)
+        })
+        setClassAmountPaid(initialAmounts)
+      } else {
+        setSelectedClassTypes([])
+        setClassAmountPaid({})
+        setAllBalances({})
       }
     })
   }
@@ -230,56 +254,57 @@ function AddPaymentForm() {
     selectStudent(bestMatch)
   }
 
-  async function loadBalance(studentId: string, classType: string) {
-    const { data } = await supabase.from('student_balances')
-      .select('*').eq('student_id', studentId).eq('class_type', classType).single()
-    setBalance(data)
-  }
 
-  function onClassChange(classType: string) {
-    setForm(f => ({ ...f, class_type: classType }))
-    if (student) loadBalance(student.id, classType)
-  }
-
-  const enrol = enrollments.find(e => e.class_type === form.class_type)
-  const suggestedAmount = enrol
-    ? enrol.fee_amount - (balance?.current_balance || 0)
-    : 0
 
   async function submit() {
-    if (!student || !form.class_type) { setError('Select student and class'); return }
+    if (!student) { setError('Please search and select a student first'); return }
+    if (selectedClassTypes.length === 0) { setError('Select at least one class to record payment'); return }
     if (!memberName.trim()) { setError('Enter your name (recorded by)'); return }
-    if (form.payment_type === 'BANK' && !parseFloat(form.amount_paid)) {
-      setError('Enter payment amount'); return
-    }
 
     setSaving(true); setError('')
     try {
-      const amountPaid = ['FREE','SIPSA'].includes(form.payment_type) ? 0 : parseFloat(form.amount_paid) || 0
-      const amountDue = enrol?.fee_amount || 0
-      const balanceBefore = balance?.current_balance || 0
+      // Loop over each selected class and record payment
+      for (const ct of selectedClassTypes) {
+        const enrol = enrollments.find(e => e.class_type === ct)
+        const amountDue = enrol?.fee_amount || 0
+        const bVal = allBalances[ct]?.current_balance || 0
 
-      const { error: err } = await supabase.from('payments').upsert({
-        student_id: student.id,
-        class_type: form.class_type,
-        month: form.month,
-        year: form.year,
-        amount_due: amountDue,
-        amount_paid: amountPaid,
-        balance_before: balanceBefore,
-        payment_type: form.payment_type,
-        bank_name: form.payment_type === 'BANK' ? form.bank_name : null,
-        date_paid: form.payment_type !== 'FREE' ? form.date_paid : null,
-        added_to_group: form.added_to_group,
-        tute_delivered: form.tute_delivered,
-        notes: form.notes || null,
-        recorded_by: memberName.trim(),
-      }, { onConflict: 'student_id,class_type,month,year' })
+        let amountPaid = 0
+        if (['FREE', 'SIPSA'].includes(form.payment_type)) {
+          amountPaid = 0
+        } else {
+          amountPaid = parseFloat(classAmountPaid[ct]) || 0
+        }
 
-      if (err) throw err
+        const { error: err } = await supabase.from('payments').upsert({
+          student_id: student.id,
+          class_type: ct,
+          month: form.month,
+          year: form.year,
+          amount_due: amountDue,
+          amount_paid: amountPaid,
+          balance_before: bVal,
+          payment_type: form.payment_type,
+          bank_name: form.payment_type === 'BANK' ? form.bank_name : null,
+          date_paid: form.payment_type !== 'FREE' ? form.date_paid : null,
+          added_to_group: form.added_to_group,
+          tute_delivered: form.tute_delivered,
+          notes: form.notes || null,
+          recorded_by: memberName.trim(),
+        }, { onConflict: 'student_id,class_type,month,year' })
+
+        if (err) throw err
+      }
+
       setSaved(true)
-      setTimeout(() => setSaved(false), 3000)
-      loadBalance(student.id, form.class_type)
+      setTimeout(() => setSaved(false), 3500)
+
+      // Reload balances for all classes
+      const { data: bData } = await supabase.from('student_balances').select('*').eq('student_id', student.id)
+      const bMap: Record<string, StudentBalance> = {}
+      ;(bData || []).forEach(b => { bMap[b.class_type] = b })
+      setAllBalances(bMap)
+
     } catch (e: any) {
       setError(e.message)
     } finally {
@@ -450,21 +475,87 @@ function AddPaymentForm() {
                 2. Payment Details
               </div>
 
-              <FormRow label="Class">
-                <select className="input-field" value={form.class_type} onChange={e => onClassChange(e.target.value)}>
-                  <option value="">Select class...</option>
-                  {enrollments.map(e => (
-                    <option key={e.class_type} value={e.class_type}>{CLASS_LABELS[e.class_type] || e.class_type} (Rs.{e.fee_amount})</option>
-                  ))}
-                </select>
-              </FormRow>
+              <FormRow label="Select Enrolled Classes to Record Payment">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+                  {enrollments.length === 0 ? (
+                    <div style={{ fontSize: 13, color: 'var(--accent-red)', padding: 10, background: 'rgba(239,68,68,0.1)', borderRadius: 8 }}>
+                      ⚠ No active class enrollments found for this student.
+                    </div>
+                  ) : (
+                    enrollments.map(e => {
+                      const isSelected = selectedClassTypes.includes(e.class_type)
+                      const bObj = allBalances[e.class_type]
+                      const curBalance = bObj?.current_balance || 0
+                      const suggested = Math.max(0, e.fee_amount - curBalance)
 
-              {balance && (
-                <div style={{ padding: '10px 14px', background: '#0d1424', borderRadius: 8, marginBottom: 14, display: 'flex', gap: 20 }}>
-                  <BalanceInfo label="Current Balance" value={balance.current_balance} />
-                  <BalanceInfo label="Suggested Payment" value={suggestedAmount} suggested />
+                      return (
+                        <div key={e.class_type} style={{
+                          padding: '12px 14px', borderRadius: 8, border: '1px solid',
+                          borderColor: isSelected ? 'var(--accent-blue)' : 'var(--border)',
+                          background: isSelected ? 'rgba(59,130,246,0.12)' : 'var(--bg-base)',
+                          transition: 'all 0.15s'
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <input
+                                type="checkbox"
+                                id={`chk-${e.class_type}`}
+                                checked={isSelected}
+                                onChange={(chkEvent) => {
+                                  if (chkEvent.target.checked) {
+                                    setSelectedClassTypes(prev => [...prev, e.class_type])
+                                    if (!classAmountPaid[e.class_type]) {
+                                      setClassAmountPaid(prev => ({ ...prev, [e.class_type]: String(suggested) }))
+                                    }
+                                  } else {
+                                    setSelectedClassTypes(prev => prev.filter(c => c !== e.class_type))
+                                  }
+                                }}
+                                style={{ width: 16, height: 16, cursor: 'pointer' }}
+                              />
+                              <label htmlFor={`chk-${e.class_type}`} style={{ cursor: 'pointer', fontSize: 14, fontWeight: 600 }}>
+                                {CLASS_LABELS[e.class_type] || e.class_type}
+                                <span style={{ fontSize: 12, color: 'var(--accent-green)', marginLeft: 8 }}>
+                                  (Fee: Rs. {e.fee_amount.toLocaleString()})
+                                </span>
+                              </label>
+                            </div>
+
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                              <div style={{ fontSize: 11, textAlign: 'right' }}>
+                                <div style={{ color: 'var(--text-muted)' }}>Balance</div>
+                                <div style={{ fontWeight: 700, color: curBalance > 0 ? '#10b981' : curBalance < 0 ? '#ef4444' : 'var(--text-muted)' }}>
+                                  {curBalance >= 0 ? '+' : ''}Rs.{curBalance.toLocaleString()}
+                                </div>
+                              </div>
+                              <div style={{ fontSize: 11, textAlign: 'right' }}>
+                                <div style={{ color: 'var(--text-muted)' }}>Suggested</div>
+                                <div style={{ fontWeight: 700, color: 'var(--accent-blue)' }}>
+                                  Rs.{suggested.toLocaleString()}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {isSelected && ['BANK', 'CASH', 'PHYSICAL'].includes(form.payment_type) && (
+                            <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>Amount Paid for this class (Rs.):</label>
+                              <input
+                                className="input-field"
+                                type="number"
+                                style={{ width: 160, padding: '5px 10px', fontSize: 13, fontWeight: 700, color: 'var(--accent-green)' }}
+                                placeholder={`e.g. ${suggested}`}
+                                value={classAmountPaid[e.class_type] ?? ''}
+                                onChange={eVal => setClassAmountPaid({ ...classAmountPaid, [e.class_type]: eVal.target.value })}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })
+                  )}
                 </div>
-              )}
+              </FormRow>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <FormRow label="Month">
@@ -491,21 +582,12 @@ function AddPaymentForm() {
                 </div>
               </FormRow>
 
-              {['BANK', 'CASH', 'PHYSICAL'].includes(form.payment_type) && (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                  <FormRow label="Amount Paid (Rs.)">
-                    <input className="input-field" type="number" placeholder={`Suggested: ${suggestedAmount}`}
-                      value={form.amount_paid}
-                      onChange={e => setForm(f => ({ ...f, amount_paid: e.target.value }))} />
-                  </FormRow>
-                  {form.payment_type === 'BANK' && (
-                    <FormRow label="Bank">
-                      <select className="input-field" value={form.bank_name} onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))}>
-                        {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
-                      </select>
-                    </FormRow>
-                  )}
-                </div>
+              {form.payment_type === 'BANK' && (
+                <FormRow label="Bank">
+                  <select className="input-field" value={form.bank_name} onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))}>
+                    {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                </FormRow>
               )}
 
               <FormRow label="Date Paid">
