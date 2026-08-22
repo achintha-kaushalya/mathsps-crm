@@ -361,10 +361,25 @@ export default function NewStudentPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                    PS Code <span style={{ color: 'var(--accent-red)' }}>*</span>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                    <span>PS Code <span style={{ color: 'var(--accent-red)' }}>*</span></span>
+                    <span style={{ fontSize: 10, color: 'var(--accent-blue)', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+                      <Lock size={10} /> Auto-Generated (Locked)
+                    </span>
                   </label>
-                  <input className="input-field" placeholder="e.g. PS9988" value={psCode} onChange={e => setPsCode(e.target.value)} />
+                  <input
+                    className="input-field"
+                    placeholder="Auto-generating..."
+                    value={psCode}
+                    readOnly
+                    style={{
+                      background: 'rgba(255,255,255,0.03)',
+                      borderColor: 'var(--border)',
+                      fontWeight: 700,
+                      color: 'var(--accent-blue)',
+                      cursor: 'not-allowed'
+                    }}
+                  />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Full Name</label>
