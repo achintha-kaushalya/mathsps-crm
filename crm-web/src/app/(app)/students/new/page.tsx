@@ -101,10 +101,24 @@ export default function NewStudentPage() {
 
     loadAdminCourses()
 
-    // Subscribe to Realtime changes on members table for live course updates
-    const channel = supabase.channel('student-new-courses-realtime-' + Math.random().toString(36).substring(7))
+    // Subscribe to Realtime changes and WebSockets Broadcast events for instant live course updates
+    const channel = supabase.channel('mathsps-global-courses-sync')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => {
         loadAdminCourses()
+      })
+      .on('broadcast', { event: 'courses_updated' }, (payload: any) => {
+        if (payload?.payload?.courses) {
+          setAvailableClasses(prev => ({
+            ...prev,
+            ...payload.payload.courses
+          }))
+        }
+        if (payload?.payload?.fees) {
+          setClassDefaultFees(prev => ({
+            ...prev,
+            ...payload.payload.fees
+          }))
+        }
       })
       .subscribe()
 
@@ -137,6 +151,18 @@ export default function NewStudentPage() {
             fees: feesDict || classDefaultFees,
             adminPassword: 'sb_secret_verification_bypass'
           })
+        })
+
+        // Send instant WebSockets broadcast to all active sessions
+        const channel = supabase.channel('mathsps-global-courses-sync')
+        channel.subscribe((status) => {
+          if (status === 'SUBSCRIBED') {
+            channel.send({
+              type: 'broadcast',
+              event: 'courses_updated',
+              payload: { courses: coursesDict, fees: feesDict || classDefaultFees }
+            })
+          }
         })
       }
     } catch (err) {
