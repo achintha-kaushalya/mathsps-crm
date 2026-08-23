@@ -760,14 +760,14 @@ function AddPaymentForm() {
                     Check classes to include in this payment. Click <b>+ Add Another Class</b> to pay for siblings or multiple grades.
                   </div>
                 </div>
-                <div>
+                <div style={{ flexShrink: 0 }}>
                   <button
                     type="button"
                     onClick={handleAddPaymentRow}
                     className="btn-primary"
-                    style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                    style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
                   >
-                    <Plus size={14} /> + Add Another Class
+                    <Plus size={14} /> Add Class
                   </button>
                 </div>
               </div>
