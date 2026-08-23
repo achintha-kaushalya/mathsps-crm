@@ -2,18 +2,15 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, UserPlus, Users, Plus, Trash2, Sparkles, CreditCard, CheckCircle2, Home } from 'lucide-react'
+import { ArrowLeft, UserPlus, Plus, Trash2, Home, Sparkles, CreditCard, CheckCircle2 } from 'lucide-react'
 import { MONTH_NAMES } from '@/lib/types'
 import { DEFAULT_GRADE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
 
 const BANKS = ['BOC', 'Sampath', 'Commercial', 'HNB', 'People\'s Bank', 'NSB', 'Seylan', 'NTB', 'Other']
 
-interface SiblingChild {
+interface ClassRow {
   id: string
-  psCode: string
-  fullName: string
   grade: number
-  school: string
   courseCode: string
   fee: number
 }
@@ -21,43 +18,26 @@ interface SiblingChild {
 export default function NewStudentPage() {
   const supabase = createClient()
 
-  // Registration Mode: Single Child (default, ultra-clean) vs Multiple Children / Siblings
-  const [regMode, setRegMode] = useState<'single' | 'siblings'>('single')
-
-  // --- Single Student State ---
+  // 1 PS Code per Registration / Household
   const [psCode, setPsCode] = useState('')
-  const [fullName, setFullName] = useState('')
+  const [studentName, setStudentName] = useState('')
   const [primaryGrade, setPrimaryGrade] = useState<number>(10)
   const [school, setSchool] = useState('')
-  const [selectedCourseCode, setSelectedCourseCode] = useState('')
-  const [courseFee, setCourseFee] = useState<number>(1800)
   const [fcodeRef, setFcodeRef] = useState('')
 
-  // Household info (Parent Contact & Delivery)
+  // Household Contact & Delivery Details (1 parent, 1 phone, 1 address)
   const [parentName, setParentName] = useState('')
   const [parentPhone, setParentPhone] = useState('')
   const [address, setAddress] = useState('')
   const [area, setArea] = useState('')
 
-  // --- Multi-Child / Siblings State ---
-  const [siblingsList, setSiblingsList] = useState<SiblingChild[]>([
+  // Class Enrollments (1 or multiple classes / sibling grades under this same PS Code)
+  const [enrolledClasses, setEnrolledClasses] = useState<ClassRow[]>([
     {
-      id: 'child-1',
-      psCode: '',
-      fullName: '',
+      id: 'class-1',
       grade: 10,
-      school: '',
-      courseCode: '',
-      fee: 1800
-    },
-    {
-      id: 'child-2',
-      psCode: '',
-      fullName: '',
-      grade: 6,
-      school: '',
-      courseCode: '',
-      fee: 1500
+      courseCode: DEFAULT_GRADE_COURSES[10]?.[0]?.code || 'GR10_THEORY',
+      fee: DEFAULT_GRADE_COURSES[10]?.[0]?.defaultFee || 1800
     }
   ])
 
@@ -83,12 +63,11 @@ export default function NewStudentPage() {
     tute_delivered: false,
     notes: '',
   })
-  const [singleAmountPaid, setSingleAmountPaid] = useState<string>('1800')
-  const [siblingAmountPaid, setSiblingAmountPaid] = useState<Record<string, string>>({})
+  const [classAmountPaid, setClassAmountPaid] = useState<Record<string, string>>({})
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [successResult, setSuccessResult] = useState<{ codes: string[]; isMulti: boolean } | null>(null)
+  const [successPs, setSuccessPs] = useState('')
 
   const channelRef = useRef<any>(null)
 
@@ -113,30 +92,7 @@ export default function NewStudentPage() {
     }
   }
 
-  // Generate next available PS codes
-  async function fetchNextPsCode(prefix: string, count: number = 1): Promise<string[]> {
-    const { data } = await supabase
-      .from('students')
-      .select('ps_code')
-      .ilike('ps_code', `${prefix}%`)
-      .order('created_at', { ascending: false })
-      .limit(80)
-
-    let maxNum = prefix === 'SM' ? 100 : 10499
-    if (data && data.length > 0) {
-      data.forEach(s => {
-        const num = parseInt((s.ps_code || '').replace(/\D/g, ''))
-        if (!isNaN(num) && num > maxNum) maxNum = num
-      })
-    }
-
-    const generated: string[] = []
-    for (let i = 1; i <= count; i++) {
-      generated.push(`${prefix}${maxNum + i}`)
-    }
-    return generated
-  }
-
+  // Next available PS Code
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
@@ -159,9 +115,15 @@ export default function NewStudentPage() {
     const activeTutor = localStorage.getItem('mathsps_active_tutor') || 'prabuddha'
     const prefix = activeTutor === 'sanduni' ? 'SM' : 'PS'
 
-    fetchNextPsCode(prefix, 4).then(codes => {
-      if (codes[0]) setPsCode(codes[0])
-      setSiblingsList(prev => prev.map((s, idx) => ({ ...s, psCode: codes[idx] || `${prefix}${10500 + idx}` })))
+    supabase.from('students').select('ps_code').ilike('ps_code', `${prefix}%`).order('created_at', { ascending: false }).limit(60).then(({ data }) => {
+      let maxNum = prefix === 'SM' ? 100 : 10499
+      if (data && data.length > 0) {
+        data.forEach(s => {
+          const num = parseInt((s.ps_code || '').replace(/\D/g, ''))
+          if (!isNaN(num) && num > maxNum) maxNum = num
+        })
+      }
+      setPsCode(`${prefix}${maxNum + 1}`)
     })
 
     loadAdminCourses()
@@ -184,89 +146,109 @@ export default function NewStudentPage() {
     }
   }, [])
 
-  // Auto-set default course for single mode
+  // Sync initial class amount paid for payment section
   useEffect(() => {
-    const coursesForGrade = gradeCourses[primaryGrade] || []
-    if (coursesForGrade.length > 0) {
-      const def = coursesForGrade[0]
-      setSelectedCourseCode(def.code)
-      setCourseFee(def.defaultFee)
-      setSingleAmountPaid(String(def.defaultFee))
-    }
-  }, [primaryGrade, gradeCourses])
-
-  // Auto-set default courses for siblings mode
-  useEffect(() => {
-    setSiblingsList(prev => prev.map(s => {
-      const coursesForGrade = gradeCourses[s.grade] || []
-      const def = coursesForGrade[0]
-      const cCode = s.courseCode && coursesForGrade.some(c => c.code === s.courseCode) ? s.courseCode : (def ? def.code : '')
-      const fee = def ? def.defaultFee : s.fee
-      return { ...s, courseCode: cCode, fee }
-    }))
-  }, [gradeCourses])
-
-  // Sibling Helpers
-  function handleAddSiblingRow() {
-    const activeTutor = localStorage.getItem('mathsps_active_tutor') || 'prabuddha'
-    const prefix = activeTutor === 'sanduni' ? 'SM' : 'PS'
-    const nextIdx = siblingsList.length + 1
-
-    fetchNextPsCode(prefix, nextIdx).then(codes => {
-      const nextCode = codes[codes.length - 1] || `${prefix}${10500 + nextIdx}`
-      const defGrade = 6
-      const courses = gradeCourses[defGrade] || []
-      const defCourse = courses[0]
-
-      const newSib: SiblingChild = {
-        id: `child-${Date.now()}`,
-        psCode: nextCode,
-        fullName: '',
-        grade: defGrade,
-        school: '',
-        courseCode: defCourse ? defCourse.code : '',
-        fee: defCourse ? defCourse.defaultFee : 1500
+    const amounts: Record<string, string> = {}
+    enrolledClasses.forEach(r => {
+      if (r.courseCode) {
+        amounts[r.courseCode] = String(r.fee)
       }
-      setSiblingsList([...siblingsList, newSib])
+    })
+    setClassAmountPaid(amounts)
+  }, [enrolledClasses])
+
+  // Change primary grade in Section 1 and update first class row
+  function handlePrimaryGradeChange(g: number) {
+    setPrimaryGrade(g)
+    setEnrolledClasses(prev => {
+      if (prev.length === 0) return prev
+      const coursesForGrade = gradeCourses[g] || []
+      const def = coursesForGrade[0]
+      const updatedFirst: ClassRow = {
+        ...prev[0],
+        grade: g,
+        courseCode: def ? def.code : '',
+        fee: def ? def.defaultFee : 1800
+      }
+      return [updatedFirst, ...prev.slice(1)]
     })
   }
 
-  function handleRemoveSiblingRow(id: string) {
-    if (siblingsList.length <= 2) {
-      alert('Keep at least 2 children for Sibling Registration mode, or switch to Single Student.')
-      return
+  // Row Management Functions for Multi-Class / Sibling Enrollments
+  function handleAddClassRow() {
+    const defGrade = primaryGrade || 10
+    const coursesForGrade = gradeCourses[defGrade] || []
+    const defCourse = coursesForGrade[0]
+
+    const newRow: ClassRow = {
+      id: `class-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      grade: defGrade,
+      courseCode: defCourse ? defCourse.code : '',
+      fee: defCourse ? defCourse.defaultFee : 1800
     }
-    setSiblingsList(siblingsList.filter(s => s.id !== id))
+    setEnrolledClasses([...enrolledClasses, newRow])
   }
 
-  function handleSiblingChange(id: string, updates: Partial<SiblingChild>) {
-    setSiblingsList(prev => prev.map(s => {
-      if (s.id === id) {
-        const merged = { ...s, ...updates }
-        if (updates.grade !== undefined) {
-          const courses = gradeCourses[updates.grade] || []
-          const def = courses[0]
-          merged.courseCode = def ? def.code : ''
-          merged.fee = def ? def.defaultFee : 1800
-        } else if (updates.courseCode !== undefined) {
-          const fee = classDefaultFees[updates.courseCode] || 1800
-          merged.fee = fee
+  function handleRemoveClassRow(id: string) {
+    if (enrolledClasses.length === 1) {
+      alert('At least one class enrollment is required.')
+      return
+    }
+    setEnrolledClasses(enrolledClasses.filter(r => r.id !== id))
+  }
+
+  function handleClassGradeChange(id: string, newGrade: number) {
+    const coursesForGrade = gradeCourses[newGrade] || []
+    const defCourse = coursesForGrade[0]
+
+    setEnrolledClasses(prev => prev.map(r => {
+      if (r.id === id) {
+        return {
+          ...r,
+          grade: newGrade,
+          courseCode: defCourse ? defCourse.code : '',
+          fee: defCourse ? defCourse.defaultFee : 1800
         }
-        return merged
       }
-      return s
+      return r
+    }))
+  }
+
+  function handleClassCourseChange(id: string, newCourseCode: string) {
+    const fee = classDefaultFees[newCourseCode] || 1800
+    setEnrolledClasses(prev => prev.map(r => {
+      if (r.id === id) {
+        return { ...r, courseCode: newCourseCode, fee }
+      }
+      return r
+    }))
+  }
+
+  function handleClassFeeChange(id: string, newFee: number) {
+    setEnrolledClasses(prev => prev.map(r => {
+      if (r.id === id) {
+        return { ...r, fee: newFee }
+      }
+      return r
     }))
   }
 
   // Form Submission
   async function submit() {
+    if (!psCode.trim()) { setError('PS Code is required'); return }
+    const validClasses = enrolledClasses.filter(c => c.courseCode)
+    if (validClasses.length === 0) {
+      setError('Please select at least one class to enroll')
+      return
+    }
+
     setError('')
     setSaving(true)
 
     try {
       let householdId: string | null = null
 
-      // 1. Create Household record if parent details or address are provided
+      // 1. Create Household record if parent contact or delivery address provided
       if (parentName.trim() || parentPhone.trim() || address.trim() || area.trim()) {
         const { data: hhData, error: hhErr } = await supabase.from('households').insert({
           parent_name: parentName.trim() || null,
@@ -279,42 +261,47 @@ export default function NewStudentPage() {
         householdId = hhData?.id || null
       }
 
-      if (regMode === 'single') {
-        // --- SINGLE STUDENT REGISTRATION ---
-        if (!psCode.trim()) throw new Error('PS Code is required')
-        if (!selectedCourseCode) throw new Error('Please select a course for this student')
+      // 2. Create Student Record under this single PS Code
+      const { data: stuData, error: stuErr } = await supabase.from('students').insert({
+        ps_code: psCode.trim().toUpperCase(),
+        full_name: studentName.trim() || null,
+        grade: primaryGrade,
+        school: school.trim() || null,
+        household_id: householdId,
+        fcode_ref: fcodeRef.trim() || null,
+        created_by: createdBy.trim() || 'Admin / System User',
+      }).select().single()
 
-        const { data: stuData, error: stuErr } = await supabase.from('students').insert({
-          ps_code: psCode.trim().toUpperCase(),
-          full_name: fullName.trim() || null,
-          grade: primaryGrade,
-          school: school.trim() || null,
-          household_id: householdId,
-          fcode_ref: fcodeRef.trim() || null,
-          created_by: createdBy.trim() || 'Admin / System User',
-        }).select().single()
+      if (stuErr) throw stuErr
 
-        if (stuErr) throw stuErr
-
-        // Create Enrollment
+      // 3. Create all enrolled classes (subjects & sibling grades) under this student's ID
+      for (const cls of validClasses) {
         const { error: enrolErr } = await supabase.from('enrollments').insert({
           student_id: stuData.id,
-          class_type: selectedCourseCode,
+          class_type: cls.courseCode,
           tier: 'STANDARD',
-          fee_amount: courseFee,
+          fee_amount: cls.fee,
           active: true,
         })
         if (enrolErr) throw enrolErr
+      }
 
-        // Optional Immediate Payment
-        if (recordImmediatePayment) {
-          const paid = ['FREE', 'IMS'].includes(paymentForm.payment_type) ? 0 : parseFloat(singleAmountPaid) || 0
+      // 4. Optional Immediate Payment for all enrolled classes
+      if (recordImmediatePayment) {
+        for (const cls of validClasses) {
+          let paid = 0
+          if (['FREE', 'IMS'].includes(paymentForm.payment_type)) {
+            paid = 0
+          } else {
+            paid = parseFloat(classAmountPaid[cls.courseCode]) || 0
+          }
+
           const { error: payErr } = await supabase.from('payments').insert({
             student_id: stuData.id,
-            class_type: selectedCourseCode,
+            class_type: cls.courseCode,
             month: paymentForm.month,
             year: paymentForm.year,
-            amount_due: courseFee,
+            amount_due: cls.fee,
             amount_paid: paid,
             balance_before: 0,
             payment_type: paymentForm.payment_type,
@@ -327,67 +314,9 @@ export default function NewStudentPage() {
           })
           if (payErr) throw payErr
         }
-
-        setSuccessResult({ codes: [psCode.trim().toUpperCase()], isMulti: false })
-
-      } else {
-        // --- MULTIPLE CHILDREN / SIBLINGS REGISTRATION ---
-        const registeredCodes: string[] = []
-
-        for (const sib of siblingsList) {
-          if (!sib.psCode.trim()) throw new Error(`PS Code is required for all children`)
-          if (!sib.courseCode) throw new Error(`Please select an enrolled course for ${sib.fullName || sib.psCode}`)
-
-          const { data: sibStu, error: sibErr } = await supabase.from('students').insert({
-            ps_code: sib.psCode.trim().toUpperCase(),
-            full_name: sib.fullName.trim() || null,
-            grade: sib.grade,
-            school: sib.school.trim() || null,
-            household_id: householdId,
-            fcode_ref: fcodeRef.trim() || null,
-            created_by: createdBy.trim() || 'Admin / System User',
-          }).select().single()
-
-          if (sibErr) throw sibErr
-          registeredCodes.push(sib.psCode.trim().toUpperCase())
-
-          // Create Enrollment for this child
-          const { error: enrolErr } = await supabase.from('enrollments').insert({
-            student_id: sibStu.id,
-            class_type: sib.courseCode,
-            tier: 'STANDARD',
-            fee_amount: sib.fee,
-            active: true,
-          })
-          if (enrolErr) throw enrolErr
-
-          // Optional Immediate Payment for this child
-          if (recordImmediatePayment) {
-            const enteredAmount = siblingAmountPaid[sib.id] !== undefined ? siblingAmountPaid[sib.id] : String(sib.fee)
-            const paid = ['FREE', 'IMS'].includes(paymentForm.payment_type) ? 0 : parseFloat(enteredAmount) || 0
-
-            const { error: payErr } = await supabase.from('payments').insert({
-              student_id: sibStu.id,
-              class_type: sib.courseCode,
-              month: paymentForm.month,
-              year: paymentForm.year,
-              amount_due: sib.fee,
-              amount_paid: paid,
-              balance_before: 0,
-              payment_type: paymentForm.payment_type,
-              bank_name: paymentForm.payment_type === 'BANK' ? paymentForm.bank_name : null,
-              date_paid: paymentForm.payment_type !== 'FREE' ? paymentForm.date_paid : null,
-              added_to_group: paymentForm.added_to_group,
-              tute_delivered: paymentForm.tute_delivered,
-              notes: paymentForm.notes || null,
-              recorded_by: createdBy.trim() || 'Admin / System User',
-            })
-            if (payErr) throw payErr
-          }
-        }
-
-        setSuccessResult({ codes: registeredCodes, isMulti: true })
       }
+
+      setSuccessPs(psCode.trim().toUpperCase())
 
     } catch (e: any) {
       setError(e.message)
@@ -396,12 +325,8 @@ export default function NewStudentPage() {
     }
   }
 
-  // Calculate totals for payment summary
-  const totalSiblingsFee = siblingsList.reduce((sum, s) => sum + s.fee, 0)
-  const totalSiblingsPaid = siblingsList.reduce((sum, s) => {
-    const val = siblingAmountPaid[s.id] !== undefined ? siblingAmountPaid[s.id] : String(s.fee)
-    return sum + (parseFloat(val) || 0)
-  }, 0)
+  const totalMonthlyFee = enrolledClasses.reduce((sum, c) => sum + c.fee, 0)
+  const totalAmountPaidNow = enrolledClasses.reduce((sum, c) => sum + (parseFloat(classAmountPaid[c.courseCode]) || 0), 0)
 
   return (
     <div className="fade-in" style={{ paddingBottom: 60 }}>
@@ -415,46 +340,41 @@ export default function NewStudentPage() {
               Register Student
             </h1>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-              Add a new student or register siblings under the same household & delivery address
+              Create student profile, parent details, delivery address, and class enrollments under 1 PS Code
             </div>
           </div>
         </div>
       </div>
 
       <div className="page-content" style={{ maxWidth: 760 }}>
-        {successResult ? (
+        {successPs ? (
           <div className="glass-card" style={{ padding: 40, textAlign: 'center' }}>
             <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-            <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>
-              {successResult.isMulti ? 'Siblings Registered Successfully!' : 'Student Registered Successfully!'}
-            </h2>
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', margin: '16px 0' }}>
-              {successResult.codes.map(c => (
-                <div key={c} style={{
-                  padding: '8px 16px', background: 'rgba(59,130,246,0.15)', border: '1px solid var(--accent-blue)',
-                  borderRadius: 8, fontSize: 22, fontWeight: 800, color: 'var(--accent-blue)', letterSpacing: 1
-                }}>
-                  {c}
-                </div>
-              ))}
+            <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>Registration Complete!</h2>
+            <div style={{
+              display: 'inline-block', padding: '10px 24px', background: 'rgba(59,130,246,0.15)',
+              border: '1px solid var(--accent-blue)', borderRadius: 8, fontSize: 24, fontWeight: 800,
+              color: 'var(--accent-blue)', letterSpacing: 2, margin: '14px 0'
+            }}>
+              {successPs}
             </div>
             <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 24px' }}>
-              Records {recordImmediatePayment ? 'and initial payments' : ''} have been linked to household.
+              Student record with {enrolledClasses.length} enrolled class(es) {recordImmediatePayment ? 'and payment' : ''} have been saved successfully.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-              <a href={`/students/${encodeURIComponent(successResult.codes[0])}`} className="btn-primary">
+              <a href={`/students/${encodeURIComponent(successPs)}`} className="btn-primary">
                 View Student Profile →
               </a>
               <button
                 className="btn-secondary"
                 onClick={() => {
-                  setFullName('')
+                  setStudentName('')
                   setAddress('')
                   setArea('')
                   setParentName('')
                   setParentPhone('')
                   setFcodeRef('')
-                  setSuccessResult(null)
+                  setSuccessPs('')
                   window.location.reload()
                 }}
               >
@@ -470,302 +390,217 @@ export default function NewStudentPage() {
               </div>
             )}
 
-            {/* Top Registration Mode Selector */}
-            <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
-                  Registration Type:
+            {/* Section 1: Basic Info */}
+            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
+              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 18, color: 'var(--accent-blue)' }}>
+                1. Student Details (1 PS Code)
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: 14, marginBottom: 14 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    PS Code
+                  </label>
+                  <input
+                    className="input-field"
+                    value={psCode}
+                    onChange={e => setPsCode(e.target.value.toUpperCase())}
+                    style={{ fontWeight: 700, letterSpacing: 1, color: 'var(--accent-blue)' }}
+                  />
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Choose whether registering one student or siblings in the same home
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Student / Children Full Name(s)
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. Kasun Perera (or: Kasun & Nethmi)"
+                    value={studentName}
+                    onChange={e => setStudentName(e.target.value)}
+                    autoFocus
+                  />
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={() => setRegMode('single')}
-                  style={{
-                    padding: '8px 16px', borderRadius: 8, border: '1px solid',
-                    borderColor: regMode === 'single' ? 'var(--accent-blue)' : 'var(--border)',
-                    background: regMode === 'single' ? 'var(--accent-blue)' : 'rgba(255,255,255,0.03)',
-                    color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s'
-                  }}
-                >
-                  <UserPlus size={15} /> 👤 Single Child (Normal)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setRegMode('siblings')}
-                  style={{
-                    padding: '8px 16px', borderRadius: 8, border: '1px solid',
-                    borderColor: regMode === 'siblings' ? 'var(--accent-purple)' : 'var(--border)',
-                    background: regMode === 'siblings' ? 'var(--accent-purple)' : 'rgba(255,255,255,0.03)',
-                    color: '#fff', fontWeight: 600, fontSize: 13, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', gap: 6, transition: 'all 0.15s'
-                  }}
-                >
-                  <Users size={15} /> 👨‍👩‍👧‍👦 Multiple Children / Siblings
-                </button>
+              <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 130px', gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Primary Grade
+                  </label>
+                  <select
+                    className="input-field"
+                    value={primaryGrade}
+                    onChange={e => handlePrimaryGradeChange(parseInt(e.target.value))}
+                    style={{ fontWeight: 600 }}
+                  >
+                    {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                      <option key={g} value={g}>Grade {g}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    School (Optional)
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. Royal College"
+                    value={school}
+                    onChange={e => setSchool(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    CRM F-Code
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. F80001"
+                    value={fcodeRef}
+                    onChange={e => setFcodeRef(e.target.value)}
+                  />
+                </div>
               </div>
             </div>
 
-            {/* MODE 1: SINGLE STUDENT FORM */}
-            {regMode === 'single' && (
-              <>
-                {/* Step 1: Student Details */}
-                <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 18, color: 'var(--accent-blue)' }}>
-                    1. Student Details
+            {/* Section 2: Class Enrollments & Multi-Subject / Sibling Classes */}
+            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Sparkles size={18} /> 2. Class Enrollments
                   </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: 14, marginBottom: 14 }}>
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                        PS Code
-                      </label>
-                      <input
-                        className="input-field"
-                        value={psCode}
-                        onChange={e => setPsCode(e.target.value.toUpperCase())}
-                        style={{ fontWeight: 700, letterSpacing: 1, color: 'var(--accent-blue)' }}
-                      />
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                        Student Full Name
-                      </label>
-                      <input
-                        className="input-field"
-                        placeholder="e.g. Kasun Perera"
-                        value={fullName}
-                        onChange={e => setFullName(e.target.value)}
-                        autoFocus
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: 14 }}>
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                        Grade
-                      </label>
-                      <select
-                        className="input-field"
-                        value={primaryGrade}
-                        onChange={e => setPrimaryGrade(parseInt(e.target.value))}
-                        style={{ fontWeight: 600 }}
-                      >
-                        {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
-                          <option key={g} value={g}>Grade {g}</option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                        School (Optional)
-                      </label>
-                      <input
-                        className="input-field"
-                        placeholder="e.g. Royal College"
-                        value={school}
-                        onChange={e => setSchool(e.target.value)}
-                      />
-                    </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Add classes for this student or siblings in this home. All classes share this 1 PS Code.
                   </div>
                 </div>
-
-                {/* Step 2: Course & Fee Selection */}
-                <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-                  <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 16, color: 'var(--accent-purple)' }}>
-                    2. Enrolled Course & Monthly Fee
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 14, alignItems: 'center' }}>
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                        Select Grade {primaryGrade} Aligned Course
-                      </label>
-                      <select
-                        className="input-field"
-                        value={selectedCourseCode}
-                        onChange={e => {
-                          setSelectedCourseCode(e.target.value)
-                          const fee = classDefaultFees[e.target.value] || 1800
-                          setCourseFee(fee)
-                          setSingleAmountPaid(String(fee))
-                        }}
-                        style={{ fontWeight: 600, color: 'var(--accent-blue)' }}
-                      >
-                        {(gradeCourses[primaryGrade] || []).map(c => (
-                          <option key={c.code} value={c.code}>
-                            {c.name} (Default: Rs. {c.defaultFee.toLocaleString()})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                        Monthly Fee (Rs.)
-                      </label>
-                      <input
-                        type="number"
-                        className="input-field"
-                        value={courseFee}
-                        onChange={e => {
-                          const val = parseFloat(e.target.value) || 0
-                          setCourseFee(val)
-                          setSingleAmountPaid(String(val))
-                        }}
-                        style={{ fontWeight: 700, color: 'var(--accent-green)' }}
-                        title="Edit customized fee or offer rate"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </>
-            )}
-
-            {/* MODE 2: MULTIPLE CHILDREN / SIBLINGS FORM */}
-            {regMode === 'siblings' && (
-              <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <div>
-                    <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Users size={18} /> Siblings & Children in Household
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                      Each child gets their own PS Code, Grade, and Course, all linked under one household.
-                    </div>
-                  </div>
+                <div style={{ flexShrink: 0 }}>
                   <button
                     type="button"
-                    onClick={handleAddSiblingRow}
+                    onClick={handleAddClassRow}
                     className="btn-primary"
-                    style={{ padding: '6px 14px', fontSize: 12, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                    style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
                   >
-                    <Plus size={14} /> Add Sibling
+                    <Plus size={14} /> Add Class
                   </button>
                 </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {siblingsList.map((sib, idx) => {
-                    const coursesForThisGrade = gradeCourses[sib.grade] || []
-
-                    return (
-                      <div
-                        key={sib.id}
-                        style={{
-                          padding: 16,
-                          borderRadius: 10,
-                          border: '1px solid var(--border)',
-                          background: 'var(--bg-base)',
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-blue)' }}>
-                            Child #{idx + 1}
-                          </span>
-                          {siblingsList.length > 2 && (
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveSiblingRow(sib.id)}
-                              style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: 2 }}
-                              title="Remove child"
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          )}
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr 100px', gap: 10, marginBottom: 10 }}>
-                          <div>
-                            <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>PS Code</label>
-                            <input
-                              className="input-field"
-                              value={sib.psCode}
-                              onChange={e => handleSiblingChange(sib.id, { psCode: e.target.value.toUpperCase() })}
-                              style={{ fontWeight: 700, color: 'var(--accent-blue)', padding: '5px 8px' }}
-                            />
-                          </div>
-                          <div>
-                            <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Child Name</label>
-                            <input
-                              className="input-field"
-                              placeholder="e.g. Nethmi Perera"
-                              value={sib.fullName}
-                              onChange={e => handleSiblingChange(sib.id, { fullName: e.target.value })}
-                              style={{ padding: '5px 8px' }}
-                            />
-                          </div>
-                          <div>
-                            <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Grade</label>
-                            <select
-                              className="input-field"
-                              value={sib.grade}
-                              onChange={e => handleSiblingChange(sib.id, { grade: parseInt(e.target.value) })}
-                              style={{ padding: '5px 8px', fontWeight: 600 }}
-                            >
-                              {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
-                                <option key={g} value={g}>Grade {g}</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
-
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px', gap: 10 }}>
-                          <div>
-                            <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
-                              Grade {sib.grade} Course
-                            </label>
-                            <select
-                              className="input-field"
-                              value={sib.courseCode}
-                              onChange={e => handleSiblingChange(sib.id, { courseCode: e.target.value })}
-                              style={{ padding: '5px 8px', fontSize: 12, color: 'var(--accent-blue)' }}
-                            >
-                              {coursesForThisGrade.map(c => (
-                                <option key={c.code} value={c.code}>
-                                  {c.name} (Rs. {c.defaultFee})
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <div>
-                            <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>Monthly Fee (Rs.)</label>
-                            <input
-                              type="number"
-                              className="input-field"
-                              value={sib.fee}
-                              onChange={e => handleSiblingChange(sib.id, { fee: parseFloat(e.target.value) || 0 })}
-                              style={{ padding: '5px 8px', fontWeight: 700, color: 'var(--accent-green)' }}
-                            />
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-
-                <div style={{ marginTop: 14, padding: '10px 14px', background: 'rgba(16,185,129,0.08)', borderRadius: 8, border: '1px solid rgba(16,185,129,0.2)', display: 'flex', justifyContent: 'space-between' }}>
-                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>Total Children: <b>{siblingsList.length}</b></span>
-                  <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-green)' }}>Total Monthly Fees: Rs. {totalSiblingsFee.toLocaleString()}</span>
-                </div>
               </div>
-            )}
 
-            {/* Step: Household & Delivery Address (Common for Both Modes) */}
+              {/* Dynamic Class Rows */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+                {enrolledClasses.map((row, idx) => {
+                  const coursesForThisGrade = gradeCourses[row.grade] || []
+
+                  return (
+                    <div
+                      key={row.id}
+                      style={{
+                        padding: '14px',
+                        borderRadius: 10,
+                        border: '1px solid var(--border)',
+                        background: 'var(--bg-base)',
+                        display: 'grid',
+                        gridTemplateColumns: '110px 1fr 130px 32px',
+                        gap: 12,
+                        alignItems: 'center'
+                      }}
+                    >
+                      {/* Grade Dropdown */}
+                      <div>
+                        <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                          Grade
+                        </label>
+                        <select
+                          className="input-field"
+                          value={row.grade}
+                          onChange={e => handleClassGradeChange(row.id, parseInt(e.target.value))}
+                          style={{ padding: '6px 8px', fontSize: 13, fontWeight: 600 }}
+                        >
+                          {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                            <option key={g} value={g}>Grade {g}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Aligned Course Dropdown */}
+                      <div>
+                        <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                          Aligned Course ({coursesForThisGrade.length} options)
+                        </label>
+                        <select
+                          className="input-field"
+                          value={row.courseCode}
+                          onChange={e => handleClassCourseChange(row.id, e.target.value)}
+                          style={{ padding: '6px 10px', fontSize: 13, fontWeight: 600, color: 'var(--accent-blue)' }}
+                        >
+                          {coursesForThisGrade.map(c => (
+                            <option key={c.code} value={c.code}>
+                              {c.name} (Default: Rs. {c.defaultFee.toLocaleString()})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      {/* Monthly Fee / Rate */}
+                      <div>
+                        <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                          Fee / Offer (Rs.)
+                        </label>
+                        <input
+                          type="number"
+                          className="input-field"
+                          value={row.fee}
+                          onChange={e => handleClassFeeChange(row.id, parseFloat(e.target.value) || 0)}
+                          style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700, color: 'var(--accent-green)' }}
+                        />
+                      </div>
+
+                      {/* Delete Row */}
+                      <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 18 }}>
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveClassRow(row.id)}
+                          disabled={enrolledClasses.length === 1}
+                          style={{
+                            background: 'none', border: 'none',
+                            color: enrolledClasses.length === 1 ? 'var(--text-muted)' : '#ef4444',
+                            cursor: enrolledClasses.length === 1 ? 'not-allowed' : 'pointer',
+                            padding: 4, opacity: enrolledClasses.length === 1 ? 0.3 : 1
+                          }}
+                          title="Remove class"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+
+              {/* Total Fee Summary */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '12px 16px', background: 'rgba(59,130,246,0.06)', borderRadius: 8, border: '1px solid rgba(59,130,246,0.2)'
+              }}>
+                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Total Enrolled Classes: <b>{enrolledClasses.length}</b>
+                </span>
+                <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent-green)' }}>
+                  Total Monthly Fee: Rs. {totalMonthlyFee.toLocaleString()}
+                </span>
+              </div>
+            </div>
+
+            {/* Section 3: Household & Postal Delivery Details */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
               <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 18, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Home size={18} /> Household & Delivery Details
+                <Home size={18} /> 3. Household & Delivery Address
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Parent / Guardian Name</label>
-                  <input className="input-field" placeholder="e.g. Sunil Perera" value={parentName} onChange={e => setParentName(e.target.value)} />
+                  <input className="input-field" placeholder="Parent name" value={parentName} onChange={e => setParentName(e.target.value)} />
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Parent Contact Number</label>
@@ -848,44 +683,29 @@ export default function NewStudentPage() {
                     </div>
                   )}
 
-                  {/* Payment Amount Input */}
+                  {/* Payment Amount Fields for each enrolled class */}
                   {['BANK', 'CASH', 'PHYSICAL'].includes(paymentForm.payment_type) && (
-                    <div style={{ marginBottom: 14 }}>
-                      {regMode === 'single' ? (
-                        <div>
-                          <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                            Amount Paid Now (Rs.)
-                          </label>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>
+                        Amount Paid Now per Class (Rs.):
+                      </label>
+                      {enrolledClasses.map(c => (
+                        <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
+                          <span style={{ fontSize: 13 }}>
+                            Grade {c.grade} · {availableClasses[c.courseCode] || c.courseCode} (Fee: Rs. {c.fee}):
+                          </span>
                           <input
                             type="number"
                             className="input-field"
-                            value={singleAmountPaid}
-                            onChange={e => setSingleAmountPaid(e.target.value)}
-                            style={{ fontWeight: 700, color: 'var(--accent-green)' }}
+                            style={{ width: 140, padding: '5px 10px', fontWeight: 700, color: 'var(--accent-green)' }}
+                            value={classAmountPaid[c.courseCode] ?? ''}
+                            onChange={e => setClassAmountPaid({ ...classAmountPaid, [c.courseCode]: e.target.value })}
                           />
                         </div>
-                      ) : (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                          <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>
-                            Amount Paid per Sibling:
-                          </label>
-                          {siblingsList.map(s => (
-                            <div key={s.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 10px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
-                              <span style={{ fontSize: 13 }}>{s.fullName || s.psCode} ({availableClasses[s.courseCode] || s.courseCode}):</span>
-                              <input
-                                type="number"
-                                className="input-field"
-                                style={{ width: 140, padding: '4px 8px', fontWeight: 700, color: 'var(--accent-green)' }}
-                                value={siblingAmountPaid[s.id] !== undefined ? siblingAmountPaid[s.id] : String(s.fee)}
-                                onChange={e => setSiblingAmountPaid({ ...siblingAmountPaid, [s.id]: e.target.value })}
-                              />
-                            </div>
-                          ))}
-                          <div style={{ textAlign: 'right', fontSize: 14, fontWeight: 700, color: 'var(--accent-green)', marginTop: 4 }}>
-                            Total Batch Payment: Rs. {totalSiblingsPaid.toLocaleString()}
-                          </div>
-                        </div>
-                      )}
+                      ))}
+                      <div style={{ textAlign: 'right', fontSize: 14, fontWeight: 700, color: 'var(--accent-green)', marginTop: 4 }}>
+                        Total Slip Payment: Rs. {totalAmountPaidNow.toLocaleString()}
+                      </div>
                     </div>
                   )}
 
@@ -920,7 +740,7 @@ export default function NewStudentPage() {
               onClick={submit}
               disabled={saving}
             >
-              {saving ? 'Registering...' : recordImmediatePayment ? '✓ Register & Save Payment' : regMode === 'siblings' ? `✓ Register All ${siblingsList.length} Siblings` : '✓ Register Student'}
+              {saving ? 'Registering...' : recordImmediatePayment ? '✓ Register Student & Save Payment' : '✓ Register Student'}
             </button>
           </>
         )}

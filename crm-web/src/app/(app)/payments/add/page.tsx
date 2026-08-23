@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Search, Plus, Trash2, Sparkles, CreditCard, Users, User, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, Search, Plus, Trash2, CreditCard } from 'lucide-react'
 import { MONTH_NAMES, Student, Enrollment, StudentBalance } from '@/lib/types'
 import { DEFAULT_GRADE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
 
@@ -11,9 +11,6 @@ const BANKS = ['BOC', 'Sampath', 'Commercial', 'HNB', 'People\'s Bank', 'NSB', '
 
 interface PaymentClassItem {
   itemId: string
-  studentId: string
-  studentPsCode: string
-  studentName: string
   isExistingEnrollment: boolean
   enrollmentId?: string
   grade: number
@@ -31,8 +28,6 @@ function AddPaymentForm() {
 
   const [psSearch, setPsSearch] = useState(searchParams.get('ps') || '')
   const [student, setStudent] = useState<Student | null>(null)
-  const [householdSiblings, setHouseholdSiblings] = useState<Student[]>([])
-  const [includeSiblings, setIncludeSiblings] = useState(false)
 
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
   const [allBalances, setAllBalances] = useState<Record<string, StudentBalance>>({})
@@ -44,7 +39,7 @@ function AddPaymentForm() {
   const [availableClasses, setAvailableClasses] = useState<Record<string, string>>(getAllCourseLabels(DEFAULT_GRADE_COURSES))
   const [classDefaultFees, setClassDefaultFees] = useState<Record<string, number>>(getAllCourseFees(DEFAULT_GRADE_COURSES))
 
-  // Dynamic Payment Class Rows
+  // Dynamic Payment Class Rows under this 1 PS Code
   const [paymentRows, setPaymentRows] = useState<PaymentClassItem[]>([])
 
   const [form, setForm] = useState({
@@ -191,7 +186,7 @@ function AddPaymentForm() {
     setAddressInput(hh.address || '')
     setAreaInput(hh.area || '')
 
-    loadStudentAndSiblings(selectedStu, false)
+    loadStudentClasses(selectedStu)
   }
 
   function inferGradeFromCourse(courseCode: string, fallbackGrade: number): number {
@@ -205,103 +200,68 @@ function AddPaymentForm() {
     return fallbackGrade || 10
   }
 
-  async function loadStudentAndSiblings(mainStudent: any, withSiblings: boolean) {
-    const stuGrade = mainStudent.grade || 10
+  async function loadStudentClasses(stu: any) {
+    const stuGrade = stu.grade || 10
 
-    // Fetch siblings in same household
-    let siblings: Student[] = []
-    if (mainStudent.household_id) {
-      const { data: sibData } = await supabase
-        .from('students')
-        .select('*, household:households(*)')
-        .eq('household_id', mainStudent.household_id)
-        .neq('id', mainStudent.id)
-      siblings = sibData || []
-    }
-    setHouseholdSiblings(siblings)
-
-    const targetStudents = withSiblings ? [mainStudent, ...siblings] : [mainStudent]
-    const targetStudentIds = targetStudents.map(s => s.id)
-
-    // Fetch active enrollments for target students
+    // Fetch student active enrollments
     const { data: enrols } = await supabase
       .from('enrollments')
       .select('*')
-      .in('student_id', targetStudentIds)
+      .eq('student_id', stu.id)
       .eq('active', true)
     setEnrollments(enrols || [])
 
-    // Fetch student balances
+    // Fetch balances
     const { data: bData } = await supabase
       .from('student_balances')
       .select('*')
-      .in('student_id', targetStudentIds)
+      .eq('student_id', stu.id)
 
     const bMap: Record<string, StudentBalance> = {}
     ;(bData || []).forEach(b => {
-      bMap[`${b.student_id}_${b.class_type}`] = b
       bMap[b.class_type] = b
     })
     setAllBalances(bMap)
 
-    const builtRows: PaymentClassItem[] = []
+    if (enrols && enrols.length > 0) {
+      const rows: PaymentClassItem[] = enrols.map(e => {
+        const curBal = bMap[e.class_type]?.current_balance || 0
+        const sug = Math.max(0, e.fee_amount - curBal)
+        const rowGrade = inferGradeFromCourse(e.class_type, stuGrade)
 
-    targetStudents.forEach(stu => {
-      const stuEnrols = (enrols || []).filter(e => e.student_id === stu.id)
+        return {
+          itemId: `enrol-${e.id}`,
+          isExistingEnrollment: true,
+          enrollmentId: e.id,
+          grade: rowGrade,
+          courseCode: e.class_type,
+          fee: e.fee_amount,
+          selected: true,
+          amountPaid: String(sug),
+          currentBalance: curBal,
+          suggested: sug
+        }
+      })
+      setPaymentRows(rows)
+    } else {
+      const courses = gradeCourses[stuGrade] || []
+      const def = courses[0]
+      const fee = def ? def.defaultFee : 1800
+      const code = def ? def.code : 'GR10_THEORY'
 
-      if (stuEnrols.length > 0) {
-        stuEnrols.forEach(e => {
-          const curBal = bMap[`${stu.id}_${e.class_type}`]?.current_balance || 0
-          const sug = Math.max(0, e.fee_amount - curBal)
-          const rowGrade = inferGradeFromCourse(e.class_type, stu.grade || 10)
-
-          builtRows.push({
-            itemId: `enrol-${e.id}`,
-            studentId: stu.id,
-            studentPsCode: stu.ps_code,
-            studentName: stu.full_name || 'No name',
-            isExistingEnrollment: true,
-            enrollmentId: e.id,
-            grade: rowGrade,
-            courseCode: e.class_type,
-            fee: e.fee_amount,
-            selected: true,
-            amountPaid: String(sug),
-            currentBalance: curBal,
-            suggested: sug
-          })
-        })
-      } else {
-        const sGrade = stu.grade || 10
-        const courses = gradeCourses[sGrade] || []
-        const def = courses[0]
-        const fee = def ? def.defaultFee : 1800
-        const code = def ? def.code : 'GR10_THEORY'
-
-        builtRows.push({
+      setPaymentRows([
+        {
           itemId: `init-${stu.id}`,
-          studentId: stu.id,
-          studentPsCode: stu.ps_code,
-          studentName: stu.full_name || 'No name',
           isExistingEnrollment: false,
-          grade: sGrade,
+          grade: stuGrade,
           courseCode: code,
           fee: fee,
           selected: true,
           amountPaid: String(fee),
           currentBalance: 0,
           suggested: fee
-        })
-      }
-    })
-
-    setPaymentRows(builtRows)
-  }
-
-  function handleToggleIncludeSiblings(checked: boolean) {
-    setIncludeSiblings(checked)
-    if (student) {
-      loadStudentAndSiblings(student, checked)
+        }
+      ])
     }
   }
 
@@ -317,9 +277,6 @@ function AddPaymentForm() {
 
     const newRow: PaymentClassItem = {
       itemId: `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-      studentId: stu.id,
-      studentPsCode: stu.ps_code,
-      studentName: stu.full_name || 'No name',
       isExistingEnrollment: false,
       grade: stuGrade,
       courseCode: defCode,
@@ -334,7 +291,7 @@ function AddPaymentForm() {
 
   function handleRemovePaymentRow(itemId: string) {
     if (paymentRows.length === 1) {
-      alert('Must have at least one class row to record payment.')
+      alert('At least one class is required to record payment.')
       return
     }
     setPaymentRows(paymentRows.filter(r => r.itemId !== itemId))
@@ -348,7 +305,7 @@ function AddPaymentForm() {
 
     setPaymentRows(prev => prev.map(r => {
       if (r.itemId === itemId) {
-        const curBal = allBalances[`${r.studentId}_${defCode}`]?.current_balance || 0
+        const curBal = allBalances[defCode]?.current_balance || 0
         const sug = Math.max(0, defFee - curBal)
         return {
           ...r,
@@ -369,7 +326,7 @@ function AddPaymentForm() {
 
     setPaymentRows(prev => prev.map(r => {
       if (r.itemId === itemId) {
-        const curBal = allBalances[`${r.studentId}_${newCourseCode}`]?.current_balance || 0
+        const curBal = allBalances[newCourseCode]?.current_balance || 0
         const sug = Math.max(0, fee - curBal)
         return {
           ...r,
@@ -523,7 +480,7 @@ function AddPaymentForm() {
       for (const r of selectedRows) {
         if (!r.isExistingEnrollment) {
           await supabase.from('enrollments').upsert({
-            student_id: r.studentId,
+            student_id: student.id,
             class_type: r.courseCode,
             tier: 'STANDARD',
             fee_amount: r.fee,
@@ -536,10 +493,10 @@ function AddPaymentForm() {
         }
       }
 
-      // 2. Loop over each selected row and record payment
+      // 2. Loop over each selected class row and record payment
       for (const r of selectedRows) {
         const amountDue = r.fee || 0
-        const bVal = allBalances[`${r.studentId}_${r.courseCode}`]?.current_balance || 0
+        const bVal = allBalances[r.courseCode]?.current_balance || 0
 
         let amountPaid = 0
         if (['FREE', 'IMS'].includes(form.payment_type)) {
@@ -549,7 +506,7 @@ function AddPaymentForm() {
         }
 
         const { error: err } = await supabase.from('payments').upsert({
-          student_id: r.studentId,
+          student_id: student.id,
           class_type: r.courseCode,
           month: form.month,
           year: form.year,
@@ -571,8 +528,8 @@ function AddPaymentForm() {
       setSaved(true)
       setTimeout(() => setSaved(false), 3500)
 
-      // Reload student & sibling data
-      await loadStudentAndSiblings(student, includeSiblings)
+      // Reload student data
+      await loadStudentClasses(student)
 
     } catch (e: any) {
       setError(e.message)
@@ -592,7 +549,7 @@ function AddPaymentForm() {
           <div>
             <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Add Payment</h1>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-              Record a student payment or combined household sibling payments
+              Record a student payment for one or multiple classes/grades under this PS Code
             </div>
           </div>
         </div>
@@ -729,34 +686,6 @@ function AddPaymentForm() {
                   </div>
                 </div>
               )}
-
-              {/* Sibling Auto-Detector Switch */}
-              {householdSiblings.length > 0 && (
-                <div style={{
-                  marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(59,130,246,0.2)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8
-                }}>
-                  <div style={{ fontSize: 12, color: 'var(--text-primary)' }}>
-                    👨‍👩‍👧‍👦 <b>{householdSiblings.length} Sibling(s) detected</b> in this household:
-                    <span style={{ color: 'var(--accent-blue)', marginLeft: 6 }}>
-                      {householdSiblings.map(s => `${s.ps_code} (${s.full_name || 'No name'} - Gr ${s.grade})`).join(', ')}
-                    </span>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <input
-                      type="checkbox"
-                      id="chk-include-sibs"
-                      checked={includeSiblings}
-                      onChange={e => handleToggleIncludeSiblings(e.target.checked)}
-                      style={{ width: 16, height: 16, cursor: 'pointer' }}
-                    />
-                    <label htmlFor="chk-include-sibs" style={{ fontSize: 12, fontWeight: 700, color: includeSiblings ? 'var(--accent-purple)' : 'var(--text-secondary)', cursor: 'pointer' }}>
-                      Pay for All Household Siblings in 1 Slip
-                    </label>
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -768,10 +697,10 @@ function AddPaymentForm() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <CreditCard size={18} /> 2. Classes & Payment Amounts
+                    <CreditCard size={18} /> 2. Enrolled Classes & Payment Amounts
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Check classes to include in this payment.
+                    Check classes to include in this payment. Click <b>+ Add Class</b> to enroll extra classes/siblings.
                   </div>
                 </div>
                 <div style={{ flexShrink: 0 }}>
@@ -803,13 +732,6 @@ function AddPaymentForm() {
                         transition: 'all 0.15s'
                       }}
                     >
-                      {/* Top Bar: Student Label (if multi-sibling) + Checkbox + Grade + Course + Fee + Balance + Delete */}
-                      {includeSiblings && (
-                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-purple)', marginBottom: 8 }}>
-                          👤 {row.studentPsCode} · {row.studentName}
-                        </div>
-                      )}
-
                       <div style={{
                         display: 'grid',
                         gridTemplateColumns: '28px 110px 1fr 110px 100px 32px',
@@ -1015,7 +937,7 @@ function AddPaymentForm() {
                   </label>
                 </div>
 
-                {/* Show & Verify Current Address under Tute Deliver */}
+                {/* Delivery Address Verification */}
                 <div style={{
                   padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)',
                   marginLeft: 4
