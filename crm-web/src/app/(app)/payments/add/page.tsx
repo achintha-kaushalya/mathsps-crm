@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Search, Plus, Trash2, Sparkles, Lock, CreditCard } from 'lucide-react'
+import { ArrowLeft, Search, Plus, Trash2, Sparkles, CreditCard, Users, User, CheckCircle2 } from 'lucide-react'
 import { MONTH_NAMES, Student, Enrollment, StudentBalance } from '@/lib/types'
 import { DEFAULT_GRADE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
 
@@ -11,6 +11,9 @@ const BANKS = ['BOC', 'Sampath', 'Commercial', 'HNB', 'People\'s Bank', 'NSB', '
 
 interface PaymentClassItem {
   itemId: string
+  studentId: string
+  studentPsCode: string
+  studentName: string
   isExistingEnrollment: boolean
   enrollmentId?: string
   grade: number
@@ -28,6 +31,9 @@ function AddPaymentForm() {
 
   const [psSearch, setPsSearch] = useState(searchParams.get('ps') || '')
   const [student, setStudent] = useState<Student | null>(null)
+  const [householdSiblings, setHouseholdSiblings] = useState<Student[]>([])
+  const [includeSiblings, setIncludeSiblings] = useState(false)
+
   const [enrollments, setEnrollments] = useState<Enrollment[]>([])
   const [allBalances, setAllBalances] = useState<Record<string, StudentBalance>>({})
   const [memberName, setMemberName] = useState('')
@@ -38,15 +44,8 @@ function AddPaymentForm() {
   const [availableClasses, setAvailableClasses] = useState<Record<string, string>>(getAllCourseLabels(DEFAULT_GRADE_COURSES))
   const [classDefaultFees, setClassDefaultFees] = useState<Record<string, number>>(getAllCourseFees(DEFAULT_GRADE_COURSES))
 
-  // Dynamic Payment Class Rows (combines enrolled courses + dynamic multi-grade additions)
+  // Dynamic Payment Class Rows
   const [paymentRows, setPaymentRows] = useState<PaymentClassItem[]>([])
-
-  // Admin add course modal
-  const [customCourseGrade, setCustomCourseGrade] = useState<number>(10)
-  const [customCourseCode, setCustomCourseCode] = useState('')
-  const [customCourseName, setCustomCourseName] = useState('')
-  const [customCourseFee, setCustomCourseFee] = useState<string>('1800')
-  const [showAddCourseModal, setShowAddCourseModal] = useState(false)
 
   const [form, setForm] = useState({
     month: new Date().getMonth() + 1,
@@ -94,7 +93,6 @@ function AddPaymentForm() {
     }
   }
 
-  // Auto-detect logged in member & subscribe to Realtime course updates
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
@@ -136,7 +134,6 @@ function AddPaymentForm() {
     }
   }, [])
 
-  // Auto-load if ps param present
   useEffect(() => {
     if (psSearch) searchStudent()
   }, [])
@@ -194,10 +191,9 @@ function AddPaymentForm() {
     setAddressInput(hh.address || '')
     setAreaInput(hh.area || '')
 
-    loadStudentEnrollmentsAndBuildRows(selectedStu)
+    loadStudentAndSiblings(selectedStu, false)
   }
 
-  // Detect grade from courseCode or student
   function inferGradeFromCourse(courseCode: string, fallbackGrade: number): number {
     for (const [grStr, list] of Object.entries(gradeCourses)) {
       if (list.some(c => c.code === courseCode)) {
@@ -209,65 +205,111 @@ function AddPaymentForm() {
     return fallbackGrade || 10
   }
 
-  async function loadStudentEnrollmentsAndBuildRows(stu: any) {
-    const stuGrade = stu.grade || 10
+  async function loadStudentAndSiblings(mainStudent: any, withSiblings: boolean) {
+    const stuGrade = mainStudent.grade || 10
 
-    // Fetch student active enrollments
-    const { data: enrols } = await supabase.from('enrollments').select('*').eq('student_id', stu.id).eq('active', true)
+    // Fetch siblings in same household
+    let siblings: Student[] = []
+    if (mainStudent.household_id) {
+      const { data: sibData } = await supabase
+        .from('students')
+        .select('*, household:households(*)')
+        .eq('household_id', mainStudent.household_id)
+        .neq('id', mainStudent.id)
+      siblings = sibData || []
+    }
+    setHouseholdSiblings(siblings)
+
+    const targetStudents = withSiblings ? [mainStudent, ...siblings] : [mainStudent]
+    const targetStudentIds = targetStudents.map(s => s.id)
+
+    // Fetch active enrollments for target students
+    const { data: enrols } = await supabase
+      .from('enrollments')
+      .select('*')
+      .in('student_id', targetStudentIds)
+      .eq('active', true)
     setEnrollments(enrols || [])
 
-    // Fetch balances
-    const { data: bData } = await supabase.from('student_balances').select('*').eq('student_id', stu.id)
+    // Fetch student balances
+    const { data: bData } = await supabase
+      .from('student_balances')
+      .select('*')
+      .in('student_id', targetStudentIds)
+
     const bMap: Record<string, StudentBalance> = {}
-    ;(bData || []).forEach(b => { bMap[b.class_type] = b })
+    ;(bData || []).forEach(b => {
+      bMap[`${b.student_id}_${b.class_type}`] = b
+      bMap[b.class_type] = b
+    })
     setAllBalances(bMap)
 
-    if (enrols && enrols.length > 0) {
-      const rows: PaymentClassItem[] = enrols.map(e => {
-        const curBal = bMap[e.class_type]?.current_balance || 0
-        const sug = Math.max(0, e.fee_amount - curBal)
-        const rowGrade = inferGradeFromCourse(e.class_type, stuGrade)
+    const builtRows: PaymentClassItem[] = []
 
-        return {
-          itemId: `enrol-${e.id}`,
-          isExistingEnrollment: true,
-          enrollmentId: e.id,
-          grade: rowGrade,
-          courseCode: e.class_type,
-          fee: e.fee_amount,
-          selected: true,
-          amountPaid: String(sug),
-          currentBalance: curBal,
-          suggested: sug
-        }
-      })
-      setPaymentRows(rows)
-    } else {
-      // If student has no enrollments yet, initialize with 1 row aligned to student grade
-      const coursesForGrade = gradeCourses[stuGrade] || []
-      const firstCourse = coursesForGrade[0]
-      const defFee = firstCourse ? firstCourse.defaultFee : 1800
-      const defCode = firstCourse ? firstCourse.code : 'GR10_THEORY'
+    targetStudents.forEach(stu => {
+      const stuEnrols = (enrols || []).filter(e => e.student_id === stu.id)
 
-      setPaymentRows([
-        {
-          itemId: `row-${Date.now()}`,
+      if (stuEnrols.length > 0) {
+        stuEnrols.forEach(e => {
+          const curBal = bMap[`${stu.id}_${e.class_type}`]?.current_balance || 0
+          const sug = Math.max(0, e.fee_amount - curBal)
+          const rowGrade = inferGradeFromCourse(e.class_type, stu.grade || 10)
+
+          builtRows.push({
+            itemId: `enrol-${e.id}`,
+            studentId: stu.id,
+            studentPsCode: stu.ps_code,
+            studentName: stu.full_name || 'No name',
+            isExistingEnrollment: true,
+            enrollmentId: e.id,
+            grade: rowGrade,
+            courseCode: e.class_type,
+            fee: e.fee_amount,
+            selected: true,
+            amountPaid: String(sug),
+            currentBalance: curBal,
+            suggested: sug
+          })
+        })
+      } else {
+        const sGrade = stu.grade || 10
+        const courses = gradeCourses[sGrade] || []
+        const def = courses[0]
+        const fee = def ? def.defaultFee : 1800
+        const code = def ? def.code : 'GR10_THEORY'
+
+        builtRows.push({
+          itemId: `init-${stu.id}`,
+          studentId: stu.id,
+          studentPsCode: stu.ps_code,
+          studentName: stu.full_name || 'No name',
           isExistingEnrollment: false,
-          grade: stuGrade,
-          courseCode: defCode,
-          fee: defFee,
+          grade: sGrade,
+          courseCode: code,
+          fee: fee,
           selected: true,
-          amountPaid: String(defFee),
+          amountPaid: String(fee),
           currentBalance: 0,
-          suggested: defFee
-        }
-      ])
+          suggested: fee
+        })
+      }
+    })
+
+    setPaymentRows(builtRows)
+  }
+
+  function handleToggleIncludeSiblings(checked: boolean) {
+    setIncludeSiblings(checked)
+    if (student) {
+      loadStudentAndSiblings(student, checked)
     }
   }
 
   // Row management for Add Payment
   function handleAddPaymentRow() {
-    const stuGrade = student?.grade || 10
+    const stu = student
+    if (!stu) return
+    const stuGrade = stu.grade || 10
     const coursesForGrade = gradeCourses[stuGrade] || []
     const firstCourse = coursesForGrade[0]
     const defFee = firstCourse ? firstCourse.defaultFee : 1800
@@ -275,6 +317,9 @@ function AddPaymentForm() {
 
     const newRow: PaymentClassItem = {
       itemId: `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      studentId: stu.id,
+      studentPsCode: stu.ps_code,
+      studentName: stu.full_name || 'No name',
       isExistingEnrollment: false,
       grade: stuGrade,
       courseCode: defCode,
@@ -303,7 +348,7 @@ function AddPaymentForm() {
 
     setPaymentRows(prev => prev.map(r => {
       if (r.itemId === itemId) {
-        const curBal = allBalances[defCode]?.current_balance || 0
+        const curBal = allBalances[`${r.studentId}_${defCode}`]?.current_balance || 0
         const sug = Math.max(0, defFee - curBal)
         return {
           ...r,
@@ -321,11 +366,11 @@ function AddPaymentForm() {
 
   function handleRowCourseChange(itemId: string, newCourseCode: string) {
     const fee = classDefaultFees[newCourseCode] || 1800
-    const curBal = allBalances[newCourseCode]?.current_balance || 0
-    const sug = Math.max(0, fee - curBal)
 
     setPaymentRows(prev => prev.map(r => {
       if (r.itemId === itemId) {
+        const curBal = allBalances[`${r.studentId}_${newCourseCode}`]?.current_balance || 0
+        const sug = Math.max(0, fee - curBal)
         return {
           ...r,
           courseCode: newCourseCode,
@@ -446,7 +491,7 @@ function AddPaymentForm() {
     const rawInput = psSearch.trim()
     const cleanDigits = rawInput.replace(/\D/g, '')
     const cleanPs = rawInput.toUpperCase().replace(/\s+/g, '')
-    
+
     let { data: matches } = await supabase
       .from('students')
       .select('*, household:households(*)')
@@ -462,66 +507,6 @@ function AddPaymentForm() {
     selectStudent(bestMatch)
   }
 
-  async function saveCoursesToDatabase(updatedGradeCourses: Record<number, CourseConfig[]>) {
-    try {
-      const { data: adminMem } = await supabase.from('members').select('id').eq('name', 'Admin User').single()
-      if (adminMem?.id) {
-        const customCourses = getAllCourseLabels(updatedGradeCourses)
-        const classFees = getAllCourseFees(updatedGradeCourses)
-
-        await fetch('/api/members/manage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'update_custom_courses',
-            memberId: adminMem.id,
-            courses: customCourses,
-            fees: classFees,
-            grade_courses: updatedGradeCourses,
-            adminPassword: 'sb_secret_verification_bypass'
-          })
-        })
-
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'courses_updated',
-            payload: { grade_courses: updatedGradeCourses, courses: customCourses, fees: classFees }
-          })
-        }
-      }
-    } catch (err) {
-      console.error('Failed to persist courses:', err)
-    }
-  }
-
-  async function handleAddCustomCourse(e: React.FormEvent) {
-    e.preventDefault()
-    if (!customCourseName.trim()) return
-    const uniqueSuffix = Date.now().toString().slice(-4)
-    const code = (customCourseCode.trim() ? customCourseCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_') : `GR${customCourseGrade}_${uniqueSuffix}`).slice(0, 30)
-    const name = customCourseName.trim()
-    const fee = parseFloat(customCourseFee) || 1800
-
-    const currentList = gradeCourses[customCourseGrade] || []
-    const updatedList = [...currentList.filter(c => c.code !== code), { code, name, defaultFee: fee, grade: customCourseGrade }]
-    const updatedGradeCourses = {
-      ...gradeCourses,
-      [customCourseGrade]: updatedList
-    }
-
-    setGradeCourses(updatedGradeCourses)
-    setAvailableClasses(getAllCourseLabels(updatedGradeCourses))
-    setClassDefaultFees(getAllCourseFees(updatedGradeCourses))
-
-    await saveCoursesToDatabase(updatedGradeCourses)
-
-    setCustomCourseCode('')
-    setCustomCourseName('')
-    setCustomCourseFee('1800')
-    setShowAddCourseModal(false)
-  }
-
   async function submit() {
     if (!student) { setError('Please search and select a student first'); return }
 
@@ -534,28 +519,27 @@ function AddPaymentForm() {
 
     setSaving(true); setError('')
     try {
-      // 1. Ensure any newly added courses are registered into student's enrollments table
+      // 1. Ensure enrollments are recorded for selected classes
       for (const r of selectedRows) {
         if (!r.isExistingEnrollment) {
           await supabase.from('enrollments').upsert({
-            student_id: student.id,
+            student_id: r.studentId,
             class_type: r.courseCode,
             tier: 'STANDARD',
             fee_amount: r.fee,
             active: true
           }, { onConflict: 'student_id,class_type' })
         } else if (r.enrollmentId) {
-          // Update fee if staff modified it
           await supabase.from('enrollments').update({
             fee_amount: r.fee
           }).eq('id', r.enrollmentId)
         }
       }
 
-      // 2. Loop over each selected class row and record payment
+      // 2. Loop over each selected row and record payment
       for (const r of selectedRows) {
         const amountDue = r.fee || 0
-        const bVal = allBalances[r.courseCode]?.current_balance || 0
+        const bVal = allBalances[`${r.studentId}_${r.courseCode}`]?.current_balance || 0
 
         let amountPaid = 0
         if (['FREE', 'IMS'].includes(form.payment_type)) {
@@ -565,7 +549,7 @@ function AddPaymentForm() {
         }
 
         const { error: err } = await supabase.from('payments').upsert({
-          student_id: student.id,
+          student_id: r.studentId,
           class_type: r.courseCode,
           month: form.month,
           year: form.year,
@@ -587,8 +571,8 @@ function AddPaymentForm() {
       setSaved(true)
       setTimeout(() => setSaved(false), 3500)
 
-      // Reload student enrollments and balances
-      await loadStudentEnrollmentsAndBuildRows(student)
+      // Reload student & sibling data
+      await loadStudentAndSiblings(student, includeSiblings)
 
     } catch (e: any) {
       setError(e.message)
@@ -601,13 +585,15 @@ function AddPaymentForm() {
   const totalAmountToPay = selectedRows.reduce((sum, r) => sum + (parseFloat(r.amountPaid) || 0), 0)
 
   return (
-    <div className="fade-in">
+    <div className="fade-in" style={{ paddingBottom: 60 }}>
       <div className="page-header">
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <a href="/students" className="btn-secondary" style={{ padding: '6px 10px' }}><ArrowLeft size={14} /></a>
           <div>
             <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Add Payment</h1>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>Record a student payment for one or multiple grade courses</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
+              Record a student payment or combined household sibling payments
+            </div>
           </div>
         </div>
       </div>
@@ -668,7 +654,7 @@ function AddPaymentForm() {
           {student && (
             <div style={{ marginTop: 16, padding: 14, background: 'rgba(59,130,246,0.06)', borderRadius: 8, border: '1px solid rgba(59,130,246,0.2)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 600, color: '#10b981' }}>✓ Found: {student.ps_code}</div>
+                <div style={{ fontWeight: 600, color: '#10b981' }}>✓ Selected Student: {student.ps_code}</div>
                 {!editingStudent ? (
                   <button
                     type="button"
@@ -743,13 +729,41 @@ function AddPaymentForm() {
                   </div>
                 </div>
               )}
+
+              {/* Sibling Auto-Detector Switch */}
+              {householdSiblings.length > 0 && (
+                <div style={{
+                  marginTop: 12, paddingTop: 10, borderTop: '1px solid rgba(59,130,246,0.2)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8
+                }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-primary)' }}>
+                    👨‍👩‍👧‍👦 <b>{householdSiblings.length} Sibling(s) detected</b> in this household:
+                    <span style={{ color: 'var(--accent-blue)', marginLeft: 6 }}>
+                      {householdSiblings.map(s => `${s.ps_code} (${s.full_name || 'No name'} - Gr ${s.grade})`).join(', ')}
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      id="chk-include-sibs"
+                      checked={includeSiblings}
+                      onChange={e => handleToggleIncludeSiblings(e.target.checked)}
+                      style={{ width: 16, height: 16, cursor: 'pointer' }}
+                    />
+                    <label htmlFor="chk-include-sibs" style={{ fontSize: 12, fontWeight: 700, color: includeSiblings ? 'var(--accent-purple)' : 'var(--text-secondary)', cursor: 'pointer' }}>
+                      Pay for All Household Siblings in 1 Slip
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {student && (
           <>
-            {/* Step 2: Dynamic Multi-Grade Class Selection & Payment Amount */}
+            {/* Step 2: Payment Class Selection */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
@@ -757,7 +771,7 @@ function AddPaymentForm() {
                     <CreditCard size={18} /> 2. Classes & Payment Amounts
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Check classes to include in this payment. Click <b>+ Add Another Class</b> to pay for siblings or multiple grades.
+                    Check classes to include in this payment.
                   </div>
                 </div>
                 <div style={{ flexShrink: 0 }}>
@@ -772,9 +786,9 @@ function AddPaymentForm() {
                 </div>
               </div>
 
-              {/* Dynamic Multi-Grade Class Rows */}
+              {/* Payment Class Rows */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-                {paymentRows.map((row, idx) => {
+                {paymentRows.map((row) => {
                   const coursesForThisGrade = gradeCourses[row.grade] || []
 
                   return (
@@ -789,7 +803,13 @@ function AddPaymentForm() {
                         transition: 'all 0.15s'
                       }}
                     >
-                      {/* Top Bar: Checkbox + Grade Select + Course Select + Fee + Balance + Delete */}
+                      {/* Top Bar: Student Label (if multi-sibling) + Checkbox + Grade + Course + Fee + Balance + Delete */}
+                      {includeSiblings && (
+                        <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-purple)', marginBottom: 8 }}>
+                          👤 {row.studentPsCode} · {row.studentName}
+                        </div>
+                      )}
+
                       <div style={{
                         display: 'grid',
                         gridTemplateColumns: '28px 110px 1fr 110px 100px 32px',
@@ -891,7 +911,7 @@ function AddPaymentForm() {
                         </div>
                       </div>
 
-                      {/* Bottom Paid Amount Field (shown when class is selected & payment type requires amount) */}
+                      {/* Bottom Paid Amount Field */}
                       {row.selected && ['BANK', 'CASH', 'PHYSICAL'].includes(form.payment_type) && (
                         <div style={{
                           marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)',
@@ -1103,7 +1123,7 @@ function AddPaymentForm() {
             </button>
             {saved && (
               <div style={{ marginTop: 12, padding: '12px 16px', background: '#1a3a2a', borderRadius: 8, color: '#34d399', fontSize: 13 }}>
-                ✓ Payment recorded successfully for {selectedRows.length} classes!
+                ✓ Payment recorded successfully for {selectedRows.length} class(es)!
                 <a href={`/students/${encodeURIComponent(student.ps_code)}`}
                   style={{ color: 'var(--accent-blue)', marginLeft: 12, textDecoration: 'none' }}>
                   View student profile →
