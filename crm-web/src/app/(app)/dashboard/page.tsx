@@ -101,7 +101,7 @@ export default function AnalyticsDashboard() {
         }),
         supabase.from('payments').select('amount_paid,payment_type,student_id')
           .eq('month', curMonth).eq('year', curYear),
-        supabase.from('students').select('*', { count: 'exact', head: true }),
+        supabase.from('students').select('*', { count: 'exact', head: true }).not('created_by', 'ilike', '%Auto-Pre-generated%'),
       ])
 
       setLeads(leadsData || [])

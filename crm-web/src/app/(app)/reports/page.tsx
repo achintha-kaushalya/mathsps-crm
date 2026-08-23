@@ -10,12 +10,7 @@ import {
   AlertCircle,
   FileSpreadsheet,
   Search,
-  ArrowUpDown,
-  Filter,
-  CheckCircle2,
-  Clock,
   ShieldCheck,
-  TrendingUp,
   Layers
 } from 'lucide-react'
 import { MONTH_NAMES, CLASS_LABELS } from '@/lib/types'
@@ -69,10 +64,11 @@ export default function ReportsPage() {
         { data: dailyPaymentsData },
         { data: outData }
       ] = await Promise.all([
-        // 1. New registered students in this month
+        // 1. Real new registered students in this month (filtering out pre-generated unassigned empty slots)
         supabase
           .from('students')
           .select('*, household:households(*), enrollments(*)')
+          .not('created_by', 'ilike', '%Auto-Pre-generated%')
           .gte('created_at', startOfMonth)
           .lte('created_at', endOfMonth)
           .order('created_at', { ascending: false }),
@@ -216,8 +212,8 @@ export default function ReportsPage() {
       <div className="page-header">
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <BarChart2 size={22} style={{ color: 'var(--accent-purple)' }} />
-            Admin Reports & Audit Analytics
+            <BarChart2 size={22} style={{ color: 'var(--accent-blue)' }} />
+            Admin Reports &amp; Audit Analytics
           </h1>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
             Month-by-month registrations, bank-wise revenue breakdowns, and daily auditor payment logs
@@ -252,8 +248,8 @@ export default function ReportsPage() {
             <Building2 size={16} />
             2. Bank-Wise Revenue
             <span style={{
-              background: activeTab === 'bank_revenue' ? 'rgba(255,255,255,0.2)' : 'rgba(16,185,129,0.15)',
-              color: activeTab === 'bank_revenue' ? '#fff' : 'var(--accent-green)',
+              background: activeTab === 'bank_revenue' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
+              color: activeTab === 'bank_revenue' ? '#fff' : 'var(--accent-blue)',
               padding: '2px 8px', borderRadius: 12, fontSize: 11
             }}>
               Rs. {totalMonthlyRevenue.toLocaleString()}
@@ -268,8 +264,8 @@ export default function ReportsPage() {
             <ShieldCheck size={16} />
             3. Date-Wise Audit Log
             <span style={{
-              background: activeTab === 'daily_audit' ? 'rgba(255,255,255,0.2)' : 'rgba(245,158,11,0.15)',
-              color: activeTab === 'daily_audit' ? '#fff' : '#f59e0b',
+              background: activeTab === 'daily_audit' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
+              color: activeTab === 'daily_audit' ? '#fff' : 'var(--accent-blue)',
               padding: '2px 8px', borderRadius: 12, fontSize: 11
             }}>
               {dailyPayments.length} slips
@@ -341,7 +337,7 @@ export default function ReportsPage() {
                     exportTableToCsv(`New_Registrations_${MONTH_NAMES[month - 1]}_${year}`, headers, rows)
                   }}
                   className="btn-primary"
-                  style={{ background: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
                   <FileSpreadsheet size={16} /> Export Registrations Excel
                 </button>
@@ -350,14 +346,14 @@ export default function ReportsPage() {
 
             {/* Grade-by-Grade Summary Cards Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 20 }}>
-              <div className="stat-card" style={{ borderLeft: '3px solid var(--accent-blue)', padding: '12px 14px' }}>
+              <div className="stat-card" style={{ padding: '12px 14px' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total New</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent-blue)' }}>{newStudents.length}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{newStudents.length}</div>
               </div>
               {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
-                <div key={g} className="stat-card" style={{ borderLeft: '3px solid var(--border)', padding: '12px 14px' }}>
+                <div key={g} className="stat-card" style={{ padding: '12px 14px' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Grade {g}</div>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: (gradeStats[g] || 0) > 0 ? 'var(--accent-green)' : 'var(--text-muted)' }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: (gradeStats[g] || 0) > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                     {gradeStats[g] || 0}
                   </div>
                 </div>
@@ -381,7 +377,7 @@ export default function ReportsPage() {
                       <th>Student / Child Name</th>
                       <th>Grade</th>
                       <th>Enrolled Classes</th>
-                      <th>Parent Contact & Delivery Address</th>
+                      <th>Parent Contact &amp; Delivery Address</th>
                       <th>Registered On</th>
                       <th>Registered By</th>
                     </tr>
@@ -410,7 +406,7 @@ export default function ReportsPage() {
                             <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                               {(s.enrollments || []).map((e: any) => (
                                 <span key={e.id} style={{ color: 'var(--text-secondary)' }}>
-                                  • {CLASS_LABELS[e.class_type] || e.class_type}
+                                • {CLASS_LABELS[e.class_type] || e.class_type}
                                 </span>
                               ))}
                             </div>
@@ -434,7 +430,7 @@ export default function ReportsPage() {
                         <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                           {new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         </td>
-                        <td style={{ fontSize: 12, color: 'var(--accent-purple)', fontWeight: 600 }}>
+                        <td style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
                           {s.created_by || 'Admin / System'}
                         </td>
                       </tr>
@@ -444,8 +440,10 @@ export default function ReportsPage() {
               </div>
 
               {filteredNewStudents.length === 0 && (
-                <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)' }}>
-                  No student registrations found for {MONTH_NAMES[month - 1]} {year}.
+                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <Users size={32} style={{ margin: '0 auto 10px', opacity: 0.3 }} />
+                  <div>No new student registrations recorded in {MONTH_NAMES[month - 1]} {year}.</div>
+                  <div style={{ fontSize: 12, marginTop: 4 }}>Newly registered students will appear here cleanly as they are added.</div>
                 </div>
               )}
             </div>
@@ -461,7 +459,7 @@ export default function ReportsPage() {
             <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Revenue Month</label>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Month</label>
                   <select className="input-field" style={{ width: 140 }} value={month} onChange={e => setMonth(parseInt(e.target.value))}>
                     {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
                   </select>
@@ -477,34 +475,34 @@ export default function ReportsPage() {
               <div>
                 <button
                   onClick={() => {
-                    const headers = ['BANK / CHANNEL', 'TRANSACTION COUNT', 'TOTAL REVENUE (RS)', 'MONTH / YEAR']
+                    const headers = ['BANK NAME', 'TRANSACTIONS COUNT', 'TOTAL REVENUE (RS)', 'SHARE %']
                     const rows = bankRevenue.map(b => [
                       `"${b.bank}"`,
                       `"${b.count}"`,
                       `"${b.total}"`,
-                      `"${MONTH_NAMES[month - 1]} ${year}"`
+                      `"${totalMonthlyRevenue > 0 ? ((b.total / totalMonthlyRevenue) * 100).toFixed(1) : 0}%"`
                     ])
-                    exportTableToCsv(`Bank_Wise_Revenue_${MONTH_NAMES[month - 1]}_${year}`, headers, rows)
+                    exportTableToCsv(`Bank_Revenue_${MONTH_NAMES[month - 1]}_${year}`, headers, rows)
                   }}
                   className="btn-primary"
-                  style={{ background: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
                   <FileSpreadsheet size={16} /> Export Bank Revenue CSV
                 </button>
               </div>
             </div>
 
-            {/* Top Revenue Stat Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 24 }}>
-              <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+            {/* Revenue Highlights */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
+              <div className="stat-card">
                 <div className="stat-card label">Total Collected ({MONTH_NAMES[month - 1]})</div>
-                <div className="stat-card value" style={{ color: '#10b981' }}>Rs. {totalMonthlyRevenue.toLocaleString()}</div>
+                <div className="stat-card value" style={{ color: 'var(--text-primary)' }}>Rs. {totalMonthlyRevenue.toLocaleString()}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Total {allPaymentsMonth.length} class payment records</div>
               </div>
 
-              <div className="stat-card" style={{ borderLeft: '4px solid var(--accent-blue)' }}>
+              <div className="stat-card">
                 <div className="stat-card label">Top Bank Revenue</div>
-                <div className="stat-card value" style={{ color: 'var(--accent-blue)', fontSize: 20 }}>
+                <div className="stat-card value" style={{ color: 'var(--text-primary)', fontSize: 20 }}>
                   {bankRevenue[0]?.bank || 'None'}: Rs. {(bankRevenue[0]?.total || 0).toLocaleString()}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{bankRevenue[0]?.count || 0} deposits</div>
@@ -534,13 +532,13 @@ export default function ReportsPage() {
                       const share = totalMonthlyRevenue > 0 ? ((b.total / totalMonthlyRevenue) * 100).toFixed(1) : '0.0'
                       return (
                         <tr key={b.bank}>
-                          <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                          <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                             🏛 {b.bank}
                           </td>
                           <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                             {b.count} slips
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
                             Rs. {b.total.toLocaleString()}
                           </td>
                           <td style={{ textAlign: 'right', fontSize: 12, color: 'var(--accent-blue)', fontWeight: 600 }}>
@@ -562,8 +560,8 @@ export default function ReportsPage() {
               {/* Payment Method / Channel Breakdown */}
               <div className="glass-card" style={{ padding: 20 }}>
                 <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Layers size={18} style={{ color: 'var(--accent-purple)' }} />
-                  Payment Channels & Types
+                  <Layers size={18} style={{ color: 'var(--accent-blue)' }} />
+                  Payment Channels &amp; Types
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -572,10 +570,10 @@ export default function ReportsPage() {
                     return (
                       <div key={m.method} style={{ padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <span className={`badge pay-${m.method.toLowerCase()}`} style={{ fontSize: 12, fontWeight: 700 }}>
+                          <span className="badge" style={{ fontSize: 12, fontWeight: 700, background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
                             {m.method}
                           </span>
-                          <span style={{ fontSize: 15, fontWeight: 800, color: '#10b981' }}>
+                          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
                             Rs. {m.total.toLocaleString()}
                           </span>
                         </div>
@@ -601,22 +599,21 @@ export default function ReportsPage() {
             <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Select Day</label>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Select Payment Date</label>
                   <input
                     type="date"
                     className="input-field"
-                    style={{ width: 160 }}
+                    style={{ width: 170 }}
                     value={selectedDate}
                     onChange={e => setSelectedDate(e.target.value)}
                   />
                 </div>
-
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Filter by Staff / Auditor</label>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Filter Auditor / Staff</label>
                   <select className="input-field" style={{ width: 180 }} value={auditorFilter} onChange={e => setAuditorFilter(e.target.value)}>
-                    <option value="">All Staff & Auditors</option>
-                    {Object.keys(auditorStats).map(name => (
-                      <option key={name} value={name}>{name}</option>
+                    <option value="">All Auditors / Staff</option>
+                    {Object.keys(auditorStats).map(who => (
+                      <option key={who} value={who}>{who} ({auditorStats[who].count})</option>
                     ))}
                   </select>
                 </div>
@@ -625,53 +622,53 @@ export default function ReportsPage() {
               <div>
                 <button
                   onClick={() => {
-                    const headers = ['PS CODE', 'STUDENT NAME', 'CLASS', 'AMOUNT PAID (RS)', 'METHOD', 'BANK', 'RECORDED BY (AUDITOR)', 'PAYMENT DATE', 'NOTES']
+                    const headers = ['PS CODE', 'STUDENT NAME', 'CLASS', 'AMOUNT (RS)', 'PAYMENT TYPE', 'BANK', 'AUDITOR (RECORDED BY)', 'TIME', 'NOTES']
                     const rows = filteredDailyPayments.map(p => [
-                      `"${p.students?.ps_code || '—'}"`,
+                      `"${p.students?.ps_code || ''}"`,
                       `"${(p.students?.full_name || '').replace(/"/g, '""')}"`,
                       `"${CLASS_LABELS[p.class_type] || p.class_type}"`,
                       `"${p.amount_paid || 0}"`,
                       `"${p.payment_type || 'BANK'}"`,
-                      `"${p.bank_name || '—'}"`,
+                      `"${p.bank_name || ''}"`,
                       `"${p.recorded_by || 'System'}"`,
-                      `"${p.date_paid || p.created_at}"`,
+                      `"${new Date(p.created_at).toLocaleTimeString()}"`,
                       `"${(p.notes || '').replace(/"/g, '""')}"`
                     ])
-                    exportTableToCsv(`Daily_Audit_Report_${selectedDate}`, headers, rows)
+                    exportTableToCsv(`Daily_Audit_Log_${selectedDate}`, headers, rows)
                   }}
                   className="btn-primary"
-                  style={{ background: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
                   <FileSpreadsheet size={16} /> Export Day Audit CSV
                 </button>
               </div>
             </div>
 
-            {/* Daily Auditor Summary Cards */}
+            {/* Daily Auditor Performance Stat Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
-              <div className="stat-card" style={{ borderLeft: '4px solid var(--accent-orange)' }}>
-                <div className="stat-card label">Total Collected on {selectedDate}</div>
-                <div className="stat-card value" style={{ color: 'var(--accent-orange)' }}>Rs. {totalDailyRevenue.toLocaleString()}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{dailyPayments.length} transactions recorded</div>
+              <div className="stat-card">
+                <div className="stat-card label">Total Collected ({selectedDate})</div>
+                <div className="stat-card value" style={{ color: 'var(--text-primary)' }}>Rs. {totalDailyRevenue.toLocaleString()}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{dailyPayments.length} slips audited</div>
               </div>
 
-              {Object.entries(auditorStats).map(([auditor, data]) => (
-                <div key={auditor} className="stat-card" style={{ borderLeft: '3px solid var(--accent-purple)' }}>
-                  <div className="stat-card label">👤 {auditor}</div>
-                  <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>
+              {Object.entries(auditorStats).map(([who, data]) => (
+                <div key={who} className="stat-card">
+                  <div className="stat-card label">Auditor: {who}</div>
+                  <div className="stat-card value" style={{ color: 'var(--text-primary)', fontSize: 20 }}>
                     Rs. {data.total.toLocaleString()}
                   </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{data.count} entries logged</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{data.count} slips marked</div>
                 </div>
               ))}
             </div>
 
-            {/* Daily Payments Table */}
+            {/* Daily Audit Table */}
             <div className="glass-card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <ShieldCheck size={16} style={{ color: '#10b981' }} />
-                  Audit Records for {selectedDate} ({filteredDailyPayments.length} Entries)
+                  <ShieldCheck size={16} style={{ color: 'var(--accent-blue)' }} />
+                  Payments Logged on {selectedDate} ({filteredDailyPayments.length} Slips)
                 </div>
               </div>
 
@@ -681,11 +678,11 @@ export default function ReportsPage() {
                     <tr>
                       <th>PS Code</th>
                       <th>Student Name</th>
-                      <th>Class & Grade</th>
+                      <th>Class</th>
                       <th>Amount Paid</th>
-                      <th>Payment Method</th>
-                      <th>Recorded By (Staff Auditor)</th>
-                      <th>Logged At</th>
+                      <th>Method &amp; Bank</th>
+                      <th>Auditor (Recorded By)</th>
+                      <th>Time</th>
                       <th>Notes</th>
                     </tr>
                   </thead>
@@ -693,10 +690,7 @@ export default function ReportsPage() {
                     {filteredDailyPayments.map(p => (
                       <tr key={p.id}>
                         <td>
-                          <a
-                            href={`/students/${encodeURIComponent(p.students?.ps_code || '')}`}
-                            style={{ color: 'var(--accent-blue)', fontWeight: 700, textDecoration: 'none' }}
-                          >
+                          <a href={`/students/${encodeURIComponent(p.students?.ps_code || '')}`} style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 700 }}>
                             {p.students?.ps_code || '—'}
                           </a>
                         </td>
@@ -706,15 +700,15 @@ export default function ReportsPage() {
                         <td style={{ fontSize: 12 }}>
                           {CLASS_LABELS[p.class_type] || p.class_type} (Gr {p.students?.grade || '?'})
                         </td>
-                        <td style={{ fontWeight: 700, color: '#10b981' }}>
+                        <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                           Rs. {Number(p.amount_paid || 0).toLocaleString()}
                         </td>
                         <td>
-                          <span className={`badge pay-${(p.payment_type || 'bank').toLowerCase()}`}>
+                          <span className="badge" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
                             {p.payment_type || 'BANK'} {p.bank_name ? `(${p.bank_name})` : ''}
                           </span>
                         </td>
-                        <td style={{ fontWeight: 700, color: 'var(--accent-purple)' }}>
+                        <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
                           🔒 {p.recorded_by || 'Admin / System'}
                         </td>
                         <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>
