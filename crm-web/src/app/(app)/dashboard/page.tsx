@@ -30,6 +30,7 @@ interface LeadRow {
   status: string
   campaign: string | null
   date_added: string | null
+  created_at?: string | null
   paid?: boolean
   paid_grades?: string | null
 }
@@ -57,36 +58,32 @@ export default function AnalyticsDashboard() {
   const [paidThisMonth, setPaidThisMonth] = useState(0)
   const [totalStudents, setTotalStudents] = useState(0)
 
-  // Direct client-side batch fetch function with 1000 range chunks
-  async function fetchAllLeadsDirectly(): Promise<LeadRow[]> {
+  // Fetch all leads using sequential pagination to ensure 100% data retrieval
+  async function fetchAllLeadsSequential(): Promise<LeadRow[]> {
     let allLeads: LeadRow[] = []
     const pageSize = 1000
-    
-    // First call to get total count
-    const { data: firstBatch, count, error } = await supabase
-      .from('leads')
-      .select('assigned_member,grade,status,campaign,date_added,paid,paid_grades', { count: 'exact' })
-      .range(0, pageSize - 1)
+    let from = 0
+    let hasMore = true
 
-    if (error) throw error
-    if (firstBatch) allLeads.push(...firstBatch)
+    while (hasMore) {
+      const { data, error } = await supabase
+        .from('leads')
+        .select('assigned_member,grade,status,campaign,date_added,created_at,paid,paid_grades')
+        .range(from, from + pageSize - 1)
 
-    const totalCount = count || 0
-    if (totalCount > pageSize) {
-      const promises: Promise<any>[] = []
-      for (let offset = pageSize; offset < totalCount; offset += pageSize) {
-        promises.push(
-          Promise.resolve(
-            supabase
-              .from('leads')
-              .select('assigned_member,grade,status,campaign,date_added,paid,paid_grades')
-              .range(offset, offset + pageSize - 1)
-          )
-        )
+      if (error) {
+        console.error('Error fetching batch at offset', from, error)
+        break
       }
-      const results = await Promise.all(promises)
-      for (const res of results) {
-        if (res.data) allLeads.push(...res.data)
+
+      if (data && data.length > 0) {
+        allLeads.push(...data)
+        from += pageSize
+        if (data.length < pageSize) {
+          hasMore = false
+        }
+      } else {
+        hasMore = false
       }
     }
     return allLeads
@@ -99,14 +96,8 @@ export default function AnalyticsDashboard() {
       const curMonth = now.getMonth() + 1
       const curYear = now.getFullYear()
 
-      // Fetch directly from Supabase with safe fallback
       const [leadsData, payRes, studRes] = await Promise.all([
-        fetchAllLeadsDirectly().catch(async (err) => {
-          console.warn('Direct fetch failed, falling back to API:', err)
-          const res = await fetch('/api/leads/analytics')
-          const json = await res.json()
-          return (json.leads || []) as LeadRow[]
-        }),
+        fetchAllLeadsSequential(),
         supabase.from('payments').select('amount_paid,payment_type,student_id')
           .eq('month', curMonth).eq('year', curYear),
         supabase.from('students').select('*', { count: 'exact', head: true }),
@@ -162,8 +153,9 @@ export default function AnalyticsDashboard() {
   const filtered = useMemo(() => {
     if (!filterStart && !filterEnd) return leads
     return leads.filter(l => {
-      if (!l.date_added) return false
-      const d = l.date_added.slice(0, 10)
+      const dateStr = l.date_added || l.created_at || ''
+      if (!dateStr) return false
+      const d = dateStr.slice(0, 10)
       if (filterStart && d < filterStart) return false
       if (filterEnd && d > filterEnd) return false
       return true
@@ -242,7 +234,10 @@ export default function AnalyticsDashboard() {
   // 1. DAY-BY-DAY MEMBER LEAD TRACKING COMPUTATIONS
   // =========================================================================
   const dayLeads = useMemo(() => {
-    return leads.filter(l => l.date_added && l.date_added.slice(0, 10) === selectedDay)
+    return leads.filter(l => {
+      const d = (l.date_added || l.created_at || '').slice(0, 10)
+      return d === selectedDay
+    })
   }, [leads, selectedDay])
 
   const dayMembers = useMemo(() => {
