@@ -4,24 +4,21 @@ import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   Users, Phone, TrendingUp, Activity, BarChart2,
-  Target, Award, Filter, RefreshCw, CheckCircle,
-  Clock, XCircle, AlertCircle, CreditCard, Calendar,
-  CheckCircle2, FileSpreadsheet, Layers, Sparkles
+  RefreshCw, CheckCircle, CreditCard, Calendar,
+  CheckCircle2, FileSpreadsheet
 } from 'lucide-react'
-import { MONTH_NAMES } from '@/lib/types'
 
 // ──────────────────────────────────────────────────────────────
-// Types & Constants
+// Clean & Unified Pro Color Theme (No Rainbow clutter)
 // ──────────────────────────────────────────────────────────────
 
 const GRADES = ['6', '7', '8', '9', '10', '11']
-const GRADE_COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4']
 
 const STATUS_GROUPS = {
-  hot: { label: 'Hot / Active', color: '#10b981', statuses: ['Contacted', 'Interested', 'Second Call Pending', 'Follow-up'] },
-  converted: { label: 'Converted', color: '#3b82f6', statuses: ['Converted'] },
-  new: { label: 'New', color: '#f59e0b', statuses: ['New'] },
-  cold: { label: 'Cold / Dead', color: '#ef4444', statuses: ['Not Interested', 'Off', 'Invalid', 'Wrong number', 'Busy', 'Call Another Number', 'No Answer'] },
+  hot: { label: 'Hot / Active', statuses: ['Contacted', 'Interested', 'Second Call Pending', 'Follow-up'] },
+  converted: { label: 'Converted', statuses: ['Converted'] },
+  new: { label: 'New Leads', statuses: ['New'] },
+  cold: { label: 'Cold / Inactive', statuses: ['Not Interested', 'Off', 'Invalid', 'Wrong number', 'Busy', 'Call Another Number', 'No Answer'] },
 }
 
 interface LeadRow {
@@ -57,7 +54,7 @@ export default function AnalyticsDashboard() {
   const [paidThisMonth, setPaidThisMonth] = useState(0)
   const [totalStudents, setTotalStudents] = useState(0)
 
-  // Fetch all leads using sequential pagination with clean valid column selections
+  // Fetch all leads using sequential pagination
   async function fetchAllLeadsSequential(): Promise<LeadRow[]> {
     let allLeads: LeadRow[] = []
     const pageSize = 1000
@@ -71,7 +68,7 @@ export default function AnalyticsDashboard() {
         .range(from, from + pageSize - 1)
 
       if (error) {
-        console.error('Error fetching leads at offset', from, error)
+        console.error('Error fetching leads batch:', error)
         break
       }
 
@@ -97,7 +94,7 @@ export default function AnalyticsDashboard() {
 
       const [leadsData, payRes, studRes] = await Promise.all([
         fetchAllLeadsSequential().catch(async (err) => {
-          console.warn('Direct fetch failed, trying API route:', err)
+          console.warn('Direct fetch failed, falling back to API:', err)
           const res = await fetch('/api/leads/analytics')
           const json = await res.json()
           return (json.leads || []) as LeadRow[]
@@ -153,7 +150,7 @@ export default function AnalyticsDashboard() {
     return found
   }
 
-  // Filtered leads based on Date Range (with fallback to created_at)
+  // Filtered leads based on Date Range
   const filtered = useMemo(() => {
     if (!filterStart && !filterEnd) return leads
     return leads.filter(l => {
@@ -218,16 +215,6 @@ export default function AnalyticsDashboard() {
     const c: Record<string, number> = {}
     filtered.forEach(l => { c[l.status] = (c[l.status] || 0) + 1 })
     return c
-  }, [filtered])
-
-  // Campaign performance
-  const campaignCounts = useMemo(() => {
-    const c: Record<string, number> = {}
-    filtered.forEach(l => {
-      const camp = l.campaign || 'No Campaign'
-      c[camp] = (c[camp] || 0) + 1
-    })
-    return Object.entries(c).sort((a, b) => b[1] - a[1]).slice(0, 8)
   }, [filtered])
 
   // Conversion rate
@@ -427,11 +414,11 @@ export default function AnalyticsDashboard() {
             className={activeTab === 'master_paid_report' ? 'btn-primary' : 'btn-secondary'}
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
-            <CheckCircle2 size={16} style={{ color: '#10b981' }} />
+            <CheckCircle2 size={16} />
             3. Master Lead Paid Tick Report (Members × Grade × Count)
             <span style={{
-              background: activeTab === 'master_paid_report' ? 'rgba(255,255,255,0.2)' : 'rgba(16,185,129,0.15)',
-              color: activeTab === 'master_paid_report' ? '#fff' : '#10b981',
+              background: activeTab === 'master_paid_report' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
+              color: activeTab === 'master_paid_report' ? '#fff' : 'var(--accent-blue)',
               padding: '2px 8px', borderRadius: 12, fontSize: 11
             }}>
               {totalPaidConversions} paid leads
@@ -458,34 +445,34 @@ export default function AnalyticsDashboard() {
               )}
             </div>
 
-            {/* KPI Cards */}
+            {/* Clean KPI Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginBottom: 22 }}>
-              <KpiCard icon={<Phone size={18} />} label="Total Leads" value={totalFiltered.toLocaleString()} color="#3b82f6" />
-              <KpiCard icon={<TrendingUp size={18} />} label="Converted" value={convertedCount.toLocaleString()} color="#10b981" sub={`${conversionRate}% rate`} />
-              <KpiCard icon={<Users size={18} />} label="Total Registered Students" value={totalStudents.toLocaleString()} color="#8b5cf6" />
-              <KpiCard icon={<CheckCircle size={18} />} label="Paid Leads (Ticks)" value={paidLeads.length.toLocaleString()} color="#10b981" />
-              <KpiCard icon={<CreditCard size={18} />} label="Monthly Fee Revenue" value={`Rs. ${revenueThisMonth.toLocaleString()}`} color="#f59e0b" />
+              <KpiCard icon={<Phone size={18} />} label="Total Leads" value={totalFiltered.toLocaleString()} />
+              <KpiCard icon={<TrendingUp size={18} />} label="Converted" value={convertedCount.toLocaleString()} sub={`${conversionRate}% rate`} />
+              <KpiCard icon={<Users size={18} />} label="Total Registered Students" value={totalStudents.toLocaleString()} />
+              <KpiCard icon={<CheckCircle size={18} />} label="Paid Leads (Ticks)" value={paidLeads.length.toLocaleString()} />
+              <KpiCard icon={<CreditCard size={18} />} label="Monthly Fee Revenue" value={`Rs. ${revenueThisMonth.toLocaleString()}`} />
             </div>
 
-            {/* Status Group Cards */}
+            {/* Clean Status Group Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 22 }}>
               {Object.entries(STATUS_GROUPS).map(([key, grp]) => {
                 const count = grp.statuses.reduce((s, st) => s + (statusCounts[st] || 0), 0)
                 const pct = totalFiltered > 0 ? ((count / totalFiltered) * 100).toFixed(1) : '0.0'
                 return (
-                  <div key={key} className="glass-card" style={{ padding: '14px 18px', borderLeft: `3px solid ${grp.color}` }}>
+                  <div key={key} className="glass-card" style={{ padding: '14px 18px' }}>
                     <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>{grp.label}</div>
-                    <div style={{ fontSize: 26, fontWeight: 800, color: grp.color }}>{count.toLocaleString()}</div>
+                    <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)' }}>{count.toLocaleString()}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{pct}% of all leads</div>
                     <div style={{ height: 3, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: grp.color, borderRadius: 99, transition: 'width 0.6s ease' }} />
+                      <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent-blue)', borderRadius: 99, transition: 'width 0.6s ease' }} />
                     </div>
                   </div>
                 )
               })}
             </div>
 
-            {/* TABLE 1: Member × Grade Matrix */}
+            {/* TABLE 1: Clean Member × Grade Matrix */}
             <div className="glass-card" style={{ marginBottom: 22, overflow: 'hidden' }}>
               <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
@@ -500,9 +487,9 @@ export default function AnalyticsDashboard() {
                 <table className="data-table" style={{ tableLayout: 'fixed' }}>
                   <thead>
                     <tr>
-                      <th style={{ width: 140, textAlign: 'left' }}>Member</th>
-                      {GRADES.map((g, i) => (
-                        <th key={g} style={{ textAlign: 'center', color: GRADE_COLORS[i] }}>Grade {g}</th>
+                      <th style={{ width: 150, textAlign: 'left' }}>Member</th>
+                      {GRADES.map((g) => (
+                        <th key={g} style={{ textAlign: 'center' }}>Grade {g}</th>
                       ))}
                       <th style={{ textAlign: 'center', fontWeight: 700 }}>Total Leads</th>
                       <th style={{ textAlign: 'center', fontWeight: 700 }}>Share %</th>
@@ -510,57 +497,55 @@ export default function AnalyticsDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                    {members.map((m, idx) => {
+                    {members.map((m) => {
                       const row = memberGradeMatrix[m.name] || {}
                       const share = totalFiltered > 0 ? ((m.total / totalFiltered) * 100).toFixed(1) : '0.0'
                       const memberLeads = filtered.filter(l => (l.assigned_member || 'Unassigned') === m.name)
                       const memberConverted = memberLeads.filter(l => l.status === 'Converted').length
                       const mConvRate = m.total > 0 ? ((memberConverted / m.total) * 100).toFixed(1) : '0.0'
-                      const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#a855f7']
-                      const col = COLORS[idx % COLORS.length]
 
                       return (
-                        <tr key={m.name} style={{ borderLeft: `3px solid ${col}20` }}>
+                        <tr key={m.name}>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <div style={{
                                 width: 26, height: 26, borderRadius: '50%',
-                                background: col + '20', color: col,
+                                background: 'rgba(59,130,246,0.12)', color: 'var(--accent-blue)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 fontSize: 11, fontWeight: 700, flexShrink: 0
                               }}>{m.name[0]?.toUpperCase()}</div>
-                              <span style={{ fontWeight: 500, fontSize: 13 }}>{m.name}</span>
+                              <span style={{ fontWeight: 500, fontSize: 13, color: 'var(--text-primary)' }}>{m.name}</span>
                             </div>
                           </td>
-                          {GRADES.map((g, gi) => {
+                          {GRADES.map((g) => {
                             const count = row[g] || 0
                             return (
                               <td key={g} style={{ textAlign: 'center', fontSize: 13 }}>
                                 {count > 0 ? (
-                                  <span style={{ color: GRADE_COLORS[gi], fontWeight: count > 100 ? 700 : 500 }}>
+                                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
                                     {count.toLocaleString()}
                                   </span>
-                                ) : <span style={{ color: 'var(--text-muted)', opacity: 0.4 }}>—</span>}
+                                ) : <span style={{ color: 'var(--text-muted)', opacity: 0.3 }}>—</span>}
                               </td>
                             )
                           })}
-                          <td style={{ textAlign: 'center', fontWeight: 800, color: col, fontSize: 14 }}>
+                          <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)', fontSize: 14 }}>
                             {m.total.toLocaleString()}
                           </td>
                           <td style={{ textAlign: 'center' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                              <span style={{ fontSize: 12, fontWeight: 600 }}>{share}%</span>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{share}%</span>
                               <div style={{ width: 60, height: 3, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
-                                <div style={{ width: `${share}%`, height: '100%', background: col, borderRadius: 99 }} />
+                                <div style={{ width: `${share}%`, height: '100%', background: 'var(--accent-blue)', borderRadius: 99 }} />
                               </div>
                             </div>
                           </td>
                           <td style={{ textAlign: 'right' }}>
                             <span style={{
-                              fontSize: 11, fontWeight: 700,
-                              color: parseFloat(mConvRate) >= 5 ? '#10b981' : parseFloat(mConvRate) >= 2 ? '#f59e0b' : '#ef4444',
-                              background: parseFloat(mConvRate) >= 5 ? 'rgba(16,185,129,0.1)' : parseFloat(mConvRate) >= 2 ? 'rgba(245,158,11,0.1)' : 'rgba(239,68,68,0.1)',
-                              padding: '2px 7px', borderRadius: 4,
+                              fontSize: 11, fontWeight: 600,
+                              color: parseFloat(mConvRate) > 0 ? 'var(--accent-blue)' : 'var(--text-muted)',
+                              background: parseFloat(mConvRate) > 0 ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)',
+                              padding: '2px 8px', borderRadius: 4,
                             }}>{mConvRate}%</span>
                           </td>
                         </tr>
@@ -568,18 +553,18 @@ export default function AnalyticsDashboard() {
                     })}
                   </tbody>
                   <tfoot>
-                    <tr style={{ fontWeight: 800, borderTop: '2px solid var(--border)', background: 'rgba(59,130,246,0.05)' }}>
+                    <tr style={{ fontWeight: 800, borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
                       <td style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.05em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>TOTAL</td>
-                      {GRADES.map((g, gi) => (
-                        <td key={g} style={{ textAlign: 'center', fontWeight: 700, color: GRADE_COLORS[gi] }}>
+                      {GRADES.map((g) => (
+                        <td key={g} style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)' }}>
                           {(gradeTotals[g] || 0).toLocaleString()}
                         </td>
                       ))}
                       <td style={{ textAlign: 'center', fontWeight: 900, color: 'var(--text-primary)', fontSize: 15 }}>
                         {totalFiltered.toLocaleString()}
                       </td>
-                      <td style={{ textAlign: 'center', fontWeight: 700 }}>100.0%</td>
-                      <td style={{ textAlign: 'right', fontWeight: 700, color: '#10b981' }}>{conversionRate}%</td>
+                      <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-secondary)' }}>100.0%</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-blue)' }}>{conversionRate}%</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -627,7 +612,7 @@ export default function AnalyticsDashboard() {
                     exportCsv(`Daily_Member_Leads_${selectedDay}`, headers, rows)
                   }}
                   className="btn-primary"
-                  style={{ background: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
                   <FileSpreadsheet size={16} /> Export Day Leads CSV
                 </button>
@@ -636,14 +621,14 @@ export default function AnalyticsDashboard() {
 
             {/* Daily Summary Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 20 }}>
-              <div className="stat-card" style={{ borderLeft: '3px solid var(--accent-blue)', padding: '12px 14px' }}>
+              <div className="stat-card" style={{ padding: '12px 14px' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Day Leads</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--accent-blue)' }}>{dayLeads.length}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{dayLeads.length}</div>
               </div>
-              {GRADES.map((g, i) => (
-                <div key={g} className="stat-card" style={{ borderLeft: `3px solid ${GRADE_COLORS[i]}`, padding: '12px 14px' }}>
+              {GRADES.map((g) => (
+                <div key={g} className="stat-card" style={{ padding: '12px 14px' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Grade {g}</div>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: (dayGradeTotals[g] || 0) > 0 ? GRADE_COLORS[i] : 'var(--text-muted)' }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: (dayGradeTotals[g] || 0) > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                     {dayGradeTotals[g] || 0}
                   </div>
                 </div>
@@ -654,7 +639,7 @@ export default function AnalyticsDashboard() {
             <div className="glass-card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Calendar size={16} style={{ color: 'var(--accent-orange)' }} />
+                  <Calendar size={16} style={{ color: 'var(--accent-blue)' }} />
                   Member Lead Distribution for {selectedDay} ({dayMembers.length} Active Members)
                 </div>
               </div>
@@ -664,46 +649,44 @@ export default function AnalyticsDashboard() {
                   <thead>
                     <tr>
                       <th style={{ width: 160, textAlign: 'left' }}>Member Name</th>
-                      {GRADES.map((g, i) => (
-                        <th key={g} style={{ textAlign: 'center', color: GRADE_COLORS[i] }}>Grade {g}</th>
+                      {GRADES.map((g) => (
+                        <th key={g} style={{ textAlign: 'center' }}>Grade {g}</th>
                       ))}
                       <th style={{ textAlign: 'center', fontWeight: 700 }}>Total Leads</th>
                       <th style={{ textAlign: 'right', fontWeight: 700 }}>Daily Share %</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {dayMembers.map((m, idx) => {
+                    {dayMembers.map((m) => {
                       const row = dayMemberGradeMatrix[m.name] || {}
                       const share = dayLeads.length > 0 ? ((m.total / dayLeads.length) * 100).toFixed(1) : '0.0'
-                      const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#a855f7']
-                      const col = COLORS[idx % COLORS.length]
 
                       return (
-                        <tr key={m.name} style={{ borderLeft: `3px solid ${col}20` }}>
+                        <tr key={m.name}>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <div style={{
                                 width: 26, height: 26, borderRadius: '50%',
-                                background: col + '20', color: col,
+                                background: 'rgba(59,130,246,0.12)', color: 'var(--accent-blue)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 fontSize: 11, fontWeight: 700, flexShrink: 0
                               }}>{m.name[0]?.toUpperCase()}</div>
                               <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{m.name}</span>
                             </div>
                           </td>
-                          {GRADES.map((g, gi) => {
+                          {GRADES.map((g) => {
                             const count = row[g] || 0
                             return (
                               <td key={g} style={{ textAlign: 'center', fontSize: 13 }}>
                                 {count > 0 ? (
-                                  <span style={{ color: GRADE_COLORS[gi], fontWeight: 700 }}>
+                                  <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
                                     {count}
                                   </span>
-                                ) : <span style={{ color: 'var(--text-muted)', opacity: 0.4 }}>—</span>}
+                                ) : <span style={{ color: 'var(--text-muted)', opacity: 0.3 }}>—</span>}
                               </td>
                             )
                           })}
-                          <td style={{ textAlign: 'center', fontWeight: 800, color: col, fontSize: 14 }}>
+                          <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)', fontSize: 14 }}>
                             {m.total}
                           </td>
                           <td style={{ textAlign: 'right', fontWeight: 600, fontSize: 13, color: 'var(--text-secondary)' }}>
@@ -714,17 +697,17 @@ export default function AnalyticsDashboard() {
                     })}
                   </tbody>
                   <tfoot>
-                    <tr style={{ fontWeight: 800, borderTop: '2px solid var(--border)', background: 'rgba(59,130,246,0.05)' }}>
+                    <tr style={{ fontWeight: 800, borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
                       <td style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.05em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>TOTAL DAY LEADS</td>
-                      {GRADES.map((g, gi) => (
-                        <td key={g} style={{ textAlign: 'center', fontWeight: 700, color: GRADE_COLORS[gi] }}>
+                      {GRADES.map((g) => (
+                        <td key={g} style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)' }}>
                           {(dayGradeTotals[g] || 0).toLocaleString()}
                         </td>
                       ))}
                       <td style={{ textAlign: 'center', fontWeight: 900, color: 'var(--text-primary)', fontSize: 15 }}>
                         {dayLeads.length.toLocaleString()}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 700 }}>100.0%</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-secondary)' }}>100.0%</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -748,9 +731,9 @@ export default function AnalyticsDashboard() {
             <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CheckCircle2 size={20} style={{ color: '#10b981' }} />
+                  <CheckCircle2 size={20} style={{ color: 'var(--accent-blue)' }} />
                   <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: '#10b981' }}>Master Lead Paid Conversions</div>
+                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Master Lead Paid Conversions</div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Counts leads with Paid Tick enabled across assigned members &amp; grades</div>
                   </div>
                 </div>
@@ -773,7 +756,7 @@ export default function AnalyticsDashboard() {
                     exportCsv(`Master_Lead_Paid_Report_Members_Grades`, headers, rows)
                   }}
                   className="btn-primary"
-                  style={{ background: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
                   <FileSpreadsheet size={16} /> Export Paid Ticks Excel
                 </button>
@@ -782,14 +765,14 @@ export default function AnalyticsDashboard() {
 
             {/* Paid Conversions Grade Stats Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 20 }}>
-              <div className="stat-card" style={{ borderLeft: '3px solid #10b981', padding: '12px 14px' }}>
+              <div className="stat-card" style={{ padding: '12px 14px' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Paid Leads</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: '#10b981' }}>{totalPaidConversions}</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{totalPaidConversions}</div>
               </div>
-              {GRADES.map((g, i) => (
-                <div key={g} className="stat-card" style={{ borderLeft: `3px solid ${GRADE_COLORS[i]}`, padding: '12px 14px' }}>
+              {GRADES.map((g) => (
+                <div key={g} className="stat-card" style={{ padding: '12px 14px' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Gr {g} Paid</div>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: (paidGradeTotals[g] || 0) > 0 ? '#10b981' : 'var(--text-muted)' }}>
+                  <div style={{ fontSize: 20, fontWeight: 700, color: (paidGradeTotals[g] || 0) > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                     {paidGradeTotals[g] || 0}
                   </div>
                 </div>
@@ -812,49 +795,47 @@ export default function AnalyticsDashboard() {
                   <thead>
                     <tr>
                       <th style={{ width: 160, textAlign: 'left' }}>Member Name</th>
-                      {GRADES.map((g, i) => (
-                        <th key={g} style={{ textAlign: 'center', color: GRADE_COLORS[i] }}>Grade {g} Paid</th>
+                      {GRADES.map((g) => (
+                        <th key={g} style={{ textAlign: 'center' }}>Grade {g} Paid</th>
                       ))}
-                      <th style={{ textAlign: 'center', fontWeight: 700, color: '#10b981' }}>Total Paid Seats</th>
+                      <th style={{ textAlign: 'center', fontWeight: 700 }}>Total Paid Seats</th>
                       <th style={{ textAlign: 'right', fontWeight: 700 }}>Conversion Share</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {paidMembersList.map((m, idx) => {
+                    {paidMembersList.map((m) => {
                       const row = paidMemberGradeMatrix[m.name] || {}
                       const share = totalPaidClassesCount > 0 ? ((m.totalPaidClasses / totalPaidClassesCount) * 100).toFixed(1) : '0.0'
-                      const COLORS = ['#3b82f6', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#06b6d4', '#ec4899', '#a855f7']
-                      const col = COLORS[idx % COLORS.length]
 
                       return (
-                        <tr key={m.name} style={{ borderLeft: `3px solid ${col}20` }}>
+                        <tr key={m.name}>
                           <td>
                             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                               <div style={{
                                 width: 26, height: 26, borderRadius: '50%',
-                                background: col + '20', color: col,
+                                background: 'rgba(59,130,246,0.12)', color: 'var(--accent-blue)',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 fontSize: 11, fontWeight: 700, flexShrink: 0
                               }}>{m.name[0]?.toUpperCase()}</div>
                               <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text-primary)' }}>{m.name}</span>
                             </div>
                           </td>
-                          {GRADES.map((g, gi) => {
+                          {GRADES.map((g) => {
                             const count = row[g] || 0
                             return (
                               <td key={g} style={{ textAlign: 'center', fontSize: 13 }}>
                                 {count > 0 ? (
-                                  <span style={{ color: '#10b981', fontWeight: 700, background: 'rgba(16,185,129,0.1)', padding: '2px 8px', borderRadius: 4 }}>
+                                  <span style={{ color: 'var(--text-primary)', fontWeight: 600, background: 'rgba(59,130,246,0.08)', padding: '2px 8px', borderRadius: 4 }}>
                                     ✓ {count}
                                   </span>
-                                ) : <span style={{ color: 'var(--text-muted)', opacity: 0.4 }}>—</span>}
+                                ) : <span style={{ color: 'var(--text-muted)', opacity: 0.3 }}>—</span>}
                               </td>
                             )
                           })}
-                          <td style={{ textAlign: 'center', fontWeight: 900, color: '#10b981', fontSize: 15 }}>
+                          <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--text-primary)', fontSize: 15 }}>
                             {m.totalPaidClasses}
                           </td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, fontSize: 13, color: 'var(--accent-blue)' }}>
+                          <td style={{ textAlign: 'right', fontWeight: 600, fontSize: 13, color: 'var(--text-secondary)' }}>
                             {share}%
                           </td>
                         </tr>
@@ -862,17 +843,17 @@ export default function AnalyticsDashboard() {
                     })}
                   </tbody>
                   <tfoot>
-                    <tr style={{ fontWeight: 800, borderTop: '2px solid var(--border)', background: 'rgba(16,185,129,0.06)' }}>
+                    <tr style={{ fontWeight: 800, borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
                       <td style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.05em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>TOTAL PAID TICKS</td>
-                      {GRADES.map((g, gi) => (
-                        <td key={g} style={{ textAlign: 'center', fontWeight: 800, color: '#10b981' }}>
+                      {GRADES.map((g) => (
+                        <td key={g} style={{ textAlign: 'center', fontWeight: 800, color: 'var(--text-primary)' }}>
                           {(paidGradeTotals[g] || 0).toLocaleString()}
                         </td>
                       ))}
-                      <td style={{ textAlign: 'center', fontWeight: 900, color: '#10b981', fontSize: 16 }}>
+                      <td style={{ textAlign: 'center', fontWeight: 900, color: 'var(--text-primary)', fontSize: 16 }}>
                         {totalPaidClassesCount.toLocaleString()}
                       </td>
-                      <td style={{ textAlign: 'right', fontWeight: 700 }}>100.0%</td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-secondary)' }}>100.0%</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -894,18 +875,18 @@ export default function AnalyticsDashboard() {
 
 // ── Sub-components ─────────────────────────────────────────────
 
-function KpiCard({ icon, label, value, color, sub }: {
-  icon: React.ReactNode; label: string; value: string; color: string; sub?: string
+function KpiCard({ icon, label, value, sub }: {
+  icon: React.ReactNode; label: string; value: string; sub?: string
 }) {
   return (
-    <div className="stat-card" style={{ borderLeft: `3px solid ${color}` }}>
+    <div className="stat-card" style={{ borderLeft: '3px solid var(--border)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <div className="stat-card label">{label}</div>
-          <div className="stat-card value" style={{ fontSize: 24, color }}>{value}</div>
+          <div className="stat-card value" style={{ fontSize: 24, color: 'var(--text-primary)' }}>{value}</div>
           {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>}
         </div>
-        <div style={{ color, opacity: 0.7 }}>{icon}</div>
+        <div style={{ color: 'var(--text-muted)', opacity: 0.6 }}>{icon}</div>
       </div>
     </div>
   )
