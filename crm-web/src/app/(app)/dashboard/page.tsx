@@ -32,7 +32,6 @@ interface LeadRow {
   date_added: string | null
   created_at?: string | null
   paid?: boolean
-  paid_grades?: string | null
 }
 
 export default function AnalyticsDashboard() {
@@ -58,7 +57,7 @@ export default function AnalyticsDashboard() {
   const [paidThisMonth, setPaidThisMonth] = useState(0)
   const [totalStudents, setTotalStudents] = useState(0)
 
-  // Fetch all leads using sequential pagination to ensure 100% data retrieval
+  // Fetch all leads using sequential pagination with clean valid column selections
   async function fetchAllLeadsSequential(): Promise<LeadRow[]> {
     let allLeads: LeadRow[] = []
     const pageSize = 1000
@@ -68,11 +67,11 @@ export default function AnalyticsDashboard() {
     while (hasMore) {
       const { data, error } = await supabase
         .from('leads')
-        .select('assigned_member,grade,status,campaign,date_added,created_at,paid,paid_grades')
+        .select('assigned_member,grade,status,campaign,date_added,created_at,paid')
         .range(from, from + pageSize - 1)
 
       if (error) {
-        console.error('Error fetching batch at offset', from, error)
+        console.error('Error fetching leads at offset', from, error)
         break
       }
 
@@ -97,7 +96,12 @@ export default function AnalyticsDashboard() {
       const curYear = now.getFullYear()
 
       const [leadsData, payRes, studRes] = await Promise.all([
-        fetchAllLeadsSequential(),
+        fetchAllLeadsSequential().catch(async (err) => {
+          console.warn('Direct fetch failed, trying API route:', err)
+          const res = await fetch('/api/leads/analytics')
+          const json = await res.json()
+          return (json.leads || []) as LeadRow[]
+        }),
         supabase.from('payments').select('amount_paid,payment_type,student_id')
           .eq('month', curMonth).eq('year', curYear),
         supabase.from('students').select('*', { count: 'exact', head: true }),
@@ -149,12 +153,12 @@ export default function AnalyticsDashboard() {
     return found
   }
 
-  // Filtered leads based on Date Range
+  // Filtered leads based on Date Range (with fallback to created_at)
   const filtered = useMemo(() => {
     if (!filterStart && !filterEnd) return leads
     return leads.filter(l => {
       const dateStr = l.date_added || l.created_at || ''
-      if (!dateStr) return false
+      if (!dateStr) return true
       const d = dateStr.slice(0, 10)
       if (filterStart && d < filterStart) return false
       if (filterEnd && d > filterEnd) return false
@@ -286,7 +290,7 @@ export default function AnalyticsDashboard() {
   // 2. MASTER LEAD PAID TICK REPORT COMPUTATIONS (MEMBERS × GRADE × COUNT)
   // =========================================================================
   const paidLeads = useMemo(() => {
-    return filtered.filter(l => Boolean(l.paid) || Boolean(l.paid_grades))
+    return filtered.filter(l => Boolean(l.paid))
   }, [filtered])
 
   const paidMemberGradeMatrix = useMemo(() => {
@@ -295,9 +299,7 @@ export default function AnalyticsDashboard() {
       const m = l.assigned_member || 'Unassigned'
       if (!matrix[m]) matrix[m] = {}
 
-      // If specific paid_grades exists, count those grades; else use lead grade
-      const gradesToCount = l.paid_grades ? extractGrades(l.paid_grades) : extractGrades(l.grade)
-
+      const gradesToCount = extractGrades(l.grade)
       if (gradesToCount.length > 0) {
         gradesToCount.forEach(g => {
           matrix[m][g] = (matrix[m][g] || 0) + 1
@@ -312,7 +314,7 @@ export default function AnalyticsDashboard() {
   const paidGradeTotals = useMemo(() => {
     const t: Record<string, number> = {}
     paidLeads.forEach(l => {
-      const gradesToCount = l.paid_grades ? extractGrades(l.paid_grades) : extractGrades(l.grade)
+      const gradesToCount = extractGrades(l.grade)
       if (gradesToCount.length > 0) {
         gradesToCount.forEach(g => {
           t[g] = (t[g] || 0) + 1
@@ -328,7 +330,7 @@ export default function AnalyticsDashboard() {
     const counts: Record<string, number> = {}
     paidLeads.forEach(l => {
       const m = l.assigned_member || 'Unassigned'
-      const gradesToCount = l.paid_grades ? extractGrades(l.paid_grades) : extractGrades(l.grade)
+      const gradesToCount = extractGrades(l.grade)
       const count = Math.max(1, gradesToCount.length)
       counts[m] = (counts[m] || 0) + count
     })
