@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, UserPlus, Plus, Trash2, Home, Sparkles, AlertTriangle, ExternalLink } from 'lucide-react'
+import { ArrowLeft, UserPlus, Plus, Trash2, Home, Sparkles, AlertTriangle, ExternalLink, Lock } from 'lucide-react'
 import { MONTH_NAMES } from '@/lib/types'
 import { DEFAULT_GRADE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
 
@@ -33,7 +33,7 @@ function normalizePhone(raw: string): string | null {
 export default function NewStudentPage() {
   const supabase = createClient()
 
-  // 1 PS Code per Registration / Household
+  // 1 PS Code per Registration / Household (LOCKED - Auto-generated)
   const [psCode, setPsCode] = useState('')
   const [studentName, setStudentName] = useState('') // OPTIONAL
   const [primaryGrade, setPrimaryGrade] = useState<number>(10)
@@ -291,7 +291,7 @@ export default function NewStudentPage() {
     }
 
     if (!parentName.trim()) {
-      setError('Parent / Guardian Name is REQUIRED.')
+      setError('Parent / Guardian Name is REQUIRED in Household Details.')
       return
     }
 
@@ -318,7 +318,7 @@ export default function NewStudentPage() {
       // Auto-fallback for student name if left empty
       const finalStudentName = studentName.trim() || `${parentName.trim()}'s Child`
 
-      // 1. Create or Reuse Household record
+      // 1. Create Household record
       let householdId: string | null = null
       const { data: hhData, error: hhErr } = await supabase.from('households').insert({
         parent_name: parentName.trim(),
@@ -330,7 +330,7 @@ export default function NewStudentPage() {
       if (hhErr) throw hhErr
       householdId = hhData?.id || null
 
-      // 2. Create Student Record under this single PS Code
+      // 2. Create Student Record under this single locked PS Code
       const { data: stuData, error: stuErr } = await supabase.from('students').insert({
         ps_code: psCode.trim().toUpperCase(),
         full_name: finalStudentName,
@@ -409,7 +409,7 @@ export default function NewStudentPage() {
               Register Student
             </h1>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-              Household & delivery details are required. Student name is optional.
+              Step 1: Student details (Name optional) · Step 2: Household & Delivery details (Required)
             </div>
           </div>
         </div>
@@ -459,11 +459,102 @@ export default function NewStudentPage() {
               </div>
             )}
 
-            {/* Section 1: Household & Postal Delivery Details (REQUIRED) */}
+            {/* Section 1: Student Details (FIRST) */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
                 <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Home size={18} /> 1. Household & Delivery Details (Required)
+                  <UserPlus size={18} /> 1. Student Details (1 PS Code)
+                </div>
+                <span style={{ fontSize: 11, background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>
+                  Student Name is Optional
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 14, marginBottom: 14 }}>
+                {/* Locked Auto-Generated PS Code */}
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                    <Lock size={11} /> PS Code (Locked)
+                  </label>
+                  <input
+                    className="input-field"
+                    value={psCode || 'Generating...'}
+                    readOnly
+                    disabled
+                    style={{
+                      fontWeight: 800,
+                      letterSpacing: 1.5,
+                      color: 'var(--accent-blue)',
+                      background: 'rgba(59,130,246,0.06)',
+                      border: '1px solid rgba(59,130,246,0.25)',
+                      cursor: 'not-allowed',
+                      opacity: 0.95
+                    }}
+                    title="Auto-generated unique identifier (Locked)"
+                  />
+                </div>
+
+                {/* Optional Student / Children Names */}
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Student / Children Full Name(s) <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>(Optional)</span>
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. Kasun Perera (Leave blank if unknown, will use Parent's Child)"
+                    value={studentName}
+                    onChange={e => setStudentName(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 130px', gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Primary Grade
+                  </label>
+                  <select
+                    className="input-field"
+                    value={primaryGrade}
+                    onChange={e => handlePrimaryGradeChange(parseInt(e.target.value))}
+                    style={{ fontWeight: 600 }}
+                  >
+                    {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                      <option key={g} value={g}>Grade {g}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    School (Optional)
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. Royal College"
+                    value={school}
+                    onChange={e => setSchool(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    CRM F-Code
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. F80001"
+                    value={fcodeRef}
+                    onChange={e => setFcodeRef(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Household & Postal Delivery Details (REQUIRED) */}
+            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Home size={18} /> 2. Household & Delivery Details (Required)
                 </div>
                 <span style={{ fontSize: 11, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
                   * Required for Delivery & Contact
@@ -544,83 +635,6 @@ export default function NewStudentPage() {
                     placeholder="e.g. Kandy Town"
                     value={area}
                     onChange={e => setArea(e.target.value)}
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Section 2: Student Details (Student Name is OPTIONAL) */}
-            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <UserPlus size={18} /> 2. Student Info (Student Name Optional)
-                </div>
-                <span style={{ fontSize: 11, background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>
-                  Auto-defaults to Parent's Child if empty
-                </span>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: 14, marginBottom: 14 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                    PS Code
-                  </label>
-                  <input
-                    className="input-field"
-                    value={psCode}
-                    onChange={e => setPsCode(e.target.value.toUpperCase())}
-                    style={{ fontWeight: 700, letterSpacing: 1, color: 'var(--accent-blue)' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                    Student / Children Name(s) <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>(Optional)</span>
-                  </label>
-                  <input
-                    className="input-field"
-                    placeholder="e.g. Kasun Perera (Leave blank if unknown, will use Parent's Child)"
-                    value={studentName}
-                    onChange={e => setStudentName(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 130px', gap: 14 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                    Primary Grade
-                  </label>
-                  <select
-                    className="input-field"
-                    value={primaryGrade}
-                    onChange={e => handlePrimaryGradeChange(parseInt(e.target.value))}
-                    style={{ fontWeight: 600 }}
-                  >
-                    {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
-                      <option key={g} value={g}>Grade {g}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                    School (Optional)
-                  </label>
-                  <input
-                    className="input-field"
-                    placeholder="e.g. Royal College"
-                    value={school}
-                    onChange={e => setSchool(e.target.value)}
-                  />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                    CRM F-Code
-                  </label>
-                  <input
-                    className="input-field"
-                    placeholder="e.g. F80001"
-                    value={fcodeRef}
-                    onChange={e => setFcodeRef(e.target.value)}
                   />
                 </div>
               </div>
