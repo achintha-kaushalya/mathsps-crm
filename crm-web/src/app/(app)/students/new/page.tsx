@@ -2,11 +2,18 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, UserPlus, Home, Plus, Trash2, Lock, Sparkles, CreditCard, DollarSign } from 'lucide-react'
+import { ArrowLeft, UserPlus, Home, Plus, Trash2, Lock, Sparkles, CreditCard } from 'lucide-react'
 import { MONTH_NAMES } from '@/lib/types'
 import { DEFAULT_GRADE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
 
 const BANKS = ['BOC', 'Sampath', 'Commercial', 'HNB', 'People\'s Bank', 'NSB', 'Seylan', 'NTB', 'Other']
+
+interface EnrolledRow {
+  rowId: string
+  grade: number
+  courseCode: string
+  fee: number
+}
 
 export default function NewStudentPage() {
   const supabase = createClient()
@@ -14,9 +21,7 @@ export default function NewStudentPage() {
   // Form State
   const [psCode, setPsCode] = useState('')
   const [fullName, setFullName] = useState('')
-  const [grade, setGrade] = useState<number | ''>(11)
-  const [school, setSchool] = useState('')
-  const [notes, setNotes] = useState('')
+  const [primaryGrade, setPrimaryGrade] = useState<number>(10)
   const [fcodeRef, setFcodeRef] = useState('')
   const [createdBy, setCreatedBy] = useState('')
   const [currentUserEmail, setCurrentUserEmail] = useState('')
@@ -28,23 +33,27 @@ export default function NewStudentPage() {
   const [address, setAddress] = useState('')
   const [area, setArea] = useState('')
 
-  // Grade-aligned courses state
+  // Grade-aligned courses configuration
   const [gradeCourses, setGradeCourses] = useState<Record<number, CourseConfig[]>>(DEFAULT_GRADE_COURSES)
   const [availableClasses, setAvailableClasses] = useState<Record<string, string>>(getAllCourseLabels(DEFAULT_GRADE_COURSES))
   const [classDefaultFees, setClassDefaultFees] = useState<Record<string, number>>(getAllCourseFees(DEFAULT_GRADE_COURSES))
 
+  // Multi-Grade / Multi-Child Class Enrollment Rows
+  const [enrolledRows, setEnrolledRows] = useState<EnrolledRow[]>([
+    {
+      rowId: 'row-init-1',
+      grade: 10,
+      courseCode: DEFAULT_GRADE_COURSES[10]?.[0]?.code || 'GR10_THEORY',
+      fee: DEFAULT_GRADE_COURSES[10]?.[0]?.defaultFee || 1800
+    }
+  ])
+
   // Custom courses admin modal
-  const [customCourseGrade, setCustomCourseGrade] = useState<number>(11)
+  const [customCourseGrade, setCustomCourseGrade] = useState<number>(10)
   const [customCourseCode, setCustomCourseCode] = useState('')
   const [customCourseName, setCustomCourseName] = useState('')
   const [customCourseFee, setCustomCourseFee] = useState<string>('1800')
   const [showAddCourseModal, setShowAddCourseModal] = useState(false)
-  const [editingCourseCode, setEditingCourseCode] = useState<string | null>(null)
-
-  // Class Enrollments (with manually editable fee_amount)
-  const [selectedClasses, setSelectedClasses] = useState<{ class_type: string; tier: 'STANDARD' | 'PREMIUM'; fee_amount: number; label?: string }[]>([
-    { class_type: 'GR11_THEORY', tier: 'STANDARD', fee_amount: 1800, label: 'Grade 11 — Theory' }
-  ])
 
   // Instant Payment Recording Option in Registration Form
   const [recordImmediatePayment, setRecordImmediatePayment] = useState(false)
@@ -58,9 +67,7 @@ export default function NewStudentPage() {
     tute_delivered: false,
     notes: '',
   })
-  const [classAmountPaid, setClassAmountPaid] = useState<Record<string, string>>({
-    GR11_THEORY: '1800'
-  })
+  const [classAmountPaid, setClassAmountPaid] = useState<Record<string, string>>({})
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -117,7 +124,6 @@ export default function NewStudentPage() {
     const activeTutor = localStorage.getItem('mathsps_active_tutor') || 'prabuddha'
 
     if (activeTutor === 'sanduni') {
-      // Sanduni Malshika -> auto generate SM code starting SM101+
       supabase.from('students').select('ps_code').ilike('ps_code', 'SM%').order('created_at', { ascending: false }).limit(50).then(({ data }) => {
         let maxNum = 100
         if (data && data.length > 0) {
@@ -129,7 +135,6 @@ export default function NewStudentPage() {
         setPsCode(`SM${maxNum + 1}`)
       })
     } else {
-      // Prabuddha Sampath -> auto generate PS code starting PS10500+
       supabase.from('students').select('ps_code').ilike('ps_code', 'PS%').order('created_at', { ascending: false }).limit(50).then(({ data }) => {
         let maxNum = 10499
         if (data && data.length > 0) {
@@ -144,7 +149,6 @@ export default function NewStudentPage() {
 
     loadAdminCourses()
 
-    // Subscribe to Realtime changes and WebSockets Broadcast events
     const room = supabase.channel('mathsps-global-courses-sync')
     channelRef.current = room
 
@@ -166,49 +170,100 @@ export default function NewStudentPage() {
     }
   }, [])
 
-  // When grade changes in registration form, auto-suggest first course of that grade
-  function handleGradeChange(newGrade: number | '') {
-    setGrade(newGrade)
-    if (newGrade !== '') {
-      const coursesForNewGrade = gradeCourses[newGrade] || []
-      if (coursesForNewGrade.length > 0) {
-        const first = coursesForNewGrade[0]
-        setSelectedClasses([{
-          class_type: first.code,
-          tier: 'STANDARD',
-          fee_amount: first.defaultFee,
-          label: first.name
-        }])
-        setClassAmountPaid({
-          [first.code]: String(first.defaultFee)
-        })
+  // Sync initial class amount paid for payment section
+  useEffect(() => {
+    const amounts: Record<string, string> = {}
+    enrolledRows.forEach(r => {
+      if (r.courseCode) {
+        amounts[r.courseCode] = String(r.fee)
       }
-    }
+    })
+    setClassAmountPaid(amounts)
+  }, [enrolledRows])
+
+  // Handle Primary Grade change from Section 1
+  function handlePrimaryGradeChange(g: number) {
+    setPrimaryGrade(g)
+    // Update first enrolled row to this grade
+    setEnrolledRows(prev => {
+      if (prev.length === 0) return prev
+      const firstRow = prev[0]
+      const coursesForGrade = gradeCourses[g] || []
+      const defaultCourse = coursesForGrade[0]
+      const updatedFirst: EnrolledRow = {
+        ...firstRow,
+        grade: g,
+        courseCode: defaultCourse ? defaultCourse.code : '',
+        fee: defaultCourse ? defaultCourse.defaultFee : 1800
+      }
+      return [updatedFirst, ...prev.slice(1)]
+    })
   }
 
-  function toggleClass(course: CourseConfig) {
-    const exists = selectedClasses.find(c => c.class_type === course.code)
-    if (exists) {
-      setSelectedClasses(selectedClasses.filter(c => c.class_type !== course.code))
-      const { [course.code]: _, ...rest } = classAmountPaid
-      setClassAmountPaid(rest)
-    } else {
-      const fee = course.defaultFee
-      setSelectedClasses([...selectedClasses, { class_type: course.code, tier: 'STANDARD', fee_amount: fee, label: course.name }])
-      setClassAmountPaid(prev => ({ ...prev, [course.code]: String(fee) }))
+  // Row Management Functions for Multi-Grade Class Enrollment
+  function handleAddEnrolledRow() {
+    const newGrade = primaryGrade || 10
+    const coursesForGrade = gradeCourses[newGrade] || []
+    const defaultCourse = coursesForGrade[0]
+
+    const newRow: EnrolledRow = {
+      rowId: `row-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      grade: newGrade,
+      courseCode: defaultCourse ? defaultCourse.code : '',
+      fee: defaultCourse ? defaultCourse.defaultFee : 1800
     }
+    setEnrolledRows([...enrolledRows, newRow])
   }
 
-  function updateEnrolledFee(classType: string, newFee: number) {
-    setSelectedClasses(prev => prev.map(c => {
-      if (c.class_type === classType) {
-        return { ...c, fee_amount: newFee }
+  function handleRemoveEnrolledRow(rowId: string) {
+    if (enrolledRows.length === 1) {
+      alert('Student must have at least one enrolled class.')
+      return
+    }
+    setEnrolledRows(enrolledRows.filter(r => r.rowId !== rowId))
+  }
+
+  function handleRowGradeChange(rowId: string, newGrade: number) {
+    const coursesForGrade = gradeCourses[newGrade] || []
+    const defaultCourse = coursesForGrade[0]
+
+    setEnrolledRows(prev => prev.map(r => {
+      if (r.rowId === rowId) {
+        return {
+          ...r,
+          grade: newGrade,
+          courseCode: defaultCourse ? defaultCourse.code : '',
+          fee: defaultCourse ? defaultCourse.defaultFee : 1800
+        }
       }
-      return c
+      return r
     }))
-    if (['BANK', 'CASH', 'PHYSICAL'].includes(paymentForm.payment_type)) {
-      setClassAmountPaid(prev => ({ ...prev, [classType]: String(newFee) }))
-    }
+  }
+
+  function handleRowCourseChange(rowId: string, newCourseCode: string) {
+    const fee = classDefaultFees[newCourseCode] || 1800
+    setEnrolledRows(prev => prev.map(r => {
+      if (r.rowId === rowId) {
+        return {
+          ...r,
+          courseCode: newCourseCode,
+          fee
+        }
+      }
+      return r
+    }))
+  }
+
+  function handleRowFeeChange(rowId: string, newFee: number) {
+    setEnrolledRows(prev => prev.map(r => {
+      if (r.rowId === rowId) {
+        return {
+          ...r,
+          fee: newFee
+        }
+      }
+      return r
+    }))
   }
 
   async function saveCoursesToDatabase(updatedGradeCourses: Record<number, CourseConfig[]>) {
@@ -263,59 +318,25 @@ export default function NewStudentPage() {
     setAvailableClasses(getAllCourseLabels(updatedGradeCourses))
     setClassDefaultFees(getAllCourseFees(updatedGradeCourses))
 
-    if (grade === customCourseGrade) {
-      setSelectedClasses(prev => [...prev.filter(c => c.class_type !== code), { class_type: code, tier: 'STANDARD', fee_amount: fee, label: name }])
-      setClassAmountPaid(prev => ({ ...prev, [code]: String(fee) }))
-    }
-
     await saveCoursesToDatabase(updatedGradeCourses)
 
     setCustomCourseCode('')
     setCustomCourseName('')
     setCustomCourseFee('1800')
     setShowAddCourseModal(false)
-    setEditingCourseCode(null)
-  }
-
-  async function handleSaveEditCourse(course: CourseConfig, newName: string, newFee: number) {
-    if (!newName.trim()) return
-    const currentList = gradeCourses[course.grade] || []
-    const updatedList = currentList.map(c => c.code === course.code ? { ...c, name: newName.trim(), defaultFee: newFee } : c)
-    const updatedGradeCourses = {
-      ...gradeCourses,
-      [course.grade]: updatedList
-    }
-
-    setGradeCourses(updatedGradeCourses)
-    setAvailableClasses(getAllCourseLabels(updatedGradeCourses))
-    setClassDefaultFees(getAllCourseFees(updatedGradeCourses))
-
-    setSelectedClasses(prev => prev.map(c => c.class_type === course.code ? { ...c, label: newName.trim(), fee_amount: newFee } : c))
-    await saveCoursesToDatabase(updatedGradeCourses)
-    setEditingCourseCode(null)
-  }
-
-  async function deleteCourseCompletely(course: CourseConfig) {
-    if (!confirm(`Are you sure you want to completely delete "${course.name}" from Grade ${course.grade}?`)) return
-    const currentList = gradeCourses[course.grade] || []
-    const updatedList = currentList.filter(c => c.code !== course.code)
-    const updatedGradeCourses = {
-      ...gradeCourses,
-      [course.grade]: updatedList
-    }
-
-    setGradeCourses(updatedGradeCourses)
-    setAvailableClasses(getAllCourseLabels(updatedGradeCourses))
-    setClassDefaultFees(getAllCourseFees(updatedGradeCourses))
-    setSelectedClasses(prev => prev.filter(c => c.class_type !== course.code))
-
-    await saveCoursesToDatabase(updatedGradeCourses)
   }
 
   async function submit() {
     setError(''); setSuccessPs('')
     if (!psCode.trim()) { setError('PS Code is required'); return }
     if (!createdBy.trim()) { setError('Member Name (Registered by) is required'); return }
+
+    // Validate that courses are selected
+    const validRows = enrolledRows.filter(r => !!r.courseCode)
+    if (validRows.length === 0) {
+      setError('Please select at least one class for the student.')
+      return
+    }
 
     const formattedPs = psCode.trim().toUpperCase().replace(/\s+/g, '')
     setSaving(true)
@@ -340,9 +361,8 @@ export default function NewStudentPage() {
         ps_code: formattedPs,
         household_id: householdId,
         full_name: fullName.trim() || null,
-        grade: grade === '' ? null : Number(grade),
-        school: school.trim() || null,
-        notes: notes.trim() || null,
+        grade: primaryGrade,
+        notes: null,
         fcode_ref: fcodeRef.trim() ? fcodeRef.trim().toUpperCase() : null,
         created_by: createdBy.trim(),
       }, { onConflict: 'ps_code' }).select('id, ps_code').single()
@@ -350,35 +370,33 @@ export default function NewStudentPage() {
       if (stuErr) throw stuErr
 
       // 3. Create Class Enrollments with customized fee amounts
-      if (selectedClasses.length > 0) {
-        const enrolRows = selectedClasses.map(c => ({
-          student_id: stu.id,
-          class_type: c.class_type,
-          tier: c.tier,
-          fee_amount: c.fee_amount,
-          active: true,
-        }))
+      const enrolRows = validRows.map(r => ({
+        student_id: stu.id,
+        class_type: r.courseCode,
+        tier: 'STANDARD' as const,
+        fee_amount: r.fee,
+        active: true,
+      }))
 
-        const { error: enrolErr } = await supabase.from('enrollments').insert(enrolRows)
-        if (enrolErr) throw enrolErr
-      }
+      const { error: enrolErr } = await supabase.from('enrollments').insert(enrolRows)
+      if (enrolErr) throw enrolErr
 
       // 4. Record Immediate Payment if staff checked the option
-      if (recordImmediatePayment && selectedClasses.length > 0) {
-        for (const c of selectedClasses) {
+      if (recordImmediatePayment && validRows.length > 0) {
+        for (const r of validRows) {
           let paidAmount = 0
           if (['FREE', 'IMS'].includes(paymentForm.payment_type)) {
             paidAmount = 0
           } else {
-            paidAmount = parseFloat(classAmountPaid[c.class_type]) || c.fee_amount
+            paidAmount = parseFloat(classAmountPaid[r.courseCode]) || r.fee
           }
 
           await supabase.from('payments').upsert({
             student_id: stu.id,
-            class_type: c.class_type,
+            class_type: r.courseCode,
             month: paymentForm.month,
             year: paymentForm.year,
-            amount_due: c.fee_amount,
+            amount_due: r.fee,
             amount_paid: paidAmount,
             balance_before: 0,
             payment_type: paymentForm.payment_type,
@@ -400,8 +418,7 @@ export default function NewStudentPage() {
     }
   }
 
-  // Active grade courses for the selected student grade
-  const currentGradeCourses = grade !== '' ? (gradeCourses[grade] || []) : []
+  const totalMonthlyFee = enrolledRows.reduce((sum, r) => sum + (Number(r.fee) || 0), 0)
 
   return (
     <div className="fade-in">
@@ -437,7 +454,6 @@ export default function NewStudentPage() {
                 className="btn-secondary"
                 onClick={() => {
                   setFullName('')
-                  setNotes('')
                   setAddress('')
                   setArea('')
                   setParentName('')
@@ -497,9 +513,8 @@ export default function NewStudentPage() {
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Grade</label>
-                  <select className="input-field" value={grade} onChange={e => handleGradeChange(e.target.value === '' ? '' : parseInt(e.target.value))}>
-                    <option value="">Select Grade...</option>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Primary Grade</label>
+                  <select className="input-field" value={primaryGrade} onChange={e => handlePrimaryGradeChange(parseInt(e.target.value))}>
                     {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
                       <option key={g} value={g}>Grade {g}</option>
                     ))}
@@ -541,151 +556,157 @@ export default function NewStudentPage() {
               </div>
             </div>
 
-            {/* Section 3: Grade-Aligned Courses & Manual Fee Customization */}
+            {/* Section 3: Dynamic Multi-Grade Class Selection Rows */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Sparkles size={18} /> 3. Select Courses for Grade {grade || '...'}
+                    <Sparkles size={18} /> 3. Class Enrollments & Multi-Child Rows
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    {grade ? `Showing aligned courses for Grade ${grade}. Check course to enroll.` : 'Select a Grade above to view aligned courses.'}
+                    Select Grade to automatically load aligned courses. Click <b>+ Add Another Class</b> for siblings or multiple subjects.
                   </div>
                 </div>
-                {isAdmin && (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  {isAdmin && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomCourseGrade(primaryGrade)
+                        setCustomCourseCode('')
+                        setCustomCourseName('')
+                        setCustomCourseFee('1800')
+                        setShowAddCourseModal(true)
+                      }}
+                      className="btn-secondary"
+                      style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                    >
+                      <Plus size={14} /> + Create New Course
+                    </button>
+                  )}
                   <button
                     type="button"
-                    onClick={() => {
-                      setCustomCourseGrade(typeof grade === 'number' ? grade : 11)
-                      setCustomCourseCode('')
-                      setCustomCourseName('')
-                      setCustomCourseFee('1800')
-                      setShowAddCourseModal(true)
-                    }}
-                    className="btn-secondary"
+                    onClick={handleAddEnrolledRow}
+                    className="btn-primary"
                     style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
                   >
-                    <Plus size={14} /> + Add Course to Grade {grade || ''}
+                    <Plus size={14} /> + Add Another Class
                   </button>
-                )}
+                </div>
               </div>
 
-              {/* Course Cards aligned to selected Grade */}
-              {currentGradeCourses.length === 0 ? (
-                <div style={{ padding: 16, background: 'rgba(255,255,255,0.03)', borderRadius: 8, color: 'var(--text-muted)', fontSize: 13, textAlign: 'center' }}>
-                  {grade ? `No aligned courses found for Grade ${grade}. Admin can add new courses using the button above.` : 'Please select a Grade above.'}
-                </div>
-              ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 12, marginBottom: 20 }}>
-                  {currentGradeCourses.map(course => {
-                    const active = !!selectedClasses.find(c => c.class_type === course.code)
-                    const isEditing = editingCourseCode === course.code
+              {/* Dynamic Enrolled Class Rows */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+                {enrolledRows.map((row, index) => {
+                  const coursesForThisGrade = gradeCourses[row.grade] || []
 
-                    return (
-                      <div
-                        key={course.code}
-                        style={{
-                          padding: '14px', borderRadius: 10, border: '1px solid',
-                          borderColor: active ? 'var(--accent-blue)' : 'var(--border)',
-                          background: active ? 'rgba(59,130,246,0.14)' : 'var(--bg-base)',
-                          transition: 'all 0.15s', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 8
-                        }}
-                      >
-                        <div
-                          onClick={() => toggleClass(course)}
-                          style={{ cursor: 'pointer', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}
+                  return (
+                    <div
+                      key={row.rowId}
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: '120px 1fr 140px 36px',
+                        gap: 10,
+                        alignItems: 'center',
+                        background: 'var(--bg-base)',
+                        padding: '12px 14px',
+                        borderRadius: 10,
+                        border: '1px solid var(--border)'
+                      }}
+                    >
+                      {/* Grade Selector */}
+                      <div>
+                        <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                          Grade
+                        </label>
+                        <select
+                          className="input-field"
+                          value={row.grade}
+                          onChange={e => handleRowGradeChange(row.rowId, parseInt(e.target.value))}
+                          style={{ padding: '6px 8px', fontSize: 13, fontWeight: 600 }}
                         >
-                          <div>
-                            <div style={{ fontSize: 14, fontWeight: 700, color: active ? '#60a5fa' : 'var(--text-primary)' }}>
-                              {active ? '✓ ' : '+ '}{course.name}
-                            </div>
-                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-green)', marginTop: 4 }}>
-                              Rs. {course.defaultFee.toLocaleString()}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Admin Inline Controls */}
-                        {isAdmin && (
-                          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 6, marginTop: 4 }}>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                const newName = prompt('Edit course name:', course.name)
-                                if (newName === null) return
-                                const newFeeStr = prompt('Edit default fee (Rs.):', String(course.defaultFee))
-                                if (newFeeStr === null) return
-                                handleSaveEditCourse(course, newName, parseFloat(newFeeStr) || course.defaultFee)
-                              }}
-                              className="btn-secondary"
-                              style={{ padding: '2px 6px', fontSize: 10 }}
-                            >
-                              ✏ Edit
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                deleteCourseCompletely(course)
-                              }}
-                              style={{
-                                background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
-                                color: '#ef4444', borderRadius: 4, padding: '2px 6px', fontSize: 10, cursor: 'pointer'
-                              }}
-                            >
-                              <Trash2 size={10} /> Delete
-                            </button>
-                          </div>
-                        )}
+                          {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                            <option key={g} value={g}>Grade {g}</option>
+                          ))}
+                        </select>
                       </div>
-                    )
-                  })}
-                </div>
-              )}
 
-              {/* Enrolled Courses with Manually Editable Custom Fee */}
-              {selectedClasses.length > 0 && (
-                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.05em', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Enrolled Courses ({selectedClasses.length}):</span>
-                    <span style={{ color: 'var(--accent-green)' }}>Customizable Fee / Offer Rate</span>
-                  </div>
-                  {selectedClasses.map(c => (
-                    <div key={c.class_type} style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, marginBottom: 10,
-                      background: 'var(--bg-base)', padding: '10px 14px', borderRadius: 8,
-                      border: '1px solid var(--border)'
-                    }}>
-                      <div style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>
-                        {c.label || availableClasses[c.class_type] || c.class_type}
+                      {/* Aligned Course Dropdown */}
+                      <div>
+                        <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                          Aligned Course ({coursesForThisGrade.length} options)
+                        </label>
+                        <select
+                          className="input-field"
+                          value={row.courseCode}
+                          onChange={e => handleRowCourseChange(row.rowId, e.target.value)}
+                          style={{ padding: '6px 10px', fontSize: 13, fontWeight: 600, color: 'var(--accent-blue)' }}
+                        >
+                          {coursesForThisGrade.length === 0 ? (
+                            <option value="">No courses configured</option>
+                          ) : (
+                            coursesForThisGrade.map(c => (
+                              <option key={c.code} value={c.code}>
+                                {c.name} (Default: Rs. {c.defaultFee.toLocaleString()})
+                              </option>
+                            ))
+                          )}
+                        </select>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Fee (Rs.):</span>
+
+                      {/* Manual Fee Editing */}
+                      <div>
+                        <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                          Fee / Offer (Rs.)
+                        </label>
                         <input
                           type="number"
                           className="input-field"
-                          style={{ width: 110, padding: '4px 8px', fontSize: 13, fontWeight: 700, color: 'var(--accent-green)' }}
-                          value={c.fee_amount}
-                          onChange={(e) => updateEnrolledFee(c.class_type, parseFloat(e.target.value) || 0)}
+                          value={row.fee}
+                          onChange={e => handleRowFeeChange(row.rowId, parseFloat(e.target.value) || 0)}
+                          style={{ padding: '6px 8px', fontSize: 13, fontWeight: 700, color: 'var(--accent-green)' }}
                           title="Manually edit fee (e.g. for student discount/offer)"
                         />
+                      </div>
+
+                      {/* Delete Row Button */}
+                      <div style={{ paddingTop: 16 }}>
                         <button
                           type="button"
-                          onClick={() => setSelectedClasses(selectedClasses.filter(sc => sc.class_type !== c.class_type))}
+                          onClick={() => handleRemoveEnrolledRow(row.rowId)}
+                          disabled={enrolledRows.length === 1}
                           style={{
-                            background: 'none', border: 'none', color: '#ef4444',
-                            cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center'
+                            background: 'none',
+                            border: 'none',
+                            color: enrolledRows.length === 1 ? 'var(--text-muted)' : '#ef4444',
+                            cursor: enrolledRows.length === 1 ? 'not-allowed' : 'pointer',
+                            padding: 6,
+                            display: 'flex',
+                            alignItems: 'center',
+                            opacity: enrolledRows.length === 1 ? 0.3 : 1
                           }}
-                          title="Deselect class"
+                          title="Remove this class"
                         >
-                          ✕
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              )}
+                  )
+                })}
+              </div>
+
+              {/* Total Summary Footer */}
+              <div style={{
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                padding: '10px 14px', background: 'rgba(59,130,246,0.06)', borderRadius: 8, border: '1px solid rgba(59,130,246,0.2)'
+              }}>
+                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  Total Enrolled Classes: <b>{enrolledRows.length}</b>
+                </span>
+                <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-green)' }}>
+                  Total Monthly Fee: Rs. {totalMonthlyFee.toLocaleString()}
+                </span>
+              </div>
             </div>
 
             {/* Section 4: Optional Immediate Payment Recording on Registration */}
@@ -757,22 +778,24 @@ export default function NewStudentPage() {
                   </div>
 
                   {/* Amount Paid Per Enrolled Class */}
-                  {['BANK', 'CASH', 'PHYSICAL'].includes(paymentForm.payment_type) && selectedClasses.length > 0 && (
+                  {['BANK', 'CASH', 'PHYSICAL'].includes(paymentForm.payment_type) && enrolledRows.length > 0 && (
                     <div style={{ padding: 12, background: 'rgba(16,185,129,0.06)', borderRadius: 8, border: '1px solid rgba(16,185,129,0.2)', marginBottom: 14 }}>
                       <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-green)', marginBottom: 10 }}>
                         Amount Paid For Enrolled Courses:
                       </div>
-                      {selectedClasses.map(c => (
-                        <div key={c.class_type} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-                          <span style={{ fontSize: 13, fontWeight: 600 }}>{c.label || c.class_type}</span>
+                      {enrolledRows.map(r => (
+                        <div key={r.rowId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                          <span style={{ fontSize: 13, fontWeight: 600 }}>
+                            {availableClasses[r.courseCode] || r.courseCode} (Gr {r.grade})
+                          </span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Rs.</span>
                             <input
                               type="number"
                               className="input-field"
                               style={{ width: 110, padding: '4px 8px', fontSize: 13, fontWeight: 700, color: 'var(--accent-green)' }}
-                              value={classAmountPaid[c.class_type] ?? c.fee_amount}
-                              onChange={e => setClassAmountPaid({ ...classAmountPaid, [c.class_type]: e.target.value })}
+                              value={classAmountPaid[r.courseCode] ?? r.fee}
+                              onChange={e => setClassAmountPaid({ ...classAmountPaid, [r.courseCode]: e.target.value })}
                             />
                           </div>
                         </div>
