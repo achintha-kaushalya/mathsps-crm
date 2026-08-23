@@ -3,9 +3,8 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Plus, Printer, ExternalLink, Trash2, Edit2, Shield } from 'lucide-react'
+import { ArrowLeft, Plus, Printer, ExternalLink, Trash2, Edit2, Shield, Home, Phone, MapPin, UserCheck } from 'lucide-react'
 import { Student, Payment, Enrollment, CLASS_LABELS, MONTH_NAMES } from '@/lib/types'
-import { DEFAULT_GRADE_COURSES, getAllCourseLabels } from '@/lib/courses'
 
 const MONTH_NUM_TO_NAME = (m: number) => MONTH_NAMES[m - 1] || '?'
 
@@ -21,9 +20,21 @@ export default function StudentDetailPage() {
   const [balances, setBalances] = useState<any[]>([])
   const [householdSiblings, setHouseholdSiblings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Student Edit State
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<Partial<Student>>({})
+  const [savingStudent, setSavingStudent] = useState(false)
 
+  // Household / Address / Parent Contact Edit State
+  const [editingHousehold, setEditingHousehold] = useState(false)
+  const [parentNameInput, setParentNameInput] = useState('')
+  const [parentPhoneInput, setParentPhoneInput] = useState('')
+  const [addressInput, setAddressInput] = useState('')
+  const [areaInput, setAreaInput] = useState('')
+  const [savingHousehold, setSavingHousehold] = useState(false)
+
+  // User Role & Name
   const [userRole, setUserRole] = useState<'member' | 'admin' | 'owner'>('member')
   const [currentUserName, setCurrentUserName] = useState('')
 
@@ -72,6 +83,12 @@ export default function StudentDetailPage() {
       setStudent(stu)
       setForm(stu)
 
+      const hh = stu.household as any || {}
+      setParentNameInput(hh.parent_name || '')
+      setParentPhoneInput(hh.parent_phone || '')
+      setAddressInput(hh.address || '')
+      setAreaInput(hh.area || '')
+
       const [
         { data: pays },
         { data: enrols },
@@ -96,17 +113,65 @@ export default function StudentDetailPage() {
     setLoading(false)
   }
 
-  async function save() {
+  async function saveStudentInfo() {
     if (!student) return
-    await supabase.from('students').update({
-      full_name: form.full_name,
-      grade: form.grade,
-      school: form.school,
-      notes: form.notes,
-      fcode_ref: form.fcode_ref,
-    }).eq('id', student.id)
-    setEditing(false)
-    load()
+    setSavingStudent(true)
+    try {
+      const { error: err } = await supabase.from('students').update({
+        full_name: form.full_name?.trim() || null,
+        grade: form.grade ? parseInt(String(form.grade)) : null,
+        school: form.school?.trim() || null,
+        notes: form.notes?.trim() || null,
+        fcode_ref: form.fcode_ref?.trim() || null,
+      }).eq('id', student.id)
+
+      if (err) throw err
+
+      setEditing(false)
+      await load()
+    } catch (e: any) {
+      alert('Failed to update student info: ' + e.message)
+    } finally {
+      setSavingStudent(false)
+    }
+  }
+
+  async function saveHouseholdInfo() {
+    if (!student) return
+    setSavingHousehold(true)
+    try {
+      const hh = (student as any).household
+      if (hh?.id) {
+        // Update existing household
+        const { error: hhErr } = await supabase.from('households').update({
+          parent_name: parentNameInput.trim() || null,
+          parent_phone: parentPhoneInput.trim() || null,
+          address: addressInput.trim() || null,
+          area: areaInput.trim() || null,
+        }).eq('id', hh.id)
+
+        if (hhErr) throw hhErr
+      } else {
+        // Create new household and attach to this student
+        const { data: newHh, error: newHhErr } = await supabase.from('households').insert({
+          parent_name: parentNameInput.trim() || null,
+          parent_phone: parentPhoneInput.trim() || null,
+          address: addressInput.trim() || null,
+          area: areaInput.trim() || null,
+        }).select().single()
+
+        if (newHhErr) throw newHhErr
+
+        await supabase.from('students').update({ household_id: newHh.id }).eq('id', student.id)
+      }
+
+      setEditingHousehold(false)
+      await load()
+    } catch (e: any) {
+      alert('Failed to save household details: ' + e.message)
+    } finally {
+      setSavingHousehold(false)
+    }
   }
 
   async function handleDeleteStudent() {
@@ -210,7 +275,7 @@ export default function StudentDetailPage() {
     `)
   }
 
-  if (loading) return <div style={{ padding: 40, color: 'var(--text-muted)' }}>Loading...</div>
+  if (loading) return <div style={{ padding: 40, color: 'var(--text-muted)' }}>Loading student profile...</div>
   if (!student) return <div style={{ padding: 40, color: 'var(--accent-red)' }}>Student not found: {decodedCode}</div>
 
   const hh = student.household as any
@@ -264,20 +329,55 @@ export default function StudentDetailPage() {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {/* Student info */}
             <div className="glass-card" style={{ padding: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 16 }}>
-                <div style={{ fontWeight: 600, fontSize: 14 }}>Student Info</div>
-                <button onClick={() => editing ? save() : setEditing(true)}
-                  className={editing ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '4px 10px', fontSize: 12 }}>
-                  {editing ? '✓ Save' : '✏ Edit'}
-                </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--accent-blue)' }}>Student Info</div>
+                {!editing ? (
+                  <button
+                    onClick={() => setEditing(true)}
+                    className="btn-secondary"
+                    style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    ✏ Edit Info
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={saveStudentInfo}
+                      disabled={savingStudent}
+                      className="btn-primary"
+                      style={{ padding: '3px 8px', fontSize: 11 }}
+                    >
+                      {savingStudent ? 'Saving...' : '✓ Save'}
+                    </button>
+                    <button
+                      onClick={() => setEditing(false)}
+                      className="btn-secondary"
+                      style={{ padding: '3px 8px', fontSize: 11 }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
+
               {editing ? (
                 <>
-                  <Input label="Full Name" value={form.full_name || ''} onChange={v => setForm(f => ({ ...f, full_name: v }))} />
-                  <Input label="Grade" value={String(form.grade || '')} type="number" onChange={v => setForm(f => ({ ...f, grade: parseInt(v) }))} />
-                  <Input label="School" value={form.school || ''} onChange={v => setForm(f => ({ ...f, school: v }))} />
-                  <Input label="Notes" value={form.notes || ''} onChange={v => setForm(f => ({ ...f, notes: v }))} />
+                  <Input label="Full Name" value={form.full_name || ''} onChange={v => setForm(f => ({ ...f, full_name: v }))} placeholder="e.g. Kasun Perera" />
+                  <div style={{ marginBottom: 10 }}>
+                    <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>Grade</label>
+                    <select
+                      className="input-field"
+                      value={form.grade || ''}
+                      onChange={e => setForm(f => ({ ...f, grade: e.target.value ? parseInt(e.target.value) : undefined }))}
+                    >
+                      <option value="">Select Grade</option>
+                      {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                        <option key={g} value={g}>Grade {g}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <Input label="School" value={form.school || ''} onChange={v => setForm(f => ({ ...f, school: v }))} placeholder="e.g. Royal College" />
+                  <Input label="Notes" value={form.notes || ''} onChange={v => setForm(f => ({ ...f, notes: v }))} placeholder="Internal student notes..." />
                 </>
               ) : (
                 <>
@@ -290,6 +390,82 @@ export default function StudentDetailPage() {
               )}
             </div>
 
+            {/* Household / Parent & Delivery Address Card */}
+            <div className="glass-card" style={{ padding: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <Home size={16} /> Household & Delivery Info
+                </div>
+                {!editingHousehold ? (
+                  <button
+                    onClick={() => setEditingHousehold(true)}
+                    className="btn-secondary"
+                    style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    ✏ Edit Address/Phone
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      onClick={saveHouseholdInfo}
+                      disabled={savingHousehold}
+                      className="btn-primary"
+                      style={{ padding: '3px 8px', fontSize: 11 }}
+                    >
+                      {savingHousehold ? 'Saving...' : '✓ Save'}
+                    </button>
+                    <button
+                      onClick={() => setEditingHousehold(false)}
+                      className="btn-secondary"
+                      style={{ padding: '3px 8px', fontSize: 11 }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {!editingHousehold ? (
+                <>
+                  <Info label="Parent / Guardian Name" value={hh?.parent_name || 'Not registered'} />
+                  <Info label="Parent Phone Number" value={hh?.parent_phone || 'Not registered'} />
+                  <Info label="Delivery Address" value={hh?.address || 'Not registered'} />
+                  <Info label="Area / Delivery Route" value={hh?.area || 'Not registered'} />
+
+                  {householdSiblings.length > 0 && (
+                    <div style={{ marginTop: 12, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-blue)', marginBottom: 6, textTransform: 'uppercase' }}>
+                        👨‍👩‍👧‍👦 SIBLINGS IN SAME HOUSEHOLD ({householdSiblings.length})
+                      </div>
+                      {householdSiblings.map(s => (
+                        <a
+                          key={s.id}
+                          href={`/students/${encodeURIComponent(s.ps_code)}`}
+                          style={{
+                            display: 'flex', justifyContent: 'space-between', padding: '5px 8px',
+                            background: 'rgba(255,255,255,0.03)', borderRadius: 6, marginBottom: 4,
+                            color: 'var(--text-primary)', textDecoration: 'none', fontSize: 12
+                          }}
+                          className="hover-bg"
+                        >
+                          <span style={{ fontWeight: 600, color: 'var(--accent-blue)' }}>{s.ps_code}</span>
+                          <span>{s.full_name || 'No name'}</span>
+                          <span style={{ color: 'var(--text-muted)' }}>Gr {s.grade || '?'}</span>
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <Input label="Parent / Guardian Name" value={parentNameInput} onChange={setParentNameInput} placeholder="e.g. Sunil Perera" />
+                  <Input label="Parent Contact Number" value={parentPhoneInput} onChange={setParentPhoneInput} placeholder="e.g. 0771234567" />
+                  <Input label="Delivery Address" value={addressInput} onChange={setAddressInput} placeholder="House No, Street, City" />
+                  <Input label="Area / Delivery Route" value={areaInput} onChange={setAreaInput} placeholder="e.g. Kandy Town" />
+                </div>
+              )}
+            </div>
+
             {/* Audit & Registration Info */}
             <div className="glass-card" style={{ padding: 20 }}>
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14, color: 'var(--accent-green)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -297,32 +473,6 @@ export default function StudentDetailPage() {
               </div>
               <Info label="Registered By" value={student.created_by || 'Admin / System User'} />
               <Info label="Date Created" value={student.created_at ? new Date(student.created_at).toLocaleString() : 'Not recorded'} />
-            </div>
-
-            {/* Household */}
-            <div className="glass-card" style={{ padding: 20 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14 }}>🏠 Household</div>
-              {hh ? (
-                <>
-                  <Info label="Parent/Guardian" value={hh.parent_name || 'Not set'} />
-                  <Info label="Parent Phone" value={hh.parent_phone || 'Not set'} />
-                  <Info label="Address" value={hh.address || 'Not set'} />
-                  <Info label="Area" value={hh.area || 'Not set'} />
-                  {householdSiblings.length > 0 && (
-                    <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)' }}>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 6 }}>SIBLINGS IN SAME HOUSE</div>
-                      {householdSiblings.map(s => (
-                        <a key={s.id} href={`/students/${encodeURIComponent(s.ps_code)}`}
-                          style={{ display: 'block', color: 'var(--accent-blue)', fontSize: 13, marginBottom: 4, textDecoration: 'none' }}>
-                          {s.ps_code} · {s.full_name || 'No name'} (Gr {s.grade})
-                        </a>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <div style={{ color: 'var(--text-muted)', fontSize: 13 }}>No household linked</div>
-              )}
             </div>
 
             {/* Balance summary */}
@@ -607,16 +757,16 @@ function Info({ label, value }: { label: string; value: string }) {
   return (
     <div style={{ marginBottom: 10 }}>
       <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>{label}</div>
-      <div style={{ fontSize: 13, marginTop: 2 }}>{value}</div>
+      <div style={{ fontSize: 13, marginTop: 2, fontWeight: 500 }}>{value}</div>
     </div>
   )
 }
 
-function Input({ label, value, onChange, type = 'text' }: { label: string; value: string; onChange: (v: string) => void; type?: string }) {
+function Input({ label, value, onChange, placeholder = '', type = 'text' }: { label: string; value: string; onChange: (v: string) => void; placeholder?: string; type?: string }) {
   return (
     <div style={{ marginBottom: 10 }}>
       <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 4 }}>{label}</label>
-      <input className="input-field" type={type} value={value} onChange={e => onChange(e.target.value)} />
+      <input className="input-field" type={type} value={value} placeholder={placeholder} onChange={e => onChange(e.target.value)} />
     </div>
   )
 }
