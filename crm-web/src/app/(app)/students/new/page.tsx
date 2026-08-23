@@ -567,28 +567,12 @@ export default function NewStudentPage() {
                     Select Grade to automatically load aligned courses. Click <b>+ Add Another Class</b> for siblings or multiple subjects.
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {isAdmin && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setCustomCourseGrade(primaryGrade)
-                        setCustomCourseCode('')
-                        setCustomCourseName('')
-                        setCustomCourseFee('1800')
-                        setShowAddCourseModal(true)
-                      }}
-                      className="btn-secondary"
-                      style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
-                    >
-                      <Plus size={14} /> + Create New Course
-                    </button>
-                  )}
+                <div>
                   <button
                     type="button"
                     onClick={handleAddEnrolledRow}
                     className="btn-primary"
-                    style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                    style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
                   >
                     <Plus size={14} /> + Add Another Class
                   </button>
@@ -827,65 +811,6 @@ export default function NewStudentPage() {
           </>
         )}
       </div>
-
-      {/* Admin Add Course Modal */}
-      {showAddCourseModal && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20
-        }}>
-          <div className="glass-card" style={{ maxWidth: 450, width: '100%', padding: 24 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 14px' }}>
-              + Add New Course
-            </h3>
-            <form onSubmit={handleAddCustomCourse}>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Select Grade</label>
-                <select
-                  className="input-field"
-                  value={customCourseGrade}
-                  onChange={e => setCustomCourseGrade(parseInt(e.target.value))}
-                >
-                  {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
-                    <option key={g} value={g}>Grade {g}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Course Name / Description</label>
-                <input
-                  className="input-field"
-                  placeholder="e.g. Grade 11 — Revision"
-                  value={customCourseName}
-                  onChange={e => setCustomCourseName(e.target.value)}
-                  autoFocus
-                />
-              </div>
-
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Default Fee (Rs.)</label>
-                <input
-                  className="input-field"
-                  type="number"
-                  placeholder="1800"
-                  value={customCourseFee}
-                  onChange={e => setCustomCourseFee(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 18 }}>
-                <button type="button" onClick={() => setShowAddCourseModal(false)} className="btn-secondary" style={{ padding: '6px 14px' }}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary" style={{ padding: '6px 14px' }}>
-                  Save Course
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   )
 }
