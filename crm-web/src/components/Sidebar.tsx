@@ -6,7 +6,7 @@ import { usePathname } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import {
   LayoutDashboard, Users, Phone, CreditCard,
-  Truck, BarChart2, Settings, Building2, UserPlus
+  Truck, BarChart2, Settings, Building2, UserPlus, BookOpen
 } from 'lucide-react'
 import { clsx } from 'clsx'
 
@@ -62,6 +62,7 @@ export default function Sidebar() {
         { label: 'Register Student', href: '/students/new', icon: UserPlus },
         { label: 'Add Payment', href: '/payments/add', icon: CreditCard },
         { label: 'Delivery', href: '/delivery', icon: Truck },
+        ...(isAdmin ? [{ label: 'Courses & Grades', href: '/courses', icon: BookOpen }] : []),
         ...(isAdmin ? [{ label: 'Reports & Debts', href: '/reports', icon: BarChart2 }] : []),
       ]
     }] : []),

@@ -1,10 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams } from 'next/navigation'
+import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Plus, Printer, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Plus, Printer, ExternalLink, Trash2, Edit2, Shield } from 'lucide-react'
 import { Student, Payment, Enrollment, CLASS_LABELS, MONTH_NAMES } from '@/lib/types'
+import { DEFAULT_GRADE_COURSES, getAllCourseLabels } from '@/lib/courses'
 
 const MONTH_NUM_TO_NAME = (m: number) => MONTH_NAMES[m - 1] || '?'
 
@@ -12,6 +13,7 @@ export default function StudentDetailPage() {
   const { ps_code } = useParams<{ ps_code: string }>()
   const decodedCode = decodeURIComponent(ps_code)
   const supabase = createClient()
+  const router = useRouter()
 
   const [student, setStudent] = useState<Student | null>(null)
   const [payments, setPayments] = useState<Payment[]>([])
@@ -21,6 +23,40 @@ export default function StudentDetailPage() {
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
   const [form, setForm] = useState<Partial<Student>>({})
+
+  const [userRole, setUserRole] = useState<'member' | 'admin' | 'owner'>('member')
+  const [currentUserName, setCurrentUserName] = useState('')
+
+  // Edit payment modal state
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null)
+  const [editAmountPaid, setEditAmountPaid] = useState<string>('')
+  const [editPaymentType, setEditPaymentType] = useState<string>('BANK')
+  const [editBankName, setEditBankName] = useState<string>('BOC')
+  const [editDatePaid, setEditDatePaid] = useState<string>('')
+  const [editAddedGroup, setEditAddedGroup] = useState<boolean>(false)
+  const [editTuteDelivered, setEditTuteDelivered] = useState<boolean>(false)
+  const [savingPayment, setSavingPayment] = useState<boolean>(false)
+
+  const isAdmin = userRole === 'admin' || userRole === 'owner' || (currentUserName && currentUserName.toLowerCase().includes('admin'))
+
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (user) {
+        let name = user.user_metadata?.full_name || user.email?.split('@')[0] || ''
+        let role: 'member' | 'admin' | 'owner' = 'member'
+        if (user.email) {
+          const { data: dbMem } = await supabase.from('members').select('name, role').eq('email', user.email).single()
+          if (dbMem?.name) name = dbMem.name
+          if (dbMem?.role) role = dbMem.role as any
+        }
+        if (user.email?.toLowerCase().includes('admin')) {
+          role = 'admin'
+        }
+        setCurrentUserName(name)
+        setUserRole(role)
+      }
+    })
+  }, [])
 
   useEffect(() => { if (decodedCode) load() }, [decodedCode])
 
@@ -41,7 +77,7 @@ export default function StudentDetailPage() {
         { data: enrols },
         { data: bals },
       ] = await Promise.all([
-        supabase.from('payments').select('*').eq('student_id', stu.id).order('year').order('month'),
+        supabase.from('payments').select('*').eq('student_id', stu.id).order('year', { ascending: false }).order('month', { ascending: false }),
         supabase.from('enrollments').select('*').eq('student_id', stu.id),
         supabase.from('student_balances').select('*').eq('student_id', stu.id),
       ])
@@ -49,7 +85,6 @@ export default function StudentDetailPage() {
       setEnrollments(enrols || [])
       setBalances(bals || [])
 
-      // Load household siblings
       if (stu.household_id) {
         const { data: siblings } = await supabase
           .from('students').select('id, ps_code, full_name, grade')
@@ -72,6 +107,79 @@ export default function StudentDetailPage() {
     }).eq('id', student.id)
     setEditing(false)
     load()
+  }
+
+  async function handleDeleteStudent() {
+    if (!student) return
+    const confirmation = prompt(`Type "DELETE" to permanently delete student ${student.ps_code} (${student.full_name || 'No Name'}):`)
+    if (confirmation !== 'DELETE') return
+
+    try {
+      // 1. Delete associated payments
+      await supabase.from('payments').delete().eq('student_id', student.id)
+      // 2. Delete enrollments
+      await supabase.from('enrollments').delete().eq('student_id', student.id)
+      // 3. Delete student balances
+      await supabase.from('student_balances').delete().eq('student_id', student.id)
+      // 4. Delete student record
+      const { error: delErr } = await supabase.from('students').delete().eq('id', student.id)
+      if (delErr) throw delErr
+
+      alert(`Student ${student.ps_code} deleted successfully.`)
+      router.push('/students')
+    } catch (err: any) {
+      alert('Failed to delete student: ' + err.message)
+    }
+  }
+
+  function handleOpenEditPayment(payment: Payment) {
+    setEditingPayment(payment)
+    setEditAmountPaid(String(payment.amount_paid))
+    setEditPaymentType(payment.payment_type || 'BANK')
+    setEditBankName(payment.bank_name || 'BOC')
+    setEditDatePaid(payment.date_paid || new Date().toISOString().slice(0, 10))
+    setEditAddedGroup(payment.added_to_group || false)
+    setEditTuteDelivered(payment.tute_delivered || false)
+  }
+
+  async function handleSavePaymentEdit(e: React.FormEvent) {
+    e.preventDefault()
+    if (!editingPayment) return
+
+    setSavingPayment(true)
+    try {
+      const paid = ['FREE', 'IMS'].includes(editPaymentType) ? 0 : parseFloat(editAmountPaid) || 0
+
+      const { error: err } = await supabase.from('payments').update({
+        amount_paid: paid,
+        payment_type: editPaymentType,
+        bank_name: editPaymentType === 'BANK' ? editBankName : null,
+        date_paid: editPaymentType !== 'FREE' ? editDatePaid : null,
+        added_to_group: editAddedGroup,
+        tute_delivered: editTuteDelivered,
+      }).eq('id', editingPayment.id)
+
+      if (err) throw err
+
+      setEditingPayment(null)
+      await load()
+    } catch (err: any) {
+      alert('Failed to update payment: ' + err.message)
+    } finally {
+      setSavingPayment(false)
+    }
+  }
+
+  async function handleDeletePayment(payment: Payment) {
+    if (!confirm(`Are you sure you want to delete payment record for ${MONTH_NUM_TO_NAME(payment.month)} ${payment.year} (${CLASS_LABELS[payment.class_type] || payment.class_type})?`)) return
+
+    try {
+      const { error: err } = await supabase.from('payments').delete().eq('id', payment.id)
+      if (err) throw err
+      await load()
+    } catch (err: any) {
+      alert('Failed to delete payment: ' + err.message)
+    }
   }
 
   function printAddress() {
@@ -127,13 +235,26 @@ export default function StudentDetailPage() {
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           <button onClick={printAddress} className="btn-secondary">
             <Printer size={14} /> Print Address
           </button>
           <a href={`/payments/add?ps=${encodeURIComponent(student.ps_code)}`} className="btn-primary">
             <Plus size={14} /> Add Payment
           </a>
+          {isAdmin && (
+            <button
+              onClick={handleDeleteStudent}
+              style={{
+                background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)',
+                color: '#ef4444', borderRadius: 8, padding: '7px 12px', fontSize: 13, fontWeight: 600,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6
+              }}
+              title="Permanently delete student and payment history"
+            >
+              <Trash2 size={14} /> Delete Student
+            </button>
+          )}
         </div>
       </div>
 
@@ -228,7 +349,7 @@ export default function StudentDetailPage() {
               <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12 }}>🔗 CRM Link (Optional)</div>
               <div style={{ display: 'flex', gap: 8 }}>
                 {editing ? (
-                  <input className="input-field" placeholder="F-code e.g. F70000"
+                  <input className="input-field" placeholder="F-code e.g. F80001"
                     value={form.fcode_ref || ''}
                     onChange={e => setForm(f => ({ ...f, fcode_ref: e.target.value }))} />
                 ) : (
@@ -244,7 +365,7 @@ export default function StudentDetailPage() {
             </div>
           </div>
 
-          {/* Right column — Payment Ledger */}
+          {/* Right column — Payment Ledger with Admin Edit/Delete */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {enrollments.length > 0 ? enrollments.map(enrol => {
               const enrolPayments = payments.filter(p => p.class_type === enrol.class_type)
@@ -256,7 +377,7 @@ export default function StudentDetailPage() {
                     <div>
                       <div style={{ fontWeight: 600, fontSize: 14 }}>{CLASS_LABELS[enrol.class_type] || enrol.class_type}</div>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                        {enrol.tier} · Fee: Rs.{enrol.fee_amount.toLocaleString()} · {enrol.active ? '✅ Active' : '⏹ Inactive'}
+                        {enrol.tier} · Monthly Fee: Rs.{enrol.fee_amount.toLocaleString()} · {enrol.active ? '✅ Active' : '⏹ Inactive'}
                       </div>
                     </div>
                     {balance && (
@@ -280,6 +401,7 @@ export default function StudentDetailPage() {
                         <th>Bank</th>
                         <th>Date</th>
                         <th>Group</th>
+                        {isAdmin && <th style={{ width: 80, textAlign: 'center' }}>Action</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -303,6 +425,32 @@ export default function StudentDetailPage() {
                           <td style={{ textAlign: 'center', color: p.added_to_group ? '#10b981' : 'var(--text-muted)' }}>
                             {p.added_to_group ? '✓' : '—'}
                           </td>
+                          {isAdmin && (
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditPayment(p)}
+                                  className="btn-secondary"
+                                  style={{ padding: '2px 6px', fontSize: 11 }}
+                                  title="Edit payment"
+                                >
+                                  <Edit2 size={11} />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeletePayment(p)}
+                                  style={{
+                                    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+                                    color: '#ef4444', borderRadius: 4, padding: '2px 6px', fontSize: 11, cursor: 'pointer'
+                                  }}
+                                  title="Delete payment record"
+                                >
+                                  <Trash2 size={11} />
+                                </button>
+                              </div>
+                            </td>
+                          )}
                         </tr>
                       ))}
                     </tbody>
@@ -325,6 +473,132 @@ export default function StudentDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Admin Edit Payment Modal */}
+      {editingPayment && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20
+        }}>
+          <div className="glass-card" style={{ maxWidth: 440, width: '100%', padding: 24 }}>
+            <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px' }}>
+              ✏ Edit Payment Record — {MONTH_NUM_TO_NAME(editingPayment.month)} {editingPayment.year}
+            </h3>
+            <form onSubmit={handleSavePaymentEdit}>
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                  Class Type
+                </label>
+                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-blue)' }}>
+                  {CLASS_LABELS[editingPayment.class_type] || editingPayment.class_type}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                  Payment Type
+                </label>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                  {['BANK', 'CASH', 'FREE', 'IMS', 'PHYSICAL'].map(t => (
+                    <button
+                      key={t}
+                      type="button"
+                      onClick={() => setEditPaymentType(t)}
+                      className={editPaymentType === t ? 'btn-primary' : 'btn-secondary'}
+                      style={{ padding: '4px 10px', fontSize: 11 }}
+                    >
+                      {t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {['BANK', 'CASH', 'PHYSICAL'].includes(editPaymentType) && (
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                    Amount Paid (Rs.)
+                  </label>
+                  <input
+                    type="number"
+                    className="input-field"
+                    value={editAmountPaid}
+                    onChange={e => setEditAmountPaid(e.target.value)}
+                    required
+                  />
+                </div>
+              )}
+
+              {editPaymentType === 'BANK' && (
+                <div style={{ marginBottom: 12 }}>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                    Bank
+                  </label>
+                  <select
+                    className="input-field"
+                    value={editBankName}
+                    onChange={e => setEditBankName(e.target.value)}
+                  >
+                    {['BOC', 'Sampath', 'Commercial', 'HNB', 'People\'s Bank', 'NSB', 'Seylan', 'NTB', 'Other'].map(b => (
+                      <option key={b} value={b}>{b}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div style={{ marginBottom: 12 }}>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
+                  Date Paid
+                </label>
+                <input
+                  type="date"
+                  className="input-field"
+                  value={editDatePaid}
+                  onChange={e => setEditDatePaid(e.target.value)}
+                />
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
+                <input
+                  type="checkbox"
+                  id="chk-grp-edit"
+                  checked={editAddedGroup}
+                  onChange={e => setEditAddedGroup(e.target.checked)}
+                />
+                <label htmlFor="chk-grp-edit" style={{ fontSize: 13 }}>Added to WhatsApp Group</label>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+                <input
+                  type="checkbox"
+                  id="chk-tute-edit"
+                  checked={editTuteDelivered}
+                  onChange={e => setEditTuteDelivered(e.target.checked)}
+                />
+                <label htmlFor="chk-tute-edit" style={{ fontSize: 13 }}>Tute / Material Delivered</label>
+              </div>
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setEditingPayment(null)}
+                  className="btn-secondary"
+                  style={{ padding: '6px 14px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ padding: '6px 14px' }}
+                  disabled={savingPayment}
+                >
+                  {savingPayment ? 'Saving...' : '✓ Update Payment'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
