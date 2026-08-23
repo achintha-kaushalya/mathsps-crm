@@ -57,6 +57,41 @@ export default function AnalyticsDashboard() {
   const [paidThisMonth, setPaidThisMonth] = useState(0)
   const [totalStudents, setTotalStudents] = useState(0)
 
+  // Direct client-side batch fetch function with 1000 range chunks
+  async function fetchAllLeadsDirectly(): Promise<LeadRow[]> {
+    let allLeads: LeadRow[] = []
+    const pageSize = 1000
+    
+    // First call to get total count
+    const { data: firstBatch, count, error } = await supabase
+      .from('leads')
+      .select('assigned_member,grade,status,campaign,date_added,paid,paid_grades', { count: 'exact' })
+      .range(0, pageSize - 1)
+
+    if (error) throw error
+    if (firstBatch) allLeads.push(...firstBatch)
+
+    const totalCount = count || 0
+    if (totalCount > pageSize) {
+      const promises: Promise<any>[] = []
+      for (let offset = pageSize; offset < totalCount; offset += pageSize) {
+        promises.push(
+          Promise.resolve(
+            supabase
+              .from('leads')
+              .select('assigned_member,grade,status,campaign,date_added,paid,paid_grades')
+              .range(offset, offset + pageSize - 1)
+          )
+        )
+      }
+      const results = await Promise.all(promises)
+      for (const res of results) {
+        if (res.data) allLeads.push(...res.data)
+      }
+    }
+    return allLeads
+  }
+
   async function loadData() {
     setRefreshing(true)
     try {
@@ -64,17 +99,20 @@ export default function AnalyticsDashboard() {
       const curMonth = now.getMonth() + 1
       const curYear = now.getFullYear()
 
-      const [leadsRes, payRes, studRes] = await Promise.all([
-        fetch('/api/leads/analytics').then(r => {
-          if (!r.ok) throw new Error(`HTTP ${r.status}`)
-          return r.json()
+      // Fetch directly from Supabase with safe fallback
+      const [leadsData, payRes, studRes] = await Promise.all([
+        fetchAllLeadsDirectly().catch(async (err) => {
+          console.warn('Direct fetch failed, falling back to API:', err)
+          const res = await fetch('/api/leads/analytics')
+          const json = await res.json()
+          return (json.leads || []) as LeadRow[]
         }),
         supabase.from('payments').select('amount_paid,payment_type,student_id')
           .eq('month', curMonth).eq('year', curYear),
         supabase.from('students').select('*', { count: 'exact', head: true }),
       ])
 
-      setLeads((leadsRes.leads || []) as LeadRow[])
+      setLeads(leadsData || [])
       const pmts = payRes.data || []
       const rev = pmts
         .filter((p: any) => !['FREE', 'IMS'].includes(p.payment_type || ''))
@@ -250,7 +288,7 @@ export default function AnalyticsDashboard() {
   }, [dayLeads])
 
   // =========================================================================
-  // 2. MASTER LEAD PAID TICK REPORT COMPUTATIONS (MEMBERS × GRADE × PAID COUNT)
+  // 2. MASTER LEAD PAID TICK REPORT COMPUTATIONS (MEMBERS × GRADE × COUNT)
   // =========================================================================
   const paidLeads = useMemo(() => {
     return filtered.filter(l => Boolean(l.paid) || Boolean(l.paid_grades))
