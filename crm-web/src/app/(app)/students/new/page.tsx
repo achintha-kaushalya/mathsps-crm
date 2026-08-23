@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, UserPlus, Plus, Trash2, Home, Sparkles, CreditCard, CheckCircle2 } from 'lucide-react'
+import { ArrowLeft, UserPlus, Plus, Trash2, Home, Sparkles, AlertTriangle, ExternalLink } from 'lucide-react'
 import { MONTH_NAMES } from '@/lib/types'
 import { DEFAULT_GRADE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
 
@@ -15,21 +15,40 @@ interface ClassRow {
   fee: number
 }
 
+// Sri Lanka phone normalizer: returns 10-digit 07XXXXXXXX or null if invalid
+function normalizePhone(raw: string): string | null {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.startsWith('94') && digits.length === 11) {
+    return '0' + digits.slice(2)
+  }
+  if (digits.length === 9 && digits.startsWith('7')) {
+    return '0' + digits
+  }
+  if (digits.length === 10 && digits.startsWith('07')) {
+    return digits
+  }
+  return null
+}
+
 export default function NewStudentPage() {
   const supabase = createClient()
 
   // 1 PS Code per Registration / Household
   const [psCode, setPsCode] = useState('')
-  const [studentName, setStudentName] = useState('')
+  const [studentName, setStudentName] = useState('') // OPTIONAL
   const [primaryGrade, setPrimaryGrade] = useState<number>(10)
   const [school, setSchool] = useState('')
   const [fcodeRef, setFcodeRef] = useState('')
 
-  // Household Contact & Delivery Details (1 parent, 1 phone, 1 address)
+  // Household Contact & Delivery Details (REQUIRED)
   const [parentName, setParentName] = useState('')
   const [parentPhone, setParentPhone] = useState('')
   const [address, setAddress] = useState('')
   const [area, setArea] = useState('')
+
+  // Live duplicate phone check alert
+  const [existingHousehold, setExistingHousehold] = useState<any>(null)
+  const [checkingPhone, setCheckingPhone] = useState(false)
 
   // Class Enrollments (1 or multiple classes / sibling grades under this same PS Code)
   const [enrolledClasses, setEnrolledClasses] = useState<ClassRow[]>([
@@ -70,6 +89,7 @@ export default function NewStudentPage() {
   const [successPs, setSuccessPs] = useState('')
 
   const channelRef = useRef<any>(null)
+  const phoneCheckTimer = useRef<NodeJS.Timeout | undefined>(undefined)
 
   // Load admin course setup
   const loadAdminCourses = async () => {
@@ -145,6 +165,33 @@ export default function NewStudentPage() {
       supabase.removeChannel(room)
     }
   }, [])
+
+  // Live Household Phone Duplication Check
+  function handlePhoneChange(val: string) {
+    setParentPhone(val)
+    setExistingHousehold(null)
+
+    if (phoneCheckTimer.current) clearTimeout(phoneCheckTimer.current)
+    const normalized = normalizePhone(val)
+
+    if (normalized) {
+      phoneCheckTimer.current = setTimeout(async () => {
+        setCheckingPhone(true)
+        const clean9Digits = normalized.slice(1) // e.g. 771234567
+
+        const { data: hhList } = await supabase
+          .from('households')
+          .select('*, students:students(*)')
+          .or(`parent_phone.ilike.%${clean9Digits}%,parent_phone.ilike.%${normalized}%`)
+          .limit(1)
+
+        if (hhList && hhList.length > 0) {
+          setExistingHousehold(hhList[0])
+        }
+        setCheckingPhone(false)
+      }, 400)
+    }
+  }
 
   // Sync initial class amount paid for payment section
   useEffect(() => {
@@ -233,38 +280,60 @@ export default function NewStudentPage() {
     }))
   }
 
-  // Form Submission
+  // Form Submission with Strict Validations
   async function submit() {
-    if (!psCode.trim()) { setError('PS Code is required'); return }
-    const validClasses = enrolledClasses.filter(c => c.courseCode)
-    if (validClasses.length === 0) {
-      setError('Please select at least one class to enroll')
+    setError('')
+
+    // 1. Mandatory Validations
+    if (!psCode.trim()) {
+      setError('PS Code is required.')
       return
     }
 
-    setError('')
+    if (!parentName.trim()) {
+      setError('Parent / Guardian Name is REQUIRED.')
+      return
+    }
+
+    const normalizedPhone = normalizePhone(parentPhone)
+    if (!normalizedPhone) {
+      setError('Valid Sri Lankan Parent Contact Number (10 digits starting with 07X) is REQUIRED.')
+      return
+    }
+
+    if (!address.trim() || address.trim().length < 5) {
+      setError('Complete Postal Delivery Address (House No, Street, City) is REQUIRED.')
+      return
+    }
+
+    const validClasses = enrolledClasses.filter(c => c.courseCode)
+    if (validClasses.length === 0) {
+      setError('Please select at least one class to enroll.')
+      return
+    }
+
     setSaving(true)
 
     try {
+      // Auto-fallback for student name if left empty
+      const finalStudentName = studentName.trim() || `${parentName.trim()}'s Child`
+
+      // 1. Create or Reuse Household record
       let householdId: string | null = null
+      const { data: hhData, error: hhErr } = await supabase.from('households').insert({
+        parent_name: parentName.trim(),
+        parent_phone: normalizedPhone,
+        address: address.trim(),
+        area: area.trim() || null,
+      }).select().single()
 
-      // 1. Create Household record if parent contact or delivery address provided
-      if (parentName.trim() || parentPhone.trim() || address.trim() || area.trim()) {
-        const { data: hhData, error: hhErr } = await supabase.from('households').insert({
-          parent_name: parentName.trim() || null,
-          parent_phone: parentPhone.trim() || null,
-          address: address.trim() || null,
-          area: area.trim() || null,
-        }).select().single()
-
-        if (hhErr) throw hhErr
-        householdId = hhData?.id || null
-      }
+      if (hhErr) throw hhErr
+      householdId = hhData?.id || null
 
       // 2. Create Student Record under this single PS Code
       const { data: stuData, error: stuErr } = await supabase.from('students').insert({
         ps_code: psCode.trim().toUpperCase(),
-        full_name: studentName.trim() || null,
+        full_name: finalStudentName,
         grade: primaryGrade,
         school: school.trim() || null,
         household_id: householdId,
@@ -302,7 +371,7 @@ export default function NewStudentPage() {
             month: paymentForm.month,
             year: paymentForm.year,
             amount_due: cls.fee,
-            amount_paid: paid,
+            amount_paid: Math.max(0, paid),
             balance_before: 0,
             payment_type: paymentForm.payment_type,
             bank_name: paymentForm.payment_type === 'BANK' ? paymentForm.bank_name : null,
@@ -340,7 +409,7 @@ export default function NewStudentPage() {
               Register Student
             </h1>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-              Create student profile, parent details, delivery address, and class enrollments under 1 PS Code
+              Household & delivery details are required. Student name is optional.
             </div>
           </div>
         </div>
@@ -390,10 +459,105 @@ export default function NewStudentPage() {
               </div>
             )}
 
-            {/* Section 1: Basic Info */}
+            {/* Section 1: Household & Postal Delivery Details (REQUIRED) */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 18, color: 'var(--accent-blue)' }}>
-                1. Student Details (1 PS Code)
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Home size={18} /> 1. Household & Delivery Details (Required)
+                </div>
+                <span style={{ fontSize: 11, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+                  * Required for Delivery & Contact
+                </span>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Parent / Guardian Name <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. Sunil Perera"
+                    value={parentName}
+                    onChange={e => setParentName(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Parent Contact Number <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="07XXXXXXXX (e.g. 0771234567)"
+                    value={parentPhone}
+                    onChange={e => handlePhoneChange(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Existing Household Alert Banner if Phone Already Exists */}
+              {existingHousehold && (
+                <div style={{
+                  marginTop: 14, padding: '12px 14px', background: 'rgba(245,158,11,0.1)', border: '1px solid #f59e0b',
+                  borderRadius: 8, color: '#fbbf24', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <AlertTriangle size={16} />
+                    <span>
+                      <b>Existing Household Found:</b> {existingHousehold.parent_name || 'Parent'} ({existingHousehold.parent_phone})
+                      {existingHousehold.students?.length > 0 && ` — Linked PS Code: ${existingHousehold.students[0].ps_code}`}
+                    </span>
+                  </div>
+                  {existingHousehold.students?.length > 0 && (
+                    <a
+                      href={`/students/${existingHousehold.students[0].ps_code}`}
+                      target="_blank"
+                      style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+                    >
+                      View Profile <ExternalLink size={12} />
+                    </a>
+                  )}
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginTop: 14 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Delivery Address <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="House No, Street, City (e.g. No 45, Main Street, Kandy)"
+                    value={address}
+                    onChange={e => setAddress(e.target.value)}
+                    required
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Area / Delivery Route
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. Kandy Town"
+                    value={area}
+                    onChange={e => setArea(e.target.value)}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Student Details (Student Name is OPTIONAL) */}
+            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <UserPlus size={18} /> 2. Student Info (Student Name Optional)
+                </div>
+                <span style={{ fontSize: 11, background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>
+                  Auto-defaults to Parent's Child if empty
+                </span>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: 14, marginBottom: 14 }}>
@@ -410,14 +574,13 @@ export default function NewStudentPage() {
                 </div>
                 <div>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                    Student / Children Full Name(s)
+                    Student / Children Name(s) <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>(Optional)</span>
                   </label>
                   <input
                     className="input-field"
-                    placeholder="e.g. Kasun Perera (or: Kasun & Nethmi)"
+                    placeholder="e.g. Kasun Perera (Leave blank if unknown, will use Parent's Child)"
                     value={studentName}
                     onChange={e => setStudentName(e.target.value)}
-                    autoFocus
                   />
                 </div>
               </div>
@@ -463,12 +626,12 @@ export default function NewStudentPage() {
               </div>
             </div>
 
-            {/* Section 2: Class Enrollments & Multi-Subject / Sibling Classes */}
+            {/* Section 3: Class Enrollments & Multi-Subject / Sibling Classes */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Sparkles size={18} /> 2. Class Enrollments
+                    <Sparkles size={18} /> 3. Class Enrollments
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                     Add classes for this student or siblings in this home. All classes share this 1 PS Code.
@@ -488,7 +651,7 @@ export default function NewStudentPage() {
 
               {/* Dynamic Class Rows */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
-                {enrolledClasses.map((row, idx) => {
+                {enrolledClasses.map((row) => {
                   const coursesForThisGrade = gradeCourses[row.grade] || []
 
                   return (
@@ -588,35 +751,6 @@ export default function NewStudentPage() {
                 <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent-green)' }}>
                   Total Monthly Fee: Rs. {totalMonthlyFee.toLocaleString()}
                 </span>
-              </div>
-            </div>
-
-            {/* Section 3: Household & Postal Delivery Details */}
-            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 18, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Home size={18} /> 3. Household & Delivery Address
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Parent / Guardian Name</label>
-                  <input className="input-field" placeholder="Parent name" value={parentName} onChange={e => setParentName(e.target.value)} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Parent Contact Number</label>
-                  <input className="input-field" placeholder="07XXXXXXXX" value={parentPhone} onChange={e => setParentPhone(e.target.value)} />
-                </div>
-              </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginTop: 14 }}>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Delivery Address</label>
-                  <input className="input-field" placeholder="House No, Street, City" value={address} onChange={e => setAddress(e.target.value)} />
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Area / Delivery Route</label>
-                  <input className="input-field" placeholder="e.g. Colombo 07" value={area} onChange={e => setArea(e.target.value)} />
-                </div>
               </div>
             </div>
 
