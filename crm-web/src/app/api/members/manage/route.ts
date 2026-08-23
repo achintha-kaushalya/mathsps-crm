@@ -123,7 +123,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 'update_custom_courses') {
-      const { courses, fees } = body
+      const { courses, fees, grade_courses } = body
 
       // Get current admin user metadata
       const { data: adminMem } = await supabaseAdmin
@@ -132,7 +132,7 @@ export async function POST(request: Request) {
         .eq('id', memberId)
         .single()
 
-      let existingNotes = {}
+      let existingNotes: any = {}
       try {
         if (adminMem?.notes) {
           existingNotes = JSON.parse(adminMem.notes)
@@ -142,7 +142,8 @@ export async function POST(request: Request) {
       const notesStr = JSON.stringify({
         ...existingNotes,
         custom_courses: courses || {},
-        class_fees: fees || {}
+        class_fees: fees || {},
+        grade_courses: grade_courses || existingNotes?.grade_courses || {}
       })
 
       const { data: member, error: dbErr } = await supabaseAdmin
