@@ -581,7 +581,7 @@ function AddPaymentForm() {
         const balBefore = bVal
         const balAfter = balBefore + amountPaid - amountDue
 
-        // Insert payment record
+        // Insert payment record (balance_after is automatically computed by PostgreSQL GENERATED column)
         const { error: pErr } = await supabase.from('payments').insert({
           student_id: student.id,
           class_type: r.courseCode,
@@ -590,7 +590,6 @@ function AddPaymentForm() {
           amount_due: amountDue,
           amount_paid: amountPaid,
           balance_before: balBefore,
-          balance_after: balAfter,
           payment_type: form.payment_type,
           bank_name: form.payment_type === 'BANK' ? form.bank_name : null,
           date_paid: form.date_paid,
