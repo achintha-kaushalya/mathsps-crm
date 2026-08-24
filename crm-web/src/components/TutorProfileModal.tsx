@@ -19,7 +19,7 @@ export const TUTOR_PROFILES: TutorProfile[] = [
   {
     id: 'prabuddha',
     name: 'Prabuddha Sampath',
-    title: 'Lead Mathematics Tutor',
+    title: 'Mathematics Tutor',
     codePrefix: 'PS',
     subject: 'Mathematics (Theory & Revision)',
     image: '/prabuddha-profile.jpg',
@@ -29,9 +29,9 @@ export const TUTOR_PROFILES: TutorProfile[] = [
   {
     id: 'sanduni',
     name: 'Sanduni Malshika',
-    title: 'Mathematics Tutor',
+    title: 'English Tutor',
     codePrefix: 'SM',
-    subject: 'Mathematics (Theory & Paper Class)',
+    subject: 'English (Language & Literature)',
     image: '/sanduni-profile.jpg',
     themeColor: '#ec4899',
     bgGradient: 'linear-gradient(135deg, rgba(236, 72, 153, 0.22), rgba(168, 85, 247, 0.22))',
