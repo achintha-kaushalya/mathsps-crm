@@ -745,153 +745,86 @@ function AddPaymentForm() {
         {student && (
           <>
             {/* ========================================================================= */}
-            {/* HOUSEHOLD & DELIVERY DETAILS VERIFICATION / LIVE UPDATE PANEL             */}
+            {/* 2. Household & Delivery Details (Required) - Same UI as Register Student */}
             {/* ========================================================================= */}
-            <div className="glass-card" style={{ padding: 22, marginBottom: 20, border: '1px solid rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.03)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Home size={18} /> Household Contact &amp; Delivery Verification
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Verify parent name, phone number, and parcel delivery address. Update immediately if the student moved or changed phone number.
-                  </div>
+            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+                <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Home size={18} /> 2. Household & Delivery Details (Required)
                 </div>
-
-                {!editingHousehold ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {householdSavedSuccess && (
+                    <span style={{ fontSize: 12, color: '#34d399', fontWeight: 600 }}>
+                      ✓ Updated Successfully!
+                    </span>
+                  )}
                   <button
                     type="button"
-                    onClick={() => {
-                      const hh = (student as any).household || {}
-                      setParentNameInput(hh.parent_name || '')
-                      setParentPhoneInput(hh.parent_phone || '')
-                      setAddressInput(hh.address || '')
-                      setAreaInput(hh.area || '')
-                      setEditingHousehold(true)
-                    }}
+                    onClick={saveHouseholdDetails}
+                    disabled={savingHousehold}
                     className="btn-secondary"
-                    style={{ padding: '5px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, borderColor: 'rgba(245,158,11,0.4)', color: '#f59e0b' }}
+                    style={{ padding: '4px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, borderColor: 'var(--accent-purple)', color: 'var(--accent-purple)' }}
                   >
-                    <Edit3 size={13} /> Edit / Change Address or Phone
+                    {savingHousehold ? 'Saving...' : '💾 Update & Save Changes'}
                   </button>
-                ) : (
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button
-                      type="button"
-                      onClick={saveHouseholdDetails}
-                      disabled={savingHousehold}
-                      className="btn-primary"
-                      style={{ padding: '5px 12px', fontSize: 12, background: '#10b981' }}
-                    >
-                      {savingHousehold ? 'Saving...' : '✓ Save Household Updates'}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setEditingHousehold(false)}
-                      className="btn-secondary"
-                      style={{ padding: '5px 12px', fontSize: 12 }}
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                )}
+                  <span style={{ fontSize: 11, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
+                    * Required for Delivery & Contact
+                  </span>
+                </div>
               </div>
 
-              {householdSavedSuccess && (
-                <div style={{ padding: '8px 12px', background: 'rgba(16,185,129,0.15)', color: '#34d399', borderRadius: 6, fontSize: 12, marginBottom: 12 }}>
-                  ✓ Household and delivery address updated successfully in the system database!
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Parent / Guardian Name <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. Sunil Perera"
+                    value={parentNameInput}
+                    onChange={e => setParentNameInput(e.target.value)}
+                    required
+                  />
                 </div>
-              )}
-
-              {!editingHousehold ? (
-                <div style={{
-                  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14,
-                  padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)'
-                }}>
-                  <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Parent / Householder Name</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: (student?.household as any)?.parent_name ? 'var(--text-primary)' : 'var(--accent-red)' }}>
-                      {(student?.household as any)?.parent_name || '⚠ Parent Name Missing'}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Parent Phone Number</div>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: (student?.household as any)?.parent_phone ? 'var(--accent-blue)' : 'var(--accent-red)' }}>
-                      {(student?.household as any)?.parent_phone ? `📞 ${(student?.household as any)?.parent_phone}` : '⚠ Phone Number Missing'}
-                    </div>
-                  </div>
-
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Postal Delivery Address &amp; Area</div>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: (student?.household as any)?.address ? 'var(--text-primary)' : 'var(--accent-red)' }}>
-                      📍 {(student?.household as any)?.address || '⚠ No postal delivery address registered yet!'}
-                    </div>
-                    {(student?.household as any)?.area && (
-                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                        Route / City Area: <b>{(student?.household as any)?.area}</b>
-                      </div>
-                    )}
-                  </div>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Parent Contact Number <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="07XXXXXXXX (e.g. 0771234567)"
+                    value={parentPhoneInput}
+                    onChange={e => setParentPhoneInput(e.target.value)}
+                    required
+                  />
                 </div>
-              ) : (
-                <div style={{
-                  padding: 16, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)',
-                  display: 'flex', flexDirection: 'column', gap: 12
-                }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                        Parent / Householder Name (Required)
-                      </label>
-                      <input
-                        className="input-field"
-                        placeholder="e.g. Sunil Perera"
-                        value={parentNameInput}
-                        onChange={e => setParentNameInput(e.target.value)}
-                      />
-                    </div>
+              </div>
 
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                        Parent Phone Number (10-Digits)
-                      </label>
-                      <input
-                        className="input-field"
-                        placeholder="e.g. 0771234567"
-                        value={parentPhoneInput}
-                        onChange={e => setParentPhoneInput(e.target.value)}
-                      />
-                    </div>
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                        Postal Delivery Address (Street / City)
-                      </label>
-                      <input
-                        className="input-field"
-                        placeholder="e.g. No 45, Temple Road, Kandy"
-                        value={addressInput}
-                        onChange={e => setAddressInput(e.target.value)}
-                      />
-                    </div>
-
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                        Delivery Area / Route
-                      </label>
-                      <input
-                        className="input-field"
-                        placeholder="e.g. Kandy Town"
-                        value={areaInput}
-                        onChange={e => setAreaInput(e.target.value)}
-                      />
-                    </div>
-                  </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginTop: 14 }}>
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Delivery Address <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="House No, Street, City (e.g. No 45, Main Street, Kandy)"
+                    value={addressInput}
+                    onChange={e => setAddressInput(e.target.value)}
+                    required
+                  />
                 </div>
-              )}
+                <div>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Area / Delivery Route
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. Kandy Town"
+                    value={areaInput}
+                    onChange={e => setAreaInput(e.target.value)}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Step 2: Payment Class Selection */}
