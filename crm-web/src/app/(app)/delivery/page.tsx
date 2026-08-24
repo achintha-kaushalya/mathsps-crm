@@ -134,11 +134,13 @@ export default function DeliveryPage() {
             dispatched_at: dispatchedAt,
           })
         }
+      })
 
-        // If any item in this household is not dispatched, household shows as unexported
-        if (!isItemDispatched) {
-          groupedMap[key].isDispatched = false
-        }
+      // Determine household dispatch status:
+      // A household has pending items if at least one class item is NOT dispatched
+      Object.values(groupedMap).forEach(group => {
+        const hasPendingItems = group.students.some(st => !st.dispatched)
+        group.isDispatched = !hasPendingItems
       })
 
       let result = Object.values(groupedMap)
@@ -161,17 +163,21 @@ export default function DeliveryPage() {
   }
 
   // Filter based on active tab ('unexported' vs 'dispatched') + search
+  // When activeTab === 'unexported', we only consider the pending (un-dispatched) students
   const visibleGroups = allGroups
     .filter(g => (activeTab === 'unexported' ? !g.isDispatched : g.isDispatched))
     .filter(g => {
       if (!search.trim()) return true
       const s = search.toLowerCase()
+      const targetStudents = activeTab === 'unexported'
+        ? g.students.filter(st => !st.dispatched)
+        : g.students
       return (
         g.parent_name.toLowerCase().includes(s) ||
         g.address.toLowerCase().includes(s) ||
         g.area.toLowerCase().includes(s) ||
         g.parent_phone.toLowerCase().includes(s) ||
-        g.students.some(st => st.ps_code.toLowerCase().includes(s) || st.full_name.toLowerCase().includes(s))
+        targetStudents.some(st => st.ps_code.toLowerCase().includes(s) || st.full_name.toLowerCase().includes(s))
       )
     })
 
@@ -228,7 +234,10 @@ export default function DeliveryPage() {
     const paymentIdsToUpdate: string[] = []
 
     targetGroups.forEach(g => {
-      g.students.forEach(st => {
+      // In unexported tab, only export pending items so previous dispatched sibling tutes are not duplicated
+      const itemsToExport = activeTab === 'unexported' ? g.students.filter(st => !st.dispatched) : g.students
+
+      itemsToExport.forEach(st => {
         paymentIdsToUpdate.push(st.paymentId)
         rows.push([
           `"${batchTag}"`,
@@ -339,7 +348,12 @@ export default function DeliveryPage() {
         </head>
         <body onload="window.print()">
           <div class="grid">
-            ${targetGroups.map(g => `
+            ${targetGroups.map(g => {
+              const studentsToPrint = activeTab === 'unexported'
+                ? g.students.filter(st => !st.dispatched)
+                : g.students
+
+              return `
               <div class="card">
                 <div>
                   <div class="header">
@@ -352,14 +366,14 @@ export default function DeliveryPage() {
                 </div>
                 <div class="pack-list">
                   <div class="pack-title">TUTES INSIDE THIS ENVELOPE:</div>
-                  ${g.students.map(st => `
+                  ${studentsToPrint.map(st => `
                     <div class="item">
                       ✔ <b>[${st.ps_code}]</b> ${st.full_name} (Gr ${st.grade}) — ${CLASS_LABELS[st.class_type] || st.class_type}
                     </div>
                   `).join('')}
                 </div>
               </div>
-            `).join('')}
+            `}).join('')}
           </div>
         </body>
       </html>
@@ -369,7 +383,12 @@ export default function DeliveryPage() {
   const selectedCount = visibleGroups.filter(g => selectedHouseholds.has(g.household_id)).length
   const totalTutesSelected = visibleGroups
     .filter(g => selectedHouseholds.has(g.household_id))
-    .reduce((acc, g) => acc + g.students.length, 0)
+    .reduce((acc, g) => {
+      const count = activeTab === 'unexported'
+        ? g.students.filter(st => !st.dispatched).length
+        : g.students.length
+      return acc + count
+    }, 0)
 
   return (
     <div className="fade-in" style={{ paddingBottom: 60 }}>
@@ -603,17 +622,50 @@ export default function DeliveryPage() {
 
                     {/* Included Tutes List */}
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-                      Included Tutes:
+                      {activeTab === 'unexported' ? 'Tutes for this delivery:' : 'Included Tutes:'}
                     </div>
 
-                    {g.students.map(st => (
-                      <div key={`${st.ps_code}-${st.class_type}`} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, marginBottom: 4 }}>
-                        <Package size={14} style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
-                        <span>
-                          <strong style={{ color: 'var(--accent-blue)' }}>{st.ps_code}</strong> · {st.full_name} (Gr {st.grade}) — {CLASS_LABELS[st.class_type] || st.class_type}
-                        </span>
-                      </div>
-                    ))}
+                    {g.students.map(st => {
+                      const isPending = !st.dispatched
+
+                      return (
+                        <div
+                          key={`${st.ps_code}-${st.class_type}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: 8,
+                            fontSize: 12,
+                            marginBottom: 6,
+                            padding: '4px 8px',
+                            borderRadius: 6,
+                            background: isPending ? 'rgba(59,130,246,0.06)' : 'rgba(255,255,255,0.02)',
+                            border: `1px solid ${isPending ? 'rgba(59,130,246,0.2)' : 'var(--border)'}`
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                            <Package size={14} style={{ color: isPending ? 'var(--accent-blue)' : '#10b981', flexShrink: 0 }} />
+                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              <strong style={{ color: 'var(--accent-blue)' }}>{st.ps_code}</strong> · {st.full_name} (Gr {st.grade}) — {CLASS_LABELS[st.class_type] || st.class_type}
+                            </span>
+                          </div>
+
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: 4,
+                            whiteSpace: 'nowrap',
+                            background: isPending ? 'rgba(249,115,22,0.15)' : 'rgba(16,185,129,0.15)',
+                            color: isPending ? '#fb923c' : '#34d399',
+                            border: `1px solid ${isPending ? 'rgba(249,115,22,0.3)' : 'rgba(16,185,129,0.3)'}`
+                          }}>
+                            {isPending ? '📦 NEW' : '✓ DISPATCHED'}
+                          </span>
+                        </div>
+                      )
+                    })}
                   </div>
 
                   {/* Batch Information / Revert Button for Dispatched History */}
