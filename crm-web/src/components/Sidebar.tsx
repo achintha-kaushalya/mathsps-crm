@@ -9,6 +9,7 @@ import {
   Truck, BarChart2, Settings, Building2, UserPlus, BookOpen
 } from 'lucide-react'
 import { clsx } from 'clsx'
+import ThemeToggle from './ThemeToggle'
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -189,16 +190,14 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-          v1.0 · Protected
-        </div>
+      <div style={{ padding: '12px 16px', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+        <ThemeToggle />
         <button
           onClick={async () => {
             await supabase.auth.signOut()
             window.location.href = '/login'
           }}
-          style={{ background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 12, fontWeight: 500 }}
+          style={{ background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', fontSize: 12, fontWeight: 600 }}
         >
           Sign Out
         </button>
