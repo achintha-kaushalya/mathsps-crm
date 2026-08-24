@@ -27,10 +27,6 @@ export default function StudentsPage() {
   async function loadStudents(p: number) {
     setLoading(true)
     try {
-      let q = supabase.from('students').select(`
-        *, household:households(parent_name, address, area)
-      `, { count: 'exact' })
-
       const activeTutor = typeof window !== 'undefined' ? (localStorage.getItem('mathsps_active_tutor') || 'prabuddha') : 'prabuddha'
       const tutorPrefix = activeTutor === 'sanduni' ? 'SM' : 'PS'
 
@@ -39,70 +35,79 @@ export default function StudentsPage() {
         const cleanDigits = raw.replace(/\D/g, '')
         const cleanCode = raw.toUpperCase().replace(/\s+/g, '')
 
-        // Build targeted OR conditions:
-        // 1. Exact match PS code (e.g. PS67)
-        // 2. Starts with code (e.g. PS67%)
-        // 3. Name or school contains search string
+        // 1. Fetch exact match first to guarantee it is NEVER pushed off by 10,000 placeholder rows
+        let exactMatch: Student | null = null
+        const { data: exact1 } = await supabase.from('students').select(`
+          *, household:households(parent_name, address, area)
+        `).ilike('ps_code', cleanCode).maybeSingle()
+
+        if (exact1) {
+          exactMatch = exact1 as Student
+        } else if (cleanDigits) {
+          const { data: exact2 } = await supabase.from('students').select(`
+            *, household:households(parent_name, address, area)
+          `).ilike('ps_code', `${tutorPrefix}${cleanDigits}`).maybeSingle()
+          if (exact2) exactMatch = exact2 as Student
+        }
+
+        // 2. Fetch candidates matching prefix, name, or school
         const orClauses: string[] = [
-          `ps_code.ilike.${cleanCode}`,
           `ps_code.ilike.${cleanCode}%`,
           `full_name.ilike.%${raw}%`,
           `school.ilike.%${raw}%`
         ]
-
         if (cleanDigits) {
-          orClauses.push(`ps_code.ilike.${tutorPrefix}${cleanDigits}`)
           orClauses.push(`ps_code.ilike.${tutorPrefix}${cleanDigits}%`)
-          orClauses.push(`ps_code.ilike.%${cleanDigits}%`)
-        } else {
-          orClauses.push(`ps_code.ilike.%${cleanCode}%`)
         }
 
-        q = q.or(orClauses.join(','))
-      } else {
-        // Filter by active tutor's code prefix if no search query
-        q = q.ilike('ps_code', `${tutorPrefix}%`)
-      }
-      if (gradeFilter) q = q.eq('grade', parseInt(gradeFilter))
+        let q = supabase.from('students').select(`
+          *, household:households(parent_name, address, area)
+        `, { count: 'exact' }).or(orClauses.join(','))
 
-      q = q.order('created_at', { ascending: false }).range(p * PAGE_SIZE, (p + 1) * PAGE_SIZE - 1)
-      const { data, count } = await q
+        if (gradeFilter) q = q.eq('grade', parseInt(gradeFilter))
 
-      // Smart Sorting for Search Results:
-      // 1. Exact match code first (e.g. PS67)
-      // 2. Code starting with search (e.g. PS675)
-      // 3. Real registered students (with full_name) before unassigned placeholder slots
-      // 4. Shortest code length
-      const rawSearch = search.trim().toUpperCase().replace(/\s+/g, '')
-      const sortedData = (data || []).sort((a, b) => {
-        if (rawSearch) {
+        const { data, count } = await q.limit(100)
+
+        // Combine exact match + search candidates without duplicates
+        let combined = data || []
+        if (exactMatch) {
+          combined = [exactMatch, ...combined.filter(s => s.id !== exactMatch?.id)]
+        }
+
+        // Sort candidates:
+        // 1. Exact match (e.g. PS67)
+        // 2. Real registered students (with actual full_name)
+        // 3. Shortest code length
+        const sortedData = combined.sort((a, b) => {
           const aCode = (a.ps_code || '').toUpperCase()
           const bCode = (b.ps_code || '').toUpperCase()
 
-          // Exact match
-          if (aCode === rawSearch && bCode !== rawSearch) return -1
-          if (bCode === rawSearch && aCode !== rawSearch) return 1
+          if (aCode === cleanCode && bCode !== cleanCode) return -1
+          if (bCode === cleanCode && aCode !== cleanCode) return 1
 
-          // Starts with search code
-          const aStarts = aCode.startsWith(rawSearch)
-          const bStarts = bCode.startsWith(rawSearch)
-          if (aStarts && !bStarts) return -1
-          if (!aStarts && bStarts) return 1
-
-          // Real registered students (having actual names) rank higher
           const aHasName = !!(a.full_name && a.full_name !== 'System Auto-Pre-generated')
           const bHasName = !!(b.full_name && b.full_name !== 'System Auto-Pre-generated')
           if (aHasName && !bHasName) return -1
           if (!aHasName && bHasName) return 1
 
-          // Shorter codes first (PS67 before PS6700)
           return aCode.length - bCode.length
-        }
-        return 0
-      })
+        })
 
-      setStudents(sortedData)
-      setTotal(count || 0)
+        setStudents(sortedData.slice(p * PAGE_SIZE, (p + 1) * PAGE_SIZE))
+        setTotal(Math.max(count || 0, exactMatch ? 1 : 0))
+      } else {
+        // No search query: standard pagination
+        let q = supabase.from('students').select(`
+          *, household:households(parent_name, address, area)
+        `, { count: 'exact' }).ilike('ps_code', `${tutorPrefix}%`)
+
+        if (gradeFilter) q = q.eq('grade', parseInt(gradeFilter))
+
+        q = q.order('created_at', { ascending: false }).range(p * PAGE_SIZE, (p + 1) * PAGE_SIZE - 1)
+        const { data, count } = await q
+        setStudents(data || [])
+        setTotal(count || 0)
+      }
     } finally {
       setLoading(false)
     }
