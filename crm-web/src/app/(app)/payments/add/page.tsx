@@ -3,7 +3,7 @@
 import { useState, useEffect, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { ArrowLeft, Search, Plus, Trash2, CreditCard } from 'lucide-react'
+import { ArrowLeft, Search, Plus, Trash2, CreditCard, Home, Phone, User, MapPin, CheckCircle, Edit3, ShieldAlert } from 'lucide-react'
 import { MONTH_NAMES, Student, Enrollment, StudentBalance } from '@/lib/types'
 import { DEFAULT_GRADE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
 
@@ -20,6 +20,21 @@ interface PaymentClassItem {
   amountPaid: string
   currentBalance: number
   suggested: number
+}
+
+// Sri Lanka phone normalizer: returns 10-digit 07XXXXXXXX or formatted string
+function normalizePhone(raw: string): string {
+  const digits = raw.replace(/\D/g, '')
+  if (digits.startsWith('94') && digits.length === 11) {
+    return '0' + digits.slice(2)
+  }
+  if (digits.length === 9 && digits.startsWith('7')) {
+    return '0' + digits
+  }
+  if (digits.length === 10 && digits.startsWith('07')) {
+    return digits
+  }
+  return raw
 }
 
 function AddPaymentForm() {
@@ -60,6 +75,21 @@ function AddPaymentForm() {
   const [searchResults, setSearchResults] = useState<Student[]>([])
   const [searching, setSearching] = useState(false)
   const [showDropdown, setShowDropdown] = useState(false)
+
+  // Student Profile Edit State
+  const [editingStudent, setEditingStudent] = useState(false)
+  const [editName, setEditName] = useState('')
+  const [editGrade, setEditGrade] = useState<number | ''>(11)
+  const [savingStudent, setSavingStudent] = useState(false)
+
+  // Household & Delivery Verification / Live Edit State
+  const [editingHousehold, setEditingHousehold] = useState(false)
+  const [parentNameInput, setParentNameInput] = useState('')
+  const [parentPhoneInput, setParentPhoneInput] = useState('')
+  const [addressInput, setAddressInput] = useState('')
+  const [areaInput, setAreaInput] = useState('')
+  const [savingHousehold, setSavingHousehold] = useState(false)
+  const [householdSavedSuccess, setHouseholdSavedSuccess] = useState(false)
 
   const channelRef = useRef<any>(null)
   const isAdmin = currentUserRole === 'admin' || currentUserRole === 'owner' || (memberName && memberName.toLowerCase().includes('admin'))
@@ -161,28 +191,21 @@ function AddPaymentForm() {
     })
   }, [psSearch])
 
-  const [editingStudent, setEditingStudent] = useState(false)
-  const [editName, setEditName] = useState('')
-  const [editGrade, setEditGrade] = useState<number | ''>(11)
-  const [savingStudent, setSavingStudent] = useState(false)
-
-  const [editingAddress, setEditingAddress] = useState(false)
-  const [addressInput, setAddressInput] = useState('')
-  const [areaInput, setAreaInput] = useState('')
-  const [savingAddress, setSavingAddress] = useState(false)
-
   function selectStudent(selectedStu: any) {
     setStudent(selectedStu)
     setPsSearch(selectedStu.ps_code)
     setShowDropdown(false)
     setError('')
     setEditingStudent(false)
-    setEditingAddress(false)
+    setEditingHousehold(false)
+    setHouseholdSavedSuccess(false)
 
     setEditName(selectedStu.full_name || '')
     setEditGrade(selectedStu.grade || 11)
 
     const hh = selectedStu.household || {}
+    setParentNameInput(hh.parent_name || '')
+    setParentPhoneInput(hh.parent_phone || '')
     setAddressInput(hh.address || '')
     setAreaInput(hh.area || '')
 
@@ -398,28 +421,39 @@ function AddPaymentForm() {
     }
   }
 
-  async function saveAddress() {
+  // Live save / update Household & Delivery Information
+  async function saveHouseholdDetails() {
     if (!student) return
-    setSavingAddress(true)
+    setSavingHousehold(true)
+    setHouseholdSavedSuccess(false)
     try {
       const hh = (student as any).household
+      const normPhone = normalizePhone(parentPhoneInput.trim())
+
       if (hh?.id) {
         const { error: hhErr } = await supabase.from('households').update({
+          parent_name: parentNameInput.trim() || null,
+          parent_phone: normPhone || null,
           address: addressInput.trim() || null,
           area: areaInput.trim() || null,
         }).eq('id', hh.id)
 
         if (hhErr) throw hhErr
+
         setStudent({
           ...student,
           household: {
             ...hh,
+            parent_name: parentNameInput.trim(),
+            parent_phone: normPhone,
             address: addressInput.trim(),
             area: areaInput.trim(),
           }
         } as any)
       } else {
         const { data: newHh, error: hhErr } = await supabase.from('households').insert({
+          parent_name: parentNameInput.trim() || null,
+          parent_phone: normPhone || null,
           address: addressInput.trim() || null,
           area: areaInput.trim() || null,
         }).select().single()
@@ -433,11 +467,13 @@ function AddPaymentForm() {
           household: newHh
         } as any)
       }
-      setEditingAddress(false)
+      setEditingHousehold(false)
+      setHouseholdSavedSuccess(true)
+      setTimeout(() => setHouseholdSavedSuccess(false), 4000)
     } catch (e: any) {
-      alert('Failed to save address: ' + e.message)
+      alert('Failed to save household details: ' + e.message)
     } finally {
-      setSavingAddress(false)
+      setSavingHousehold(false)
     }
   }
 
@@ -500,39 +536,50 @@ function AddPaymentForm() {
 
         let amountPaid = 0
         if (['FREE', 'IMS'].includes(form.payment_type)) {
-          amountPaid = 0
+          amountPaid = amountDue
         } else {
           amountPaid = parseFloat(r.amountPaid) || 0
         }
 
-        const { error: err } = await supabase.from('payments').upsert({
+        const balBefore = bVal
+        const balAfter = balBefore + amountPaid - amountDue
+
+        // Insert payment record
+        const { error: pErr } = await supabase.from('payments').insert({
           student_id: student.id,
           class_type: r.courseCode,
           month: form.month,
           year: form.year,
           amount_due: amountDue,
           amount_paid: amountPaid,
-          balance_before: bVal,
+          balance_before: balBefore,
+          balance_after: balAfter,
           payment_type: form.payment_type,
           bank_name: form.payment_type === 'BANK' ? form.bank_name : null,
-          date_paid: form.payment_type !== 'FREE' ? form.date_paid : null,
+          date_paid: form.date_paid,
           added_to_group: form.added_to_group,
           tute_delivered: form.tute_delivered,
-          notes: form.notes || null,
           recorded_by: memberName.trim(),
-        }, { onConflict: 'student_id,class_type,month,year' })
+          notes: form.notes || null,
+        })
 
-        if (err) throw err
+        if (pErr) throw pErr
+
+        // Update student balance ledger
+        await supabase.from('student_balances').upsert({
+          student_id: student.id,
+          class_type: r.courseCode,
+          current_balance: balAfter,
+          last_payment_date: form.date_paid,
+          last_payment_amount: amountPaid,
+        }, { onConflict: 'student_id,class_type' })
       }
 
       setSaved(true)
-      setTimeout(() => setSaved(false), 3500)
-
-      // Reload student data
-      await loadStudentClasses(student)
-
+      // Refresh balances & enrollments
+      loadStudentClasses(student)
     } catch (e: any) {
-      setError(e.message)
+      setError(e.message || 'Failed to save payment')
     } finally {
       setSaving(false)
     }
@@ -542,45 +589,55 @@ function AddPaymentForm() {
   const totalAmountToPay = selectedRows.reduce((sum, r) => sum + (parseFloat(r.amountPaid) || 0), 0)
 
   return (
-    <div className="fade-in" style={{ paddingBottom: 60 }}>
+    <div className="fade-in" style={{ maxWidth: 840, margin: '0 auto', paddingBottom: 60 }}>
+      {/* Back button */}
+      <div style={{ marginBottom: 16 }}>
+        <a href="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: 13, textDecoration: 'none' }}>
+          <ArrowLeft size={16} /> Back to Dashboard
+        </a>
+      </div>
+
       <div className="page-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <a href="/students" className="btn-secondary" style={{ padding: '6px 10px' }}><ArrowLeft size={14} /></a>
-          <div>
-            <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>Add Payment</h1>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-              Record a student payment for one or multiple classes/grades under this PS Code
-            </div>
+        <div>
+          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+            <CreditCard size={22} style={{ color: 'var(--accent-blue)' }} /> Record Batch Payment &amp; Verify Household
+          </h1>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+            Search student PS code, verify &amp; update delivery details, and record class payments in 1 click
           </div>
         </div>
       </div>
 
-      <div className="page-content" style={{ maxWidth: 740 }}>
-
-        {/* Step 1: Find student */}
+      <div className="page-content" style={{ marginTop: 20 }}>
+        {/* Step 1: Search Student PS Code */}
         <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14, color: 'var(--accent-blue)' }}>
-            1. Find Student
+          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: 'var(--accent-blue)' }}>
+            1. Search Student by PS Code
           </div>
           <div style={{ position: 'relative' }}>
             <div style={{ display: 'flex', gap: 10 }}>
-              <input className="input-field" placeholder="Search by PS Code (e.g. 5000, ps 5000) or Student Name"
-                value={psSearch} onChange={e => setPsSearch(e.target.value)}
-                onFocus={() => psSearch.trim() && setShowDropdown(true)}
-                onKeyDown={e => e.key === 'Enter' && searchStudent()}
-                autoFocus
-              />
-              <button className="btn-primary" onClick={searchStudent}>
-                <Search size={14} /> Search
+              <div style={{ position: 'relative', flex: 1 }}>
+                <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  className="search-bar"
+                  style={{ width: '100%', paddingLeft: 38, fontSize: 14 }}
+                  placeholder="Type PS Code or Name (e.g. PS5000, SM20, Kasun...)"
+                  value={psSearch}
+                  onChange={e => setPsSearch(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && searchStudent()}
+                />
+              </div>
+              <button className="btn-primary" onClick={searchStudent} style={{ padding: '0 20px', fontSize: 13 }}>
+                Search
               </button>
             </div>
 
-            {/* Live Search Suggestions Dropdown */}
+            {/* Dropdown search suggestions */}
             {showDropdown && searchResults.length > 0 && (
               <div style={{
-                position: 'absolute', top: '100%', left: 0, right: 90, marginTop: 4,
-                background: '#131c2e', border: '1px solid var(--border)', borderRadius: 8,
-                zIndex: 50, maxHeight: 240, overflowY: 'auto', boxShadow: '0 10px 25px rgba(0,0,0,0.5)'
+                position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
+                background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
+                marginTop: 4, maxHeight: 240, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
               }}>
                 {searchResults.map(s => (
                   <div
@@ -609,9 +666,11 @@ function AddPaymentForm() {
 
           {/* Student Profile Card */}
           {student && (
-            <div style={{ marginTop: 16, padding: 14, background: 'rgba(59,130,246,0.06)', borderRadius: 8, border: '1px solid rgba(59,130,246,0.2)' }}>
+            <div style={{ marginTop: 16, padding: 16, background: 'rgba(59,130,246,0.06)', borderRadius: 10, border: '1px solid rgba(59,130,246,0.2)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 600, color: '#10b981' }}>✓ Selected Student: {student.ps_code}</div>
+                <div style={{ fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <CheckCircle size={16} /> Selected Student PS Code: <span style={{ color: 'var(--text-primary)' }}>{student.ps_code}</span>
+                </div>
                 {!editingStudent ? (
                   <button
                     type="button"
@@ -621,9 +680,9 @@ function AddPaymentForm() {
                       setEditingStudent(true)
                     }}
                     className="btn-secondary"
-                    style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                    style={{ padding: '4px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
                   >
-                    ✏ Edit Student Details
+                    <Edit3 size={12} /> Edit Student Name &amp; Grade
                   </button>
                 ) : (
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -632,7 +691,7 @@ function AddPaymentForm() {
                       onClick={saveStudentProfile}
                       disabled={savingStudent}
                       className="btn-primary"
-                      style={{ padding: '3px 8px', fontSize: 11 }}
+                      style={{ padding: '4px 10px', fontSize: 11 }}
                     >
                       {savingStudent ? 'Saving...' : '✓ Save Profile'}
                     </button>
@@ -640,7 +699,7 @@ function AddPaymentForm() {
                       type="button"
                       onClick={() => setEditingStudent(false)}
                       className="btn-secondary"
-                      style={{ padding: '3px 8px', fontSize: 11 }}
+                      style={{ padding: '4px 10px', fontSize: 11 }}
                     >
                       Cancel
                     </button>
@@ -649,22 +708,15 @@ function AddPaymentForm() {
               </div>
 
               {!editingStudent ? (
-                <>
-                  <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 6 }}>
-                    <span style={{ fontWeight: 600, color: student.full_name ? 'var(--text-primary)' : 'var(--accent-red)' }}>
-                      {student.full_name || '⚠ No name set'}
-                    </span> · Grade {student.grade || '?'}
-                  </div>
-                  {(student.household as any)?.address && (
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                      📍 {(student.household as any).address}
-                    </div>
-                  )}
-                </>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>
+                  <span style={{ fontWeight: 600, color: student.full_name ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                    {student.full_name || '⚠ Optional Student Name not set'}
+                  </span> · <span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>Grade {student.grade || '?'}</span>
+                </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
                   <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Student Full Name</label>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Student Full Name (Optional)</label>
                     <input
                       className="input-field"
                       placeholder="e.g. Kasun Perera"
@@ -673,7 +725,7 @@ function AddPaymentForm() {
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Grade</label>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Primary Grade</label>
                     <select
                       className="input-field"
                       value={editGrade}
@@ -692,12 +744,162 @@ function AddPaymentForm() {
 
         {student && (
           <>
+            {/* ========================================================================= */}
+            {/* HOUSEHOLD & DELIVERY DETAILS VERIFICATION / LIVE UPDATE PANEL             */}
+            {/* ========================================================================= */}
+            <div className="glass-card" style={{ padding: 22, marginBottom: 20, border: '1px solid rgba(245,158,11,0.25)', background: 'rgba(245,158,11,0.03)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Home size={18} /> Household Contact &amp; Delivery Verification
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Verify parent name, phone number, and parcel delivery address. Update immediately if the student moved or changed phone number.
+                  </div>
+                </div>
+
+                {!editingHousehold ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const hh = (student as any).household || {}
+                      setParentNameInput(hh.parent_name || '')
+                      setParentPhoneInput(hh.parent_phone || '')
+                      setAddressInput(hh.address || '')
+                      setAreaInput(hh.area || '')
+                      setEditingHousehold(true)
+                    }}
+                    className="btn-secondary"
+                    style={{ padding: '5px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, borderColor: 'rgba(245,158,11,0.4)', color: '#f59e0b' }}
+                  >
+                    <Edit3 size={13} /> Edit / Change Address or Phone
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      type="button"
+                      onClick={saveHouseholdDetails}
+                      disabled={savingHousehold}
+                      className="btn-primary"
+                      style={{ padding: '5px 12px', fontSize: 12, background: '#10b981' }}
+                    >
+                      {savingHousehold ? 'Saving...' : '✓ Save Household Updates'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEditingHousehold(false)}
+                      className="btn-secondary"
+                      style={{ padding: '5px 12px', fontSize: 12 }}
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {householdSavedSuccess && (
+                <div style={{ padding: '8px 12px', background: 'rgba(16,185,129,0.15)', color: '#34d399', borderRadius: 6, fontSize: 12, marginBottom: 12 }}>
+                  ✓ Household and delivery address updated successfully in the system database!
+                </div>
+              )}
+
+              {!editingHousehold ? (
+                <div style={{
+                  display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14,
+                  padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)'
+                }}>
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Parent / Householder Name</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: (student?.household as any)?.parent_name ? 'var(--text-primary)' : 'var(--accent-red)' }}>
+                      {(student?.household as any)?.parent_name || '⚠ Parent Name Missing'}
+                    </div>
+                  </div>
+
+                  <div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Parent Phone Number</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: (student?.household as any)?.parent_phone ? 'var(--accent-blue)' : 'var(--accent-red)' }}>
+                      {(student?.household as any)?.parent_phone ? `📞 ${(student?.household as any)?.parent_phone}` : '⚠ Phone Number Missing'}
+                    </div>
+                  </div>
+
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 2 }}>Postal Delivery Address &amp; Area</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: (student?.household as any)?.address ? 'var(--text-primary)' : 'var(--accent-red)' }}>
+                      📍 {(student?.household as any)?.address || '⚠ No postal delivery address registered yet!'}
+                    </div>
+                    {(student?.household as any)?.area && (
+                      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                        Route / City Area: <b>{(student?.household as any)?.area}</b>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div style={{
+                  padding: 16, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)',
+                  display: 'flex', flexDirection: 'column', gap: 12
+                }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                        Parent / Householder Name (Required)
+                      </label>
+                      <input
+                        className="input-field"
+                        placeholder="e.g. Sunil Perera"
+                        value={parentNameInput}
+                        onChange={e => setParentNameInput(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                        Parent Phone Number (10-Digits)
+                      </label>
+                      <input
+                        className="input-field"
+                        placeholder="e.g. 0771234567"
+                        value={parentPhoneInput}
+                        onChange={e => setParentPhoneInput(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 12 }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                        Postal Delivery Address (Street / City)
+                      </label>
+                      <input
+                        className="input-field"
+                        placeholder="e.g. No 45, Temple Road, Kandy"
+                        value={addressInput}
+                        onChange={e => setAddressInput(e.target.value)}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                        Delivery Area / Route
+                      </label>
+                      <input
+                        className="input-field"
+                        placeholder="e.g. Kandy Town"
+                        value={areaInput}
+                        onChange={e => setAreaInput(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Step 2: Payment Class Selection */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <CreditCard size={18} /> 2. Enrolled Classes & Payment Amounts
+                    <CreditCard size={18} /> 2. Enrolled Classes &amp; Payment Amounts
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                     Check classes to include in this payment. Click <b>+ Add Class</b> to enroll extra classes/siblings.
@@ -798,7 +1000,7 @@ function AddPaymentForm() {
                             className="input-field"
                             value={row.fee}
                             onChange={e => handleRowFeeChange(row.itemId, parseFloat(e.target.value) || 0)}
-                            style={{ padding: '5px 8px', fontSize: 12, fontWeight: 700, color: 'var(--accent-green)' }}
+                            style={{ padding: '5px 8px', fontSize: 12, fontWeight: 700 }}
                             title="Edit monthly rate for this student"
                           />
                         </div>
@@ -843,13 +1045,13 @@ function AddPaymentForm() {
                             Suggested amount to clear dues: <b>Rs. {row.suggested.toLocaleString()}</b>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-green)' }}>
+                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-blue)' }}>
                               Amount Paid Now (Rs.):
                             </label>
                             <input
                               type="number"
                               className="input-field"
-                              style={{ width: 140, padding: '5px 10px', fontSize: 13, fontWeight: 700, color: 'var(--accent-green)' }}
+                              style={{ width: 140, padding: '5px 10px', fontSize: 13, fontWeight: 700 }}
                               placeholder={`e.g. ${row.suggested}`}
                               value={row.amountPaid}
                               onChange={e => handleRowAmountPaidChange(row.itemId, e.target.value)}
@@ -865,12 +1067,12 @@ function AddPaymentForm() {
               {/* Total Payment Summary Box */}
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '12px 16px', background: 'rgba(16,185,129,0.08)', borderRadius: 8, border: '1px solid rgba(16,185,129,0.25)'
+                padding: '12px 16px', background: 'rgba(59,130,246,0.08)', borderRadius: 8, border: '1px solid rgba(59,130,246,0.25)'
               }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
                   Selected Classes for Payment: <b>{selectedRows.length}</b>
                 </span>
-                <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent-green)' }}>
+                <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>
                   Total Payment: {['FREE', 'IMS'].includes(form.payment_type) ? form.payment_type : `Rs. ${totalAmountToPay.toLocaleString()}`}
                 </span>
               </div>
@@ -878,8 +1080,8 @@ function AddPaymentForm() {
 
             {/* Step 3: Payment Method, Date, Delivery & Group */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: 'var(--accent-purple)' }}>
-                3. Payment Details & Delivery
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: 'var(--accent-blue)' }}>
+                3. Payment Details &amp; Dispatch Confirmation
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -928,89 +1130,13 @@ function AddPaymentForm() {
               </div>
 
               <div style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: form.tute_delivered ? 'rgba(16, 185, 129, 0.12)' : 'rgba(245, 158, 11, 0.08)', borderRadius: 8, border: `1px solid ${form.tute_delivered ? '#10b981' : 'var(--border)'}`, marginBottom: 8 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: form.tute_delivered ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.03)', borderRadius: 8, border: `1px solid ${form.tute_delivered ? '#10b981' : 'var(--border)'}` }}>
                   <input type="checkbox" id="tute" checked={form.tute_delivered}
                     onChange={e => setForm(f => ({ ...f, tute_delivered: e.target.checked }))}
-                    style={{ width: 16, height: 16, cursor: 'pointer' }} />
+                    style={{ width: 18, height: 18, cursor: 'pointer' }} />
                   <label htmlFor="tute" style={{ fontSize: 13, cursor: 'pointer', fontWeight: 600, color: form.tute_delivered ? '#34d399' : 'var(--text-primary)' }}>
-                    📦 Mark Tute Deliver (Pick tick on)
+                    📦 Mark Tute Delivered / Dispatched (Will be tracked in Tute Delivery panel)
                   </label>
-                </div>
-
-                {/* Delivery Address Verification */}
-                <div style={{
-                  padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)',
-                  marginLeft: 4
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                      📍 Delivery Address Verification:
-                    </div>
-                    {!editingAddress ? (
-                      <button
-                        type="button"
-                        onClick={() => setEditingAddress(true)}
-                        className="btn-secondary"
-                        style={{ padding: '3px 8px', fontSize: 11 }}
-                      >
-                        ✏ Edit Address
-                      </button>
-                    ) : (
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        <button
-                          type="button"
-                          onClick={saveAddress}
-                          disabled={savingAddress}
-                          className="btn-primary"
-                          style={{ padding: '3px 8px', fontSize: 11 }}
-                        >
-                          {savingAddress ? 'Saving...' : '✓ Save Address'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setEditingAddress(false)}
-                          className="btn-secondary"
-                          style={{ padding: '3px 8px', fontSize: 11 }}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    )}
-                  </div>
-
-                  {!editingAddress ? (
-                    <div>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: (student?.household as any)?.address ? 'var(--text-primary)' : 'var(--accent-red)' }}>
-                        {(student?.household as any)?.address || '⚠ No postal address registered yet!'}
-                      </div>
-                      {(student?.household as any)?.area && (
-                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-                          Route / Area: {(student?.household as any)?.area}
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-                      <div>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>House No / Street / City Address</label>
-                        <input
-                          className="input-field"
-                          placeholder="e.g. No 45, Main Street, Kandy"
-                          value={addressInput}
-                          onChange={e => setAddressInput(e.target.value)}
-                        />
-                      </div>
-                      <div>
-                        <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Area / Delivery Route</label>
-                        <input
-                          className="input-field"
-                          placeholder="e.g. Kandy Town"
-                          value={areaInput}
-                          onChange={e => setAreaInput(e.target.value)}
-                        />
-                      </div>
-                    </div>
-                  )}
                 </div>
               </div>
 
@@ -1022,8 +1148,8 @@ function AddPaymentForm() {
 
             {/* Step 4: Who recorded */}
             <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14, color: 'var(--accent-green)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                🔒 4. Audit Info (Auto-Locked)
+              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                🔒 4. Audit Log (Auto-Locked)
               </div>
               <div>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
