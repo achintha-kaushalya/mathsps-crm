@@ -682,7 +682,7 @@ function AddPaymentForm() {
                     className="btn-secondary"
                     style={{ padding: '4px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
                   >
-                    <Edit3 size={12} /> Edit Student Name &amp; Grade
+                    <Edit3 size={12} /> Edit Details
                   </button>
                 ) : (
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -693,7 +693,7 @@ function AddPaymentForm() {
                       className="btn-primary"
                       style={{ padding: '4px 10px', fontSize: 11 }}
                     >
-                      {savingStudent ? 'Saving...' : '✓ Save Profile'}
+                      {savingStudent ? 'Saving...' : 'Save'}
                     </button>
                     <button
                       type="button"
@@ -755,7 +755,7 @@ function AddPaymentForm() {
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {householdSavedSuccess && (
                     <span style={{ fontSize: 12, color: '#34d399', fontWeight: 600 }}>
-                      ✓ Updated Successfully!
+                      ✓ Updated!
                     </span>
                   )}
                   <button
@@ -765,7 +765,7 @@ function AddPaymentForm() {
                     className="btn-secondary"
                     style={{ padding: '4px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, borderColor: 'var(--accent-purple)', color: 'var(--accent-purple)' }}
                   >
-                    {savingHousehold ? 'Saving...' : '💾 Update & Save Changes'}
+                    {savingHousehold ? 'Saving...' : 'Save Updates'}
                   </button>
                   <span style={{ fontSize: 11, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
                     * Required for Delivery & Contact
@@ -835,7 +835,7 @@ function AddPaymentForm() {
                     <CreditCard size={18} /> 2. Enrolled Classes &amp; Payment Amounts
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Check classes to include in this payment. Click <b>+ Add Class</b> to enroll extra classes/siblings.
+                    Check classes to include in this payment. Click <b>+ Class</b> to enroll extra classes/siblings.
                   </div>
                 </div>
                 <div style={{ flexShrink: 0 }}>
@@ -845,7 +845,7 @@ function AddPaymentForm() {
                     className="btn-primary"
                     style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
                   >
-                    <Plus size={14} /> Add Class
+                    <Plus size={14} /> + Class
                   </button>
                 </div>
               </div>
@@ -975,11 +975,11 @@ function AddPaymentForm() {
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10
                         }}>
                           <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                            Suggested amount to clear dues: <b>Rs. {row.suggested.toLocaleString()}</b>
+                            Suggested: <b>Rs. {row.suggested.toLocaleString()}</b>
                           </div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                             <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-blue)' }}>
-                              Amount Paid Now (Rs.):
+                              Paid Now (Rs.):
                             </label>
                             <input
                               type="number"
@@ -1003,7 +1003,7 @@ function AddPaymentForm() {
                 padding: '12px 16px', background: 'rgba(59,130,246,0.08)', borderRadius: 8, border: '1px solid rgba(59,130,246,0.25)'
               }}>
                 <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  Selected Classes for Payment: <b>{selectedRows.length}</b>
+                  Selected Classes: <b>{selectedRows.length}</b>
                 </span>
                 <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>
                   Total Payment: {['FREE', 'IMS'].includes(form.payment_type) ? form.payment_type : `Rs. ${totalAmountToPay.toLocaleString()}`}
@@ -1100,7 +1100,7 @@ function AddPaymentForm() {
             {/* Submit */}
             <button className="btn-primary" onClick={submit} disabled={saving}
               style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: 15, fontWeight: 700, borderRadius: 10 }}>
-              {saving ? 'Saving...' : saved ? '✓ Payment Saved!' : '💾 Save Batch Payment'}
+              {saving ? 'Saving...' : saved ? 'Payment Saved' : 'Save Payment'}
             </button>
             {saved && (
               <div style={{ marginTop: 12, padding: '12px 16px', background: '#1a3a2a', borderRadius: 8, color: '#34d399', fontSize: 13 }}>

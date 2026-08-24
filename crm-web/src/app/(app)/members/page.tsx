@@ -452,7 +452,7 @@ export default function MembersPage() {
                 disabled={saving}
                 style={{ width: '100%', justifyContent: 'center' }}
               >
-                {saving ? 'Creating Account...' : '➕ Create Member Account'}
+                {saving ? 'Creating...' : '+ Add Member'}
               </button>
             </form>
           </div>

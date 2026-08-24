@@ -518,7 +518,7 @@ export default function CoursesManagerPage() {
                   style={{ padding: '8px 18px', fontWeight: 700 }}
                   disabled={saving}
                 >
-                  {saving ? 'Saving...' : editingCode ? '✓ Save Changes' : '✓ Create Course'}
+                  {saving ? 'Saving...' : editingCode ? 'Save' : '+ Create'}
                 </button>
               </div>
             </form>

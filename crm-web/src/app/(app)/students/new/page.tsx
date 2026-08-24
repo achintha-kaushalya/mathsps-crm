@@ -432,7 +432,7 @@ export default function NewStudentPage() {
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
               <a href={`/students/${encodeURIComponent(successPs)}`} className="btn-primary">
-                View Student Profile →
+                View Profile →
               </a>
               <button
                 className="btn-secondary"
@@ -447,7 +447,7 @@ export default function NewStudentPage() {
                   window.location.reload()
                 }}
               >
-                + Register Next Student
+                + Next Student
               </button>
             </div>
           </div>
@@ -888,7 +888,7 @@ export default function NewStudentPage() {
               onClick={submit}
               disabled={saving}
             >
-              {saving ? 'Registering...' : recordImmediatePayment ? '✓ Register Student & Save Payment' : '✓ Register Student'}
+              {saving ? 'Registering...' : recordImmediatePayment ? 'Register & Pay' : 'Register'}
             </button>
           </>
         )}

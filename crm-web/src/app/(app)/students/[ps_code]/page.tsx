@@ -337,7 +337,7 @@ export default function StudentDetailPage() {
                     className="btn-secondary"
                     style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
                   >
-                    ✏ Edit Info
+                    ✏ Edit
                   </button>
                 ) : (
                   <div style={{ display: 'flex', gap: 6 }}>

@@ -398,7 +398,7 @@ export default function DeliveryPage() {
                 }}
               >
                 <FileSpreadsheet size={16} />
-                {marking ? 'Exporting...' : `Export & Mark Batch (${selectedCount} Houses)`}
+                {marking ? 'Exporting...' : `Export (${selectedCount})`}
               </button>
               <button
                 onClick={printBatchEnvelopes}
@@ -406,7 +406,7 @@ export default function DeliveryPage() {
                 className="btn-primary"
                 style={{ background: 'var(--accent-orange)', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
               >
-                <Printer size={16} /> Print Envelope Labels ({selectedCount})
+                <Printer size={16} /> Print Labels ({selectedCount})
               </button>
             </>
           ) : (
@@ -416,7 +416,7 @@ export default function DeliveryPage() {
               className="btn-secondary"
               style={{ display: 'flex', alignItems: 'center', gap: 6 }}
             >
-              <Printer size={16} /> Re-Print Selected Labels ({selectedCount})
+              <Printer size={16} /> Print Labels ({selectedCount})
             </button>
           )}
         </div>

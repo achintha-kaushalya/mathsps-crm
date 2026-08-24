@@ -230,7 +230,7 @@ export default function ReportsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Users size={16} />
-            1. New Registrations
+            Registrations
             <span style={{
               background: activeTab === 'registrations' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
               color: activeTab === 'registrations' ? '#fff' : 'var(--accent-blue)',
@@ -246,7 +246,7 @@ export default function ReportsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Building2 size={16} />
-            2. Bank-Wise Revenue
+            Bank Revenue
             <span style={{
               background: activeTab === 'bank_revenue' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
               color: activeTab === 'bank_revenue' ? '#fff' : 'var(--accent-blue)',
@@ -262,7 +262,7 @@ export default function ReportsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <ShieldCheck size={16} />
-            3. Date-Wise Audit Log
+            Audit Log
             <span style={{
               background: activeTab === 'daily_audit' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
               color: activeTab === 'daily_audit' ? '#fff' : 'var(--accent-blue)',
@@ -278,7 +278,7 @@ export default function ReportsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <AlertCircle size={16} />
-            4. Outstanding Debts
+            Debts
             <span style={{
               background: activeTab === 'debts' ? 'rgba(255,255,255,0.2)' : 'rgba(239,68,68,0.15)',
               color: activeTab === 'debts' ? '#fff' : '#ef4444',
@@ -339,7 +339,7 @@ export default function ReportsPage() {
                   className="btn-primary"
                   style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  <FileSpreadsheet size={16} /> Export Registrations Excel
+                  <FileSpreadsheet size={16} /> Export Excel
                 </button>
               </div>
             </div>
@@ -487,7 +487,7 @@ export default function ReportsPage() {
                   className="btn-primary"
                   style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  <FileSpreadsheet size={16} /> Export Bank Revenue CSV
+                  <FileSpreadsheet size={16} /> Export CSV
                 </button>
               </div>
             </div>
@@ -639,7 +639,7 @@ export default function ReportsPage() {
                   className="btn-primary"
                   style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  <FileSpreadsheet size={16} /> Export Day Audit CSV
+                  <FileSpreadsheet size={16} /> Export CSV
                 </button>
               </div>
             </div>
@@ -765,7 +765,7 @@ export default function ReportsPage() {
                   className="btn-primary"
                   style={{ background: '#ef4444', display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  <FileSpreadsheet size={16} /> Export Debts CSV
+                  <FileSpreadsheet size={16} /> Export CSV
                 </button>
               </div>
             </div>

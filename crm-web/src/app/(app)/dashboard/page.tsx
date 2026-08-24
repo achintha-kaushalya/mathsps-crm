@@ -370,7 +370,7 @@ export default function AnalyticsDashboard() {
           <button className="btn-secondary" onClick={loadData} disabled={refreshing}
             style={{ padding: '5px 12px', fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
             <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-            {refreshing ? 'Refreshing…' : 'Refresh Data'}
+            {refreshing ? 'Refreshing…' : 'Refresh'}
           </button>
           <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
             Updated {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
@@ -390,7 +390,7 @@ export default function AnalyticsDashboard() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <BarChart2 size={16} />
-            1. Overall CRM Analytics
+            Overview
           </button>
 
           <button
@@ -399,7 +399,7 @@ export default function AnalyticsDashboard() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Calendar size={16} />
-            2. Day-by-Day Member Lead Tracking
+            Daily Tracking
             <span style={{
               background: activeTab === 'daily_member_tracking' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
               color: activeTab === 'daily_member_tracking' ? '#fff' : 'var(--accent-blue)',
@@ -415,7 +415,7 @@ export default function AnalyticsDashboard() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <CheckCircle2 size={16} />
-            3. Master Lead Paid Tick Report (Members × Grade × Count)
+            Paid Report
             <span style={{
               background: activeTab === 'master_paid_report' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
               color: activeTab === 'master_paid_report' ? '#fff' : 'var(--accent-blue)',
@@ -441,7 +441,7 @@ export default function AnalyticsDashboard() {
                 style={{ padding: '5px 10px', fontSize: 12, width: 140 }} />
               {(filterStart || filterEnd) && (
                 <button className="btn-secondary" onClick={() => { setFilterStart(''); setFilterEnd('') }}
-                  style={{ padding: '5px 10px', fontSize: 12 }}>Clear Filter</button>
+                  style={{ padding: '5px 10px', fontSize: 12 }}>Clear</button>
               )}
             </div>
 
@@ -614,7 +614,7 @@ export default function AnalyticsDashboard() {
                   className="btn-primary"
                   style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  <FileSpreadsheet size={16} /> Export Day Leads CSV
+                  <FileSpreadsheet size={16} /> Export CSV
                 </button>
               </div>
             </div>
@@ -758,7 +758,7 @@ export default function AnalyticsDashboard() {
                   className="btn-primary"
                   style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  <FileSpreadsheet size={16} /> Export Paid Ticks Excel
+                  <FileSpreadsheet size={16} /> Export Excel
                 </button>
               </div>
             </div>
