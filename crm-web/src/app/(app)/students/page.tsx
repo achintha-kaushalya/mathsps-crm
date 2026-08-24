@@ -37,13 +37,28 @@ export default function StudentsPage() {
       if (search.trim()) {
         const raw = search.trim()
         const cleanDigits = raw.replace(/\D/g, '')
-        const cleanPs = raw.toUpperCase().replace(/\s+/g, '')
+        const cleanCode = raw.toUpperCase().replace(/\s+/g, '')
+
+        // Build targeted OR conditions:
+        // 1. Exact match PS code (e.g. PS67)
+        // 2. Starts with code (e.g. PS67%)
+        // 3. Name or school contains search string
+        const orClauses: string[] = [
+          `ps_code.ilike.${cleanCode}`,
+          `ps_code.ilike.${cleanCode}%`,
+          `full_name.ilike.%${raw}%`,
+          `school.ilike.%${raw}%`
+        ]
 
         if (cleanDigits) {
-          q = q.or(`ps_code.ilike.%${cleanDigits}%,ps_code.ilike.%${cleanPs}%,full_name.ilike.%${raw}%,school.ilike.%${raw}%`)
+          orClauses.push(`ps_code.ilike.${tutorPrefix}${cleanDigits}`)
+          orClauses.push(`ps_code.ilike.${tutorPrefix}${cleanDigits}%`)
+          orClauses.push(`ps_code.ilike.%${cleanDigits}%`)
         } else {
-          q = q.or(`ps_code.ilike.%${cleanPs}%,full_name.ilike.%${raw}%,school.ilike.%${raw}%`)
+          orClauses.push(`ps_code.ilike.%${cleanCode}%`)
         }
+
+        q = q.or(orClauses.join(','))
       } else {
         // Filter by active tutor's code prefix if no search query
         q = q.ilike('ps_code', `${tutorPrefix}%`)
@@ -52,7 +67,41 @@ export default function StudentsPage() {
 
       q = q.order('created_at', { ascending: false }).range(p * PAGE_SIZE, (p + 1) * PAGE_SIZE - 1)
       const { data, count } = await q
-      setStudents(data || [])
+
+      // Smart Sorting for Search Results:
+      // 1. Exact match code first (e.g. PS67)
+      // 2. Code starting with search (e.g. PS675)
+      // 3. Real registered students (with full_name) before unassigned placeholder slots
+      // 4. Shortest code length
+      const rawSearch = search.trim().toUpperCase().replace(/\s+/g, '')
+      const sortedData = (data || []).sort((a, b) => {
+        if (rawSearch) {
+          const aCode = (a.ps_code || '').toUpperCase()
+          const bCode = (b.ps_code || '').toUpperCase()
+
+          // Exact match
+          if (aCode === rawSearch && bCode !== rawSearch) return -1
+          if (bCode === rawSearch && aCode !== rawSearch) return 1
+
+          // Starts with search code
+          const aStarts = aCode.startsWith(rawSearch)
+          const bStarts = bCode.startsWith(rawSearch)
+          if (aStarts && !bStarts) return -1
+          if (!aStarts && bStarts) return 1
+
+          // Real registered students (having actual names) rank higher
+          const aHasName = !!(a.full_name && a.full_name !== 'System Auto-Pre-generated')
+          const bHasName = !!(b.full_name && b.full_name !== 'System Auto-Pre-generated')
+          if (aHasName && !bHasName) return -1
+          if (!aHasName && bHasName) return 1
+
+          // Shorter codes first (PS67 before PS6700)
+          return aCode.length - bCode.length
+        }
+        return 0
+      })
+
+      setStudents(sortedData)
       setTotal(count || 0)
     } finally {
       setLoading(false)

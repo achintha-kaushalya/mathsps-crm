@@ -173,19 +173,56 @@ function AddPaymentForm() {
 
     const term = psSearch.trim()
     const cleanDigits = term.replace(/\D/g, '')
-    const cleanPs = term.toUpperCase().replace(/\s+/g, '')
+    const cleanCode = term.toUpperCase().replace(/\s+/g, '')
 
-    let query = supabase.from('students').select('*, household:households(*)').limit(8)
+    let query = supabase.from('students').select('*, household:households(*)').limit(15)
+
+    const orClauses: string[] = [
+      `ps_code.ilike.${cleanCode}`,
+      `ps_code.ilike.${cleanCode}%`,
+      `full_name.ilike.%${term}%`
+    ]
 
     if (cleanDigits) {
-      query = query.or(`ps_code.ilike.%${cleanDigits}%,full_name.ilike.%${term}%,ps_code.ilike.%${cleanPs}%`)
+      orClauses.push(`ps_code.ilike.PS${cleanDigits}`)
+      orClauses.push(`ps_code.ilike.PS${cleanDigits}%`)
+      orClauses.push(`ps_code.ilike.SM${cleanDigits}`)
+      orClauses.push(`ps_code.ilike.SM${cleanDigits}%`)
+      orClauses.push(`ps_code.ilike.%${cleanDigits}%`)
     } else {
-      query = query.or(`ps_code.ilike.%${cleanPs}%,full_name.ilike.%${term}%`)
+      orClauses.push(`ps_code.ilike.%${cleanCode}%`)
     }
+
+    query = query.or(orClauses.join(','))
 
     setSearching(true)
     query.then(({ data }) => {
-      setSearchResults(data || [])
+      // Sort dropdown results:
+      // 1. Exact match code
+      // 2. Starts with search code
+      // 3. Registered students (with actual name) first
+      // 4. Shorter code length
+      const sorted = (data || []).sort((a, b) => {
+        const aCode = (a.ps_code || '').toUpperCase()
+        const bCode = (b.ps_code || '').toUpperCase()
+
+        if (aCode === cleanCode && bCode !== cleanCode) return -1
+        if (bCode === cleanCode && aCode !== cleanCode) return 1
+
+        const aStarts = aCode.startsWith(cleanCode)
+        const bStarts = bCode.startsWith(cleanCode)
+        if (aStarts && !bStarts) return -1
+        if (!aStarts && bStarts) return 1
+
+        const aHasName = !!(a.full_name && a.full_name !== 'System Auto-Pre-generated')
+        const bHasName = !!(b.full_name && b.full_name !== 'System Auto-Pre-generated')
+        if (aHasName && !bHasName) return -1
+        if (!aHasName && bHasName) return 1
+
+        return aCode.length - bCode.length
+      })
+
+      setSearchResults(sorted.slice(0, 8))
       setShowDropdown(true)
       setSearching(false)
     })
