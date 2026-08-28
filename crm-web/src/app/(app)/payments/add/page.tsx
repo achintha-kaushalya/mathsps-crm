@@ -20,6 +20,7 @@ interface PaymentClassItem {
   amountPaid: string
   currentBalance: number
   suggested: number
+  deliverTute: boolean
 }
 
 // Sri Lanka phone normalizer: returns 10-digit 07XXXXXXXX or formatted string
@@ -299,7 +300,8 @@ function AddPaymentForm() {
           selected: true,
           amountPaid: String(sug),
           currentBalance: curBal,
-          suggested: sug
+          suggested: sug,
+          deliverTute: true
         }
       })
       setPaymentRows(rows)
@@ -319,7 +321,8 @@ function AddPaymentForm() {
           selected: true,
           amountPaid: String(fee),
           currentBalance: 0,
-          suggested: fee
+          suggested: fee,
+          deliverTute: true
         }
       ])
     }
@@ -344,7 +347,8 @@ function AddPaymentForm() {
       selected: true,
       amountPaid: String(defFee),
       currentBalance: 0,
-      suggested: defFee
+      suggested: defFee,
+      deliverTute: true
     }
     setPaymentRows([...paymentRows, newRow])
   }
@@ -429,6 +433,15 @@ function AddPaymentForm() {
     setPaymentRows(prev => prev.map(r => {
       if (r.itemId === itemId) {
         return { ...r, selected: checked }
+      }
+      return r
+    }))
+  }
+
+  function handleRowToggleDeliverTute(itemId: string, deliver: boolean) {
+    setPaymentRows(prev => prev.map(r => {
+      if (r.itemId === itemId) {
+        return { ...r, deliverTute: deliver }
       }
       return r
     }))
@@ -594,7 +607,7 @@ function AddPaymentForm() {
           bank_name: form.payment_type === 'BANK' ? form.bank_name : null,
           date_paid: form.date_paid,
           added_to_group: form.added_to_group,
-          tute_delivered: form.tute_delivered,
+          tute_delivered: r.deliverTute ?? false,
           recorded_by: memberName.trim(),
           notes: form.notes || null,
         })
@@ -1004,27 +1017,57 @@ function AddPaymentForm() {
                         </div>
                       </div>
 
-                      {/* Bottom Paid Amount Field */}
-                      {row.selected && ['BANK', 'CASH', 'PHYSICAL'].includes(form.payment_type) && (
+                      {/* Bottom Paid Amount Field & Per-Class Deliver Tute Checkbox */}
+                      {row.selected && (
                         <div style={{
                           marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)',
-                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10
                         }}>
-                          <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                            Suggested: <b>Rs. {row.suggested.toLocaleString()}</b>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                            <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-blue)' }}>
-                              Paid Now (Rs.):
-                            </label>
+                          {['BANK', 'CASH', 'PHYSICAL'].includes(form.payment_type) ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                                Suggested: <b>Rs. {row.suggested.toLocaleString()}</b>
+                              </span>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-blue)' }}>
+                                  Paid:
+                                </label>
+                                <input
+                                  type="number"
+                                  className="input-field"
+                                  style={{ width: 110, padding: '4px 8px', fontSize: 13, fontWeight: 700 }}
+                                  placeholder={`e.g. ${row.suggested}`}
+                                  value={row.amountPaid}
+                                  onChange={e => handleRowAmountPaidChange(row.itemId, e.target.value)}
+                                />
+                              </div>
+                            </div>
+                          ) : (
+                            <div style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>
+                              {form.payment_type} Access (Rs. {row.fee.toLocaleString()})
+                            </div>
+                          )}
+
+                          {/* Per-Class Tute Deliver Checkbox */}
+                          <div style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '4px 10px', borderRadius: 6,
+                            background: row.deliverTute ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)',
+                            border: `1px solid ${row.deliverTute ? '#10b981' : 'var(--border)'}`
+                          }}>
                             <input
-                              type="number"
-                              className="input-field"
-                              style={{ width: 140, padding: '5px 10px', fontSize: 13, fontWeight: 700 }}
-                              placeholder={`e.g. ${row.suggested}`}
-                              value={row.amountPaid}
-                              onChange={e => handleRowAmountPaidChange(row.itemId, e.target.value)}
+                              type="checkbox"
+                              id={`tute-${row.itemId}`}
+                              checked={row.deliverTute}
+                              onChange={e => handleRowToggleDeliverTute(row.itemId, e.target.checked)}
+                              style={{ width: 15, height: 15, cursor: 'pointer' }}
                             />
+                            <label htmlFor={`tute-${row.itemId}`} style={{
+                              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                              color: row.deliverTute ? '#34d399' : 'var(--text-muted)'
+                            }}>
+                              📦 Deliver Tute (Postal)
+                            </label>
                           </div>
                         </div>
                       )}
@@ -1096,17 +1139,6 @@ function AddPaymentForm() {
                   onChange={e => setForm(f => ({ ...f, added_to_group: e.target.checked }))}
                   style={{ width: 16, height: 16, cursor: 'pointer' }} />
                 <label htmlFor="group" style={{ fontSize: 13, cursor: 'pointer' }}>Added to WhatsApp Group?</label>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', background: form.tute_delivered ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.03)', borderRadius: 8, border: `1px solid ${form.tute_delivered ? '#10b981' : 'var(--border)'}` }}>
-                  <input type="checkbox" id="tute" checked={form.tute_delivered}
-                    onChange={e => setForm(f => ({ ...f, tute_delivered: e.target.checked }))}
-                    style={{ width: 18, height: 18, cursor: 'pointer' }} />
-                  <label htmlFor="tute" style={{ fontSize: 13, cursor: 'pointer', fontWeight: 600, color: form.tute_delivered ? '#34d399' : 'var(--text-primary)' }}>
-                    📦 Mark Tute Delivered / Dispatched (Will be tracked in Tute Delivery panel)
-                  </label>
-                </div>
               </div>
 
               <FormRow label="Notes (optional)">

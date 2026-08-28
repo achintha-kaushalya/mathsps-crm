@@ -83,6 +83,7 @@ export default function NewStudentPage() {
     notes: '',
   })
   const [classAmountPaid, setClassAmountPaid] = useState<Record<string, string>>({})
+  const [classDeliverTute, setClassDeliverTute] = useState<Record<string, boolean>>({})
 
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -193,15 +194,18 @@ export default function NewStudentPage() {
     }
   }
 
-  // Sync initial class amount paid for payment section
+  // Sync initial class amount paid and delivery defaults for payment section
   useEffect(() => {
     const amounts: Record<string, string> = {}
+    const delivers: Record<string, boolean> = {}
     enrolledClasses.forEach(r => {
       if (r.courseCode) {
         amounts[r.courseCode] = String(r.fee)
+        delivers[r.courseCode] = true
       }
     })
     setClassAmountPaid(amounts)
+    setClassDeliverTute(delivers)
   }, [enrolledClasses])
 
   // Change primary grade in Section 1 and update first class row
@@ -377,7 +381,7 @@ export default function NewStudentPage() {
             bank_name: paymentForm.payment_type === 'BANK' ? paymentForm.bank_name : null,
             date_paid: paymentForm.payment_type !== 'FREE' ? paymentForm.date_paid : null,
             added_to_group: paymentForm.added_to_group,
-            tute_delivered: paymentForm.tute_delivered,
+            tute_delivered: classDeliverTute[cls.courseCode] ?? false,
             notes: paymentForm.notes || null,
             recorded_by: createdBy.trim() || 'Admin / System User',
           })
@@ -831,51 +835,77 @@ export default function NewStudentPage() {
                     </div>
                   )}
 
-                  {/* Payment Amount Fields for each enrolled class */}
-                  {['BANK', 'CASH', 'PHYSICAL'].includes(paymentForm.payment_type) && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>
-                        Amount Paid Now per Class (Rs.):
-                      </label>
-                      {enrolledClasses.map(c => (
-                        <div key={c.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
-                          <span style={{ fontSize: 13 }}>
-                            Grade {c.grade} · {availableClasses[c.courseCode] || c.courseCode} (Fee: Rs. {c.fee}):
-                          </span>
-                          <input
-                            type="number"
-                            className="input-field"
-                            style={{ width: 140, padding: '5px 10px', fontWeight: 700, color: 'var(--accent-green)' }}
-                            value={classAmountPaid[c.courseCode] ?? ''}
-                            onChange={e => setClassAmountPaid({ ...classAmountPaid, [c.courseCode]: e.target.value })}
-                          />
+                  {/* Payment Amount & Delivery Checkbox for each enrolled class */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>
+                      Enrolled Classes, Amounts &amp; Postal Delivery:
+                    </label>
+                    {enrolledClasses.map(c => (
+                      <div key={c.id} style={{
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap',
+                        gap: 10, padding: '10px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid var(--border)'
+                      }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600 }}>
+                            Grade {c.grade} · {availableClasses[c.courseCode] || c.courseCode}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            Class Fee: Rs. {c.fee.toLocaleString()}
+                          </div>
                         </div>
-                      ))}
+
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                          {['BANK', 'CASH', 'PHYSICAL'].includes(paymentForm.payment_type) && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-blue)' }}>Paid (Rs.):</label>
+                              <input
+                                type="number"
+                                className="input-field"
+                                style={{ width: 110, padding: '4px 8px', fontWeight: 700, color: 'var(--accent-green)' }}
+                                value={classAmountPaid[c.courseCode] ?? ''}
+                                onChange={e => setClassAmountPaid({ ...classAmountPaid, [c.courseCode]: e.target.value })}
+                              />
+                            </div>
+                          )}
+
+                          <div style={{
+                            display: 'flex', alignItems: 'center', gap: 6,
+                            padding: '4px 8px', borderRadius: 6,
+                            background: classDeliverTute[c.courseCode] ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)',
+                            border: `1px solid ${classDeliverTute[c.courseCode] ? '#10b981' : 'var(--border)'}`
+                          }}>
+                            <input
+                              type="checkbox"
+                              id={`reg-tute-${c.id}`}
+                              checked={classDeliverTute[c.courseCode] ?? true}
+                              onChange={e => setClassDeliverTute({ ...classDeliverTute, [c.courseCode]: e.target.checked })}
+                              style={{ width: 15, height: 15, cursor: 'pointer' }}
+                            />
+                            <label htmlFor={`reg-tute-${c.id}`} style={{
+                              fontSize: 12, fontWeight: 600, cursor: 'pointer',
+                              color: classDeliverTute[c.courseCode] ? '#34d399' : 'var(--text-muted)'
+                            }}>
+                              📦 Deliver Tute
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    {['BANK', 'CASH', 'PHYSICAL'].includes(paymentForm.payment_type) && (
                       <div style={{ textAlign: 'right', fontSize: 14, fontWeight: 700, color: 'var(--accent-green)', marginTop: 4 }}>
                         Total Slip Payment: Rs. {totalAmountPaidNow.toLocaleString()}
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
-                      <input
-                        type="checkbox"
-                        id="chk-add-grp"
-                        checked={paymentForm.added_to_group}
-                        onChange={e => setPaymentForm(f => ({ ...f, added_to_group: e.target.checked }))}
-                      />
-                      <label htmlFor="chk-add-grp" style={{ fontSize: 12 }}>Added to WhatsApp Group</label>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6 }}>
-                      <input
-                        type="checkbox"
-                        id="chk-add-tute"
-                        checked={paymentForm.tute_delivered}
-                        onChange={e => setPaymentForm(f => ({ ...f, tute_delivered: e.target.checked }))}
-                      />
-                      <label htmlFor="chk-add-tute" style={{ fontSize: 12 }}>Mark Tute Delivered</label>
-                    </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, width: 'fit-content' }}>
+                    <input
+                      type="checkbox"
+                      id="chk-add-grp"
+                      checked={paymentForm.added_to_group}
+                      onChange={e => setPaymentForm(f => ({ ...f, added_to_group: e.target.checked }))}
+                    />
+                    <label htmlFor="chk-add-grp" style={{ fontSize: 12 }}>Added to WhatsApp Group</label>
                   </div>
                 </div>
               )}

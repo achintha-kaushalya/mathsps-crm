@@ -611,6 +611,7 @@ export default function StudentDetailPage() {
                             <th>Bank</th>
                             <th>Date</th>
                             <th>Group</th>
+                            <th>Tute</th>
                             {isAdmin && <th style={{ width: 80, textAlign: 'center' }}>Action</th>}
                           </tr>
                         </thead>
@@ -634,6 +635,13 @@ export default function StudentDetailPage() {
                               <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{p.date_paid || '—'}</td>
                               <td style={{ textAlign: 'center', color: p.added_to_group ? '#10b981' : 'var(--text-muted)' }}>
                                 {p.added_to_group ? '✓' : '—'}
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                {p.tute_delivered ? (
+                                  <span style={{ color: '#10b981', fontSize: 12, fontWeight: 600 }}>📦 Yes</span>
+                                ) : (
+                                  <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>— No</span>
+                                )}
                               </td>
                               {isAdmin && (
                                 <td style={{ textAlign: 'center' }}>

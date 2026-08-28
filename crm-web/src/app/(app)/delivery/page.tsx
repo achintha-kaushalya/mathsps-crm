@@ -58,7 +58,7 @@ export default function DeliveryPage() {
   async function loadDeliveryList() {
     setLoading(true)
     try {
-      // 1. Fetch eligible payments for this month where tute is to be delivered
+      // 1. Fetch eligible payments for this month where tute is explicitly marked to be delivered
       let q = supabase
         .from('payments')
         .select(`
@@ -70,7 +70,7 @@ export default function DeliveryPage() {
         `)
         .eq('month', month)
         .eq('year', year)
-        .or('tute_delivered.eq.true,amount_paid.gt.0')
+        .eq('tute_delivered', true)
 
       if (classFilter) q = q.eq('class_type', classFilter)
 
