@@ -207,6 +207,36 @@ export default function StudentDetailPage() {
     setEditTuteDelivered(payment.tute_delivered || false)
   }
 
+  async function recalculateBalanceLedger(studentId: string, classType: string) {
+    // 1. Fetch all remaining payments for this student and class
+    const { data: remainingPays } = await supabase
+      .from('payments')
+      .select('*')
+      .eq('student_id', studentId)
+      .eq('class_type', classType)
+      .order('year', { ascending: true })
+      .order('month', { ascending: true })
+
+    if (!remainingPays || remainingPays.length === 0) {
+      // No payments left, delete balance record
+      await supabase.from('student_balances').delete().eq('student_id', studentId).eq('class_type', classType)
+      return
+    }
+
+    // 2. Compute true totals
+    const totalPaid = remainingPays.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
+    const totalDue = remainingPays.reduce((sum, p) => sum + (Number(p.amount_due) || 0), 0)
+    const lastPayment = remainingPays[remainingPays.length - 1]
+
+    await supabase.from('student_balances').upsert({
+      student_id: studentId,
+      class_type: classType,
+      current_balance: totalPaid - totalDue,
+      last_payment_date: lastPayment?.date_paid || null,
+      last_payment_amount: lastPayment?.amount_paid || 0,
+    }, { onConflict: 'student_id,class_type' })
+  }
+
   async function handleSavePaymentEdit(e: React.FormEvent) {
     e.preventDefault()
     if (!editingPayment) return
@@ -226,6 +256,10 @@ export default function StudentDetailPage() {
 
       if (err) throw err
 
+      if (student) {
+        await recalculateBalanceLedger(student.id, editingPayment.class_type)
+      }
+
       setEditingPayment(null)
       await load()
     } catch (err: any) {
@@ -241,6 +275,11 @@ export default function StudentDetailPage() {
     try {
       const { error: err } = await supabase.from('payments').delete().eq('id', payment.id)
       if (err) throw err
+
+      if (student) {
+        await recalculateBalanceLedger(student.id, payment.class_type)
+      }
+
       await load()
     } catch (err: any) {
       alert('Failed to delete payment: ' + err.message)
@@ -515,112 +554,127 @@ export default function StudentDetailPage() {
             </div>
           </div>
 
-          {/* Right column — Payment Ledger with Admin Edit/Delete */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            {enrollments.length > 0 ? enrollments.map(enrol => {
-              const enrolPayments = payments.filter(p => p.class_type === enrol.class_type)
-              const balance = balances.find(b => b.class_type === enrol.class_type)
+            {/* Right column — Payment Ledger with Admin Edit/Delete */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+              {(() => {
+                // Collect all active enrolled classes plus any past payment class types
+                const allClassTypes = Array.from(new Set([
+                  ...enrollments.map(e => e.class_type),
+                  ...payments.map(p => p.class_type)
+                ]))
 
-              return (
-                <div key={enrol.id} className="glass-card" style={{ overflow: 'hidden' }}>
-                  <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ fontWeight: 600, fontSize: 14 }}>{CLASS_LABELS[enrol.class_type] || enrol.class_type}</div>
-                      <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
-                        {enrol.tier} · Monthly Fee: Rs.{enrol.fee_amount.toLocaleString()} · {enrol.active ? '✅ Active' : '⏹ Inactive'}
-                      </div>
+                if (allClassTypes.length === 0) {
+                  return (
+                    <div className="glass-card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
+                      <div style={{ marginBottom: 12 }}>No class enrollments or payments found</div>
+                      <a href={`/payments/add?ps=${encodeURIComponent(student.ps_code)}`} className="btn-primary">
+                        <Plus size={14} /> Add First Payment
+                      </a>
                     </div>
-                    {balance && (
-                      <div style={{ textAlign: 'right' }}>
-                        <div className={balance.current_balance < 0 ? 'balance-negative' : balance.current_balance > 0 ? 'balance-positive' : 'balance-zero'}
-                          style={{ fontWeight: 700, fontSize: 16 }}>
-                          {balance.current_balance >= 0 ? '+' : ''}Rs.{balance.current_balance.toLocaleString()}
+                  )
+                }
+
+                return allClassTypes.map(cType => {
+                  const enrol = enrollments.find(e => e.class_type === cType)
+                  const enrolPayments = payments.filter(p => p.class_type === cType)
+                  const balance = balances.find(b => b.class_type === cType)
+
+                  return (
+                    <div key={cType} className="glass-card" style={{ overflow: 'hidden' }}>
+                      <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: 14 }}>{CLASS_LABELS[cType] || cType}</div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                            {enrol
+                              ? `${enrol.tier} · Monthly Fee: Rs.${enrol.fee_amount.toLocaleString()} · ${enrol.active ? '✅ Active' : '⏹ Inactive'}`
+                              : 'Past Class Record (Not currently enrolled)'}
+                          </div>
                         </div>
-                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>current balance</div>
+                        {balance && (
+                          <div style={{ textAlign: 'right' }}>
+                            <div className={balance.current_balance < 0 ? 'balance-negative' : balance.current_balance > 0 ? 'balance-positive' : 'balance-zero'}
+                              style={{ fontWeight: 700, fontSize: 16 }}>
+                              {balance.current_balance >= 0 ? '+' : ''}Rs.{balance.current_balance.toLocaleString()}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>current balance</div>
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>Month</th>
-                        <th>Due</th>
-                        <th>Paid</th>
-                        <th>Balance</th>
-                        <th>Type</th>
-                        <th>Bank</th>
-                        <th>Date</th>
-                        <th>Group</th>
-                        {isAdmin && <th style={{ width: 80, textAlign: 'center' }}>Action</th>}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {enrolPayments.map(p => (
-                        <tr key={p.id}>
-                          <td style={{ fontWeight: 500 }}>{MONTH_NUM_TO_NAME(p.month)} {p.year}</td>
-                          <td style={{ color: 'var(--text-muted)' }}>Rs.{(p.amount_due || 0).toLocaleString()}</td>
-                          <td style={{ color: '#10b981', fontWeight: 500 }}>
-                            {['FREE','IMS','SIPSA'].includes(p.payment_type || '') ? p.payment_type : `Rs.${p.amount_paid.toLocaleString()}`}
-                          </td>
-                          <td className={p.balance_after < 0 ? 'balance-negative' : p.balance_after > 0 ? 'balance-positive' : 'balance-zero'}>
-                            {p.balance_after >= 0 ? '+' : ''}Rs.{p.balance_after.toLocaleString()}
-                          </td>
-                          <td>
-                            <span className={`badge pay-${(p.payment_type || 'other').toLowerCase()}`}>
-                              {p.payment_type}
-                            </span>
-                          </td>
-                          <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{p.bank_name || '—'}</td>
-                          <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{p.date_paid || '—'}</td>
-                          <td style={{ textAlign: 'center', color: p.added_to_group ? '#10b981' : 'var(--text-muted)' }}>
-                            {p.added_to_group ? '✓' : '—'}
-                          </td>
-                          {isAdmin && (
-                            <td style={{ textAlign: 'center' }}>
-                              <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenEditPayment(p)}
-                                  className="btn-secondary"
-                                  style={{ padding: '2px 6px', fontSize: 11 }}
-                                  title="Edit payment"
-                                >
-                                  <Edit2 size={11} />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeletePayment(p)}
-                                  style={{
-                                    background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
-                                    color: '#ef4444', borderRadius: 4, padding: '2px 6px', fontSize: 11, cursor: 'pointer'
-                                  }}
-                                  title="Delete payment record"
-                                >
-                                  <Trash2 size={11} />
-                                </button>
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                  {enrolPayments.length === 0 && (
-                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                      No payments recorded yet
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Month</th>
+                            <th>Due</th>
+                            <th>Paid</th>
+                            <th>Balance</th>
+                            <th>Type</th>
+                            <th>Bank</th>
+                            <th>Date</th>
+                            <th>Group</th>
+                            {isAdmin && <th style={{ width: 80, textAlign: 'center' }}>Action</th>}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {enrolPayments.map(p => (
+                            <tr key={p.id}>
+                              <td style={{ fontWeight: 500 }}>{MONTH_NUM_TO_NAME(p.month)} {p.year}</td>
+                              <td style={{ color: 'var(--text-muted)' }}>Rs.{(p.amount_due || 0).toLocaleString()}</td>
+                              <td style={{ color: '#10b981', fontWeight: 500 }}>
+                                {['FREE','IMS','SIPSA'].includes(p.payment_type || '') ? p.payment_type : `Rs.${p.amount_paid.toLocaleString()}`}
+                              </td>
+                              <td className={p.balance_after < 0 ? 'balance-negative' : p.balance_after > 0 ? 'balance-positive' : 'balance-zero'}>
+                                {p.balance_after >= 0 ? '+' : ''}Rs.{p.balance_after.toLocaleString()}
+                              </td>
+                              <td>
+                                <span className={`badge pay-${(p.payment_type || 'other').toLowerCase()}`}>
+                                  {p.payment_type}
+                                </span>
+                              </td>
+                              <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{p.bank_name || '—'}</td>
+                              <td style={{ color: 'var(--text-muted)', fontSize: 12 }}>{p.date_paid || '—'}</td>
+                              <td style={{ textAlign: 'center', color: p.added_to_group ? '#10b981' : 'var(--text-muted)' }}>
+                                {p.added_to_group ? '✓' : '—'}
+                              </td>
+                              {isAdmin && (
+                                <td style={{ textAlign: 'center' }}>
+                                  <div style={{ display: 'flex', justifyContent: 'center', gap: 6 }}>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenEditPayment(p)}
+                                      className="btn-secondary"
+                                      style={{ padding: '2px 6px', fontSize: 11 }}
+                                      title="Edit payment"
+                                    >
+                                      <Edit2 size={11} />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleDeletePayment(p)}
+                                      style={{
+                                        background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)',
+                                        color: '#ef4444', borderRadius: 4, padding: '2px 6px', fontSize: 11, cursor: 'pointer'
+                                      }}
+                                      title="Delete payment record"
+                                    >
+                                      <Trash2 size={11} />
+                                    </button>
+                                  </div>
+                                </td>
+                              )}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {enrolPayments.length === 0 && (
+                        <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
+                          No payments recorded yet
+                        </div>
+                      )}
                     </div>
-                  )}
-                </div>
-              )
-            }) : (
-              <div className="glass-card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-                <div style={{ marginBottom: 12 }}>No class enrollments found</div>
-                <a href={`/payments/add?ps=${encodeURIComponent(student.ps_code)}`} className="btn-primary">
-                  <Plus size={14} /> Add First Payment
-                </a>
-              </div>
-            )}
-          </div>
+                  )
+                })
+              })()}
+            </div>
         </div>
       </div>
 
