@@ -176,34 +176,23 @@ function AddPaymentForm() {
     const cleanDigits = term.replace(/\D/g, '')
     const cleanCode = term.toUpperCase().replace(/\s+/g, '')
 
-    let query = supabase.from('students').select('*, household:households(*)').limit(15)
-
-    const orClauses: string[] = [
-      `ps_code.ilike.${cleanCode}`,
-      `ps_code.ilike.${cleanCode}%`,
-      `full_name.ilike.%${term}%`
-    ]
-
-    if (cleanDigits) {
-      orClauses.push(`ps_code.ilike.PS${cleanDigits}`)
-      orClauses.push(`ps_code.ilike.PS${cleanDigits}%`)
-      orClauses.push(`ps_code.ilike.SM${cleanDigits}`)
-      orClauses.push(`ps_code.ilike.SM${cleanDigits}%`)
-      orClauses.push(`ps_code.ilike.%${cleanDigits}%`)
-    } else {
-      orClauses.push(`ps_code.ilike.%${cleanCode}%`)
-    }
-
-    query = query.or(orClauses.join(','))
-
     setSearching(true)
-    query.then(({ data }) => {
+
+    // Parallel fetch: Exact match lookup + broader search
+    Promise.all([
+      supabase.from('students').select('*, household:households(*)').or(`ps_code.eq.${cleanCode},ps_code.eq.PS${cleanDigits}`).maybeSingle(),
+      supabase.from('students').select('*, household:households(*)').or(`ps_code.ilike.${cleanCode}%,ps_code.ilike.%${cleanDigits}%,full_name.ilike.%${term}%`).limit(15)
+    ]).then(([{ data: exactMatch }, { data: broadMatches }]) => {
+      const combined = exactMatch
+        ? [exactMatch, ...(broadMatches || []).filter(m => m.id !== exactMatch.id)]
+        : (broadMatches || [])
+
       // Sort dropdown results:
       // 1. Exact match code
       // 2. Starts with search code
       // 3. Registered students (with actual name) first
       // 4. Shorter code length
-      const sorted = (data || []).sort((a, b) => {
+      const sorted = combined.sort((a, b) => {
         const aCode = (a.ps_code || '').toUpperCase()
         const bCode = (b.ps_code || '').toUpperCase()
 
@@ -535,19 +524,43 @@ function AddPaymentForm() {
     const cleanDigits = rawInput.replace(/\D/g, '')
     const cleanPs = rawInput.toUpperCase().replace(/\s+/g, '')
 
-    let { data: matches } = await supabase
-      .from('students')
-      .select('*, household:households(*)')
-      .or(`ps_code.eq.${cleanPs},ps_code.eq.PS${cleanDigits},ps_code.ilike.%${cleanDigits}%,full_name.ilike.%${rawInput}%`)
-      .limit(5)
+    // Parallel fetch: Exact match lookup + broader search
+    const [{ data: exactMatch }, { data: matches }] = await Promise.all([
+      supabase.from('students').select('*, household:households(*)').or(`ps_code.eq.${cleanPs},ps_code.eq.PS${cleanDigits}`).maybeSingle(),
+      supabase.from('students').select('*, household:households(*)').or(`ps_code.ilike.${cleanPs}%,ps_code.ilike.%${cleanDigits}%,full_name.ilike.%${rawInput}%`).limit(10)
+    ])
 
-    if (!matches || matches.length === 0) {
-      setError(`No student found for "${psSearch}". Try typing digits like 5000 or student name.`)
+    const combined = exactMatch
+      ? [exactMatch, ...(matches || []).filter(m => m.id !== exactMatch.id)]
+      : (matches || [])
+
+    if (combined.length === 0) {
+      setError(`No student found for "${psSearch}". Try typing digits like 185 or student name.`)
       return
     }
 
-    const bestMatch = matches.find(s => s.ps_code.toUpperCase() === cleanPs || s.ps_code.toUpperCase() === `PS${cleanDigits}`) || matches[0]
-    selectStudent(bestMatch)
+    // Sort to guarantee exact match is first
+    const sorted = combined.sort((a, b) => {
+      const aCode = (a.ps_code || '').toUpperCase()
+      const bCode = (b.ps_code || '').toUpperCase()
+
+      if (aCode === cleanPs && bCode !== cleanPs) return -1
+      if (bCode === cleanPs && aCode !== cleanPs) return 1
+
+      const aStarts = aCode.startsWith(cleanPs)
+      const bStarts = bCode.startsWith(cleanPs)
+      if (aStarts && !bStarts) return -1
+      if (!aStarts && bStarts) return 1
+
+      const aHasName = !!(a.full_name && a.full_name !== 'System Auto-Pre-generated')
+      const bHasName = !!(b.full_name && b.full_name !== 'System Auto-Pre-generated')
+      if (aHasName && !bHasName) return -1
+      if (!aHasName && bHasName) return 1
+
+      return aCode.length - bCode.length
+    })
+
+    selectStudent(sorted[0])
   }
 
   async function submit() {
