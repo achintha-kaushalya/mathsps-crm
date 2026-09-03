@@ -42,6 +42,8 @@ export default function ReportsPage() {
   const [dailyPayments, setDailyPayments] = useState<any[]>([])
   const [auditorStats, setAuditorStats] = useState<Record<string, { count: number; total: number }>>({})
   const [auditorFilter, setAuditorFilter] = useState('')
+  const [searchAudit, setSearchAudit] = useState('')
+  const [dateFilterType, setDateFilterType] = useState<'created_at' | 'date_paid'>('created_at')
 
   // 4. Outstanding Debts State
   const [outstandingList, setOutstandingList] = useState<any[]>([])
@@ -49,7 +51,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     loadAllReportData()
-  }, [month, year, selectedDate])
+  }, [month, year, selectedDate, dateFilterType])
 
   async function loadAllReportData() {
     setLoading(true)
@@ -58,13 +60,47 @@ export default function ReportsPage() {
       const startOfMonth = new Date(year, month - 1, 1).toISOString()
       const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999).toISOString()
 
+      // Calculate start and end bounds for the selected day in UTC/ISO
+      const startOfDay = `${selectedDate}T00:00:00.000Z`
+      const endOfDay = `${selectedDate}T23:59:59.999Z`
+
+      // 1. Fetch daily audit payments with pagination to support large volume
+      let dailyList: any[] = []
+      let dailyFrom = 0
+      let hasMoreDaily = true
+      const CHUNK_SIZE = 1000
+
+      while (hasMoreDaily) {
+        let q = supabase
+          .from('payments')
+          .select('*, students(ps_code, full_name, grade)')
+          .range(dailyFrom, dailyFrom + CHUNK_SIZE - 1)
+          .order('created_at', { ascending: false })
+
+        if (dateFilterType === 'created_at') {
+          q = q.gte('created_at', startOfDay).lte('created_at', endOfDay)
+        } else {
+          q = q.eq('date_paid', selectedDate)
+        }
+
+        const { data: chunk, error: dErr } = await q
+        if (dErr) throw dErr
+
+        dailyList = dailyList.concat(chunk || [])
+        if (!chunk || chunk.length < CHUNK_SIZE) {
+          hasMoreDaily = false
+        } else {
+          dailyFrom += CHUNK_SIZE
+        }
+      }
+
+      // 2. Fetch monthly data & new registrations in parallel
       const [
         { data: registeredData },
         { data: monthlyPaymentsData },
-        { data: dailyPaymentsData },
         { data: outData }
       ] = await Promise.all([
-        // 1. Real new registered students in this month (filtering out pre-generated unassigned empty slots)
+        // Real new registered students in this month
         supabase
           .from('students')
           .select('*, household:households(*), enrollments(*)')
@@ -73,21 +109,14 @@ export default function ReportsPage() {
           .lte('created_at', endOfMonth)
           .order('created_at', { ascending: false }),
 
-        // 2. Payments in this month (for Bank & Method revenue)
+        // Payments in this month (for Bank & Method revenue)
         supabase
           .from('payments')
           .select('*, students(ps_code, full_name, grade)')
           .eq('month', month)
           .eq('year', year),
 
-        // 3. Payments marked on the selected specific calendar day
-        supabase
-          .from('payments')
-          .select('*, students(ps_code, full_name, grade)')
-          .or(`date_paid.eq.${selectedDate},created_at.gte.${selectedDate}T00:00:00,created_at.lte.${selectedDate}T23:59:59`)
-          .order('created_at', { ascending: false }),
-
-        // 4. Outstanding debts
+        // Outstanding debts
         supabase
           .from('students_outstanding')
           .select('*')
@@ -138,11 +167,10 @@ export default function ReportsPage() {
       )
 
       // 3. Process Date-Wise Daily Payment & Auditor Logs
-      const dList = dailyPaymentsData || []
-      setDailyPayments(dList)
+      setDailyPayments(dailyList)
 
       const aMap: Record<string, { count: number; total: number }> = {}
-      dList.forEach((p: any) => {
+      dailyList.forEach((p: any) => {
         const who = p.recorded_by || 'System User'
         const amt = Number(p.amount_paid) || 0
         if (!aMap[who]) aMap[who] = { count: 0, total: 0 }
@@ -188,8 +216,19 @@ export default function ReportsPage() {
   })
 
   const filteredDailyPayments = dailyPayments.filter(p => {
-    if (!auditorFilter) return true
-    return (p.recorded_by || 'System User') === auditorFilter
+    if (auditorFilter && (p.recorded_by || 'System User') !== auditorFilter) {
+      return false
+    }
+    if (!searchAudit.trim()) return true
+    const term = searchAudit.toLowerCase()
+    return (
+      p.students?.ps_code?.toLowerCase().includes(term) ||
+      p.students?.full_name?.toLowerCase().includes(term) ||
+      p.payment_type?.toLowerCase().includes(term) ||
+      p.bank_name?.toLowerCase().includes(term) ||
+      p.recorded_by?.toLowerCase().includes(term) ||
+      p.notes?.toLowerCase().includes(term)
+    )
   })
 
   const filteredDebts = outstandingList.filter(d => {
@@ -596,51 +635,139 @@ export default function ReportsPage() {
         {activeTab === 'daily_audit' && (
           <div className="fade-in">
             {/* Date & Auditor Filter Bar */}
-            <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Select Payment Date</label>
-                  <input
-                    type="date"
-                    className="input-field"
-                    style={{ width: 170 }}
-                    value={selectedDate}
-                    onChange={e => setSelectedDate(e.target.value)}
-                  />
+            <div className="glass-card" style={{ padding: 18, marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  {/* Select Date */}
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                      Select Date
+                    </label>
+                    <input
+                      type="date"
+                      className="input-field"
+                      style={{ width: 160 }}
+                      value={selectedDate}
+                      onChange={e => setSelectedDate(e.target.value)}
+                    />
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
+                      className={selectedDate === new Date().toISOString().slice(0, 10) ? 'btn-primary' : 'btn-secondary'}
+                      style={{ padding: '6px 12px', fontSize: 12 }}
+                    >
+                      Today
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date()
+                        d.setDate(d.getDate() - 1)
+                        setSelectedDate(d.toISOString().slice(0, 10))
+                      }}
+                      className={(() => {
+                        const d = new Date()
+                        d.setDate(d.getDate() - 1)
+                        return selectedDate === d.toISOString().slice(0, 10)
+                      })() ? 'btn-primary' : 'btn-secondary'}
+                      style={{ padding: '6px 12px', fontSize: 12 }}
+                    >
+                      Yesterday
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date()
+                        d.setDate(d.getDate() - 2)
+                        setSelectedDate(d.toISOString().slice(0, 10))
+                      }}
+                      className={(() => {
+                        const d = new Date()
+                        d.setDate(d.getDate() - 2)
+                        return selectedDate === d.toISOString().slice(0, 10)
+                      })() ? 'btn-primary' : 'btn-secondary'}
+                      style={{ padding: '6px 12px', fontSize: 12 }}
+                    >
+                      2 Days Ago
+                    </button>
+                  </div>
+
+                  {/* Filter Mode (System Entry Time vs Bank Slip Date) */}
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                      Audit By
+                    </label>
+                    <select
+                      className="input-field"
+                      style={{ width: 170 }}
+                      value={dateFilterType}
+                      onChange={e => setDateFilterType(e.target.value as any)}
+                    >
+                      <option value="created_at">System Entry Time</option>
+                      <option value="date_paid">Slip Paid Date</option>
+                    </select>
+                  </div>
+
+                  {/* Filter Auditor */}
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                      Filter Auditor
+                    </label>
+                    <select
+                      className="input-field"
+                      style={{ width: 160 }}
+                      value={auditorFilter}
+                      onChange={e => setAuditorFilter(e.target.value)}
+                    >
+                      <option value="">All Auditors ({dailyPayments.length})</option>
+                      {Object.keys(auditorStats).map(who => (
+                        <option key={who} value={who}>{who} ({auditorStats[who].count})</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
+
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Filter Auditor / Staff</label>
-                  <select className="input-field" style={{ width: 180 }} value={auditorFilter} onChange={e => setAuditorFilter(e.target.value)}>
-                    <option value="">All Auditors / Staff</option>
-                    {Object.keys(auditorStats).map(who => (
-                      <option key={who} value={who}>{who} ({auditorStats[who].count})</option>
-                    ))}
-                  </select>
+                  <button
+                    onClick={() => {
+                      const headers = ['PS CODE', 'STUDENT NAME', 'CLASS', 'AMOUNT (RS)', 'PAYMENT TYPE', 'BANK', 'AUDITOR (RECORDED BY)', 'TIME', 'DELIVERY', 'NOTES']
+                      const rows = filteredDailyPayments.map(p => [
+                        `"${p.students?.ps_code || ''}"`,
+                        `"${(p.students?.full_name || '').replace(/"/g, '""')}"`,
+                        `"${CLASS_LABELS[p.class_type] || p.class_type}"`,
+                        `"${p.amount_paid || 0}"`,
+                        `"${p.payment_type || 'BANK'}"`,
+                        `"${p.bank_name || ''}"`,
+                        `"${p.recorded_by || 'System'}"`,
+                        `"${new Date(p.created_at).toLocaleTimeString()}"`,
+                        `"${(p.notes || '').includes('[DISPATCHED:') ? 'Dispatched' : p.tute_delivered ? 'Ready to Export' : 'No Delivery'}"`,
+                        `"${(p.notes || '').replace(/"/g, '""')}"`
+                      ])
+                      exportTableToCsv(`Daily_Audit_Log_${selectedDate}`, headers, rows)
+                    }}
+                    className="btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <FileSpreadsheet size={16} /> Export CSV
+                  </button>
                 </div>
               </div>
 
-              <div>
-                <button
-                  onClick={() => {
-                    const headers = ['PS CODE', 'STUDENT NAME', 'CLASS', 'AMOUNT (RS)', 'PAYMENT TYPE', 'BANK', 'AUDITOR (RECORDED BY)', 'TIME', 'NOTES']
-                    const rows = filteredDailyPayments.map(p => [
-                      `"${p.students?.ps_code || ''}"`,
-                      `"${(p.students?.full_name || '').replace(/"/g, '""')}"`,
-                      `"${CLASS_LABELS[p.class_type] || p.class_type}"`,
-                      `"${p.amount_paid || 0}"`,
-                      `"${p.payment_type || 'BANK'}"`,
-                      `"${p.bank_name || ''}"`,
-                      `"${p.recorded_by || 'System'}"`,
-                      `"${new Date(p.created_at).toLocaleTimeString()}"`,
-                      `"${(p.notes || '').replace(/"/g, '""')}"`
-                    ])
-                    exportTableToCsv(`Daily_Audit_Log_${selectedDate}`, headers, rows)
-                  }}
-                  className="btn-primary"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <FileSpreadsheet size={16} /> Export CSV
-                </button>
+              {/* Search Audit Box */}
+              <div style={{ position: 'relative' }}>
+                <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  type="text"
+                  className="input-field"
+                  style={{ paddingLeft: 36, width: '100%' }}
+                  placeholder="Search daily slips by PS Code, Student Name, Bank, Auditor..."
+                  value={searchAudit}
+                  onChange={e => setSearchAudit(e.target.value)}
+                />
               </div>
             </div>
 
