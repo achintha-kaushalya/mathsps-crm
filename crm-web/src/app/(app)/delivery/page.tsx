@@ -58,29 +58,44 @@ export default function DeliveryPage() {
   async function loadDeliveryList() {
     setLoading(true)
     try {
-      // 1. Fetch eligible payments for this month where tute is explicitly marked to be delivered
-      let q = supabase
-        .from('payments')
-        .select(`
-          id, student_id, class_type, month, year, amount_paid, payment_type, tute_delivered, date_paid, notes,
-          students!inner(
-            id, ps_code, full_name, grade, household_id,
-            households(id, parent_name, address, area, parent_phone)
-          )
-        `)
-        .eq('month', month)
-        .eq('year', year)
-        .eq('tute_delivered', true)
+      // 1. Fetch ALL eligible payments for this month where tute is explicitly marked to be delivered (paginated to exceed 1,000 limit)
+      const PAGE_SIZE = 1000
+      let allRows: any[] = []
+      let from = 0
+      let hasMore = true
 
-      if (classFilter) q = q.eq('class_type', classFilter)
+      while (hasMore) {
+        let q = supabase
+          .from('payments')
+          .select(`
+            id, student_id, class_type, month, year, amount_paid, payment_type, tute_delivered, date_paid, notes,
+            students!inner(
+              id, ps_code, full_name, grade, household_id,
+              households(id, parent_name, address, area, parent_phone)
+            )
+          `)
+          .eq('month', month)
+          .eq('year', year)
+          .eq('tute_delivered', true)
+          .range(from, from + PAGE_SIZE - 1)
 
-      const { data, error } = await q
-      if (error) throw error
+        if (classFilter) q = q.eq('class_type', classFilter)
+
+        const { data, error } = await q
+        if (error) throw error
+
+        allRows = allRows.concat(data || [])
+        if (!data || data.length < PAGE_SIZE) {
+          hasMore = false
+        } else {
+          from += PAGE_SIZE
+        }
+      }
 
       const groupedMap: Record<string, DeliveryGroup> = {}
       const areaSet = new Set<string>()
 
-      ;(data || []).forEach((item: any) => {
+      allRows.forEach((item: any) => {
         const stu = item.students
         const hh = stu?.households
         const key = hh?.id || `no-hh-${stu.id}`
