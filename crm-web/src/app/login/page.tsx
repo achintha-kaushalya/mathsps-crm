@@ -1,12 +1,13 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-import { Lock, Mail, ArrowRight, Shield, Eye, EyeOff } from 'lucide-react'
+import { Lock, Mail, ArrowRight, Shield, Eye, EyeOff, ShieldAlert } from 'lucide-react'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
   const [email, setEmail] = useState('')
@@ -14,6 +15,13 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [infoBanner, setInfoBanner] = useState('')
+
+  useEffect(() => {
+    if (searchParams.get('reason') === 'inactivity_timeout') {
+      setInfoBanner('Your session timed out due to inactivity. Please sign in again.')
+    }
+  }, [searchParams])
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
@@ -84,6 +92,16 @@ export default function LoginPage() {
             Staff Portal · Sign in to continue
           </p>
         </div>
+
+        {infoBanner && (
+          <div style={{
+            padding: '10px 14px', background: 'rgba(59,130,246,0.12)', border: '1px solid var(--accent-blue)',
+            borderRadius: 8, color: 'var(--accent-blue)', fontSize: 13, marginBottom: 20, textAlign: 'center',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8
+          }}>
+            <ShieldAlert size={16} /> {infoBanner}
+          </div>
+        )}
 
         {error && (
           <div style={{
@@ -161,5 +179,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   )
 }

@@ -3,6 +3,7 @@ import ClientOnly from '@/components/ClientOnly'
 import LoginGreeting from '@/components/LoginGreeting'
 import TutorProfileModal from '@/components/TutorProfileModal'
 import PageTransition from '@/components/PageTransition'
+import SessionTimeoutManager from '@/components/SessionTimeoutManager'
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -17,6 +18,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
       <LoginGreeting />
       <TutorProfileModal />
+      <SessionTimeoutManager />
     </ClientOnly>
   )
 }
