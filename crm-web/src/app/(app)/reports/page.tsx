@@ -683,6 +683,7 @@ export default function ReportsPage() {
                       <th>Method &amp; Bank</th>
                       <th>Auditor (Recorded By)</th>
                       <th>Time</th>
+                      <th>Delivery / Dispatch</th>
                       <th>Notes</th>
                     </tr>
                   </thead>
@@ -714,8 +715,23 @@ export default function ReportsPage() {
                         <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>
                           {new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                         </td>
+                        <td style={{ fontSize: 11 }}>
+                          {(p.notes || '').includes('[DISPATCHED:') ? (
+                            <span style={{ color: '#10b981', fontWeight: 600 }}>
+                              ✓ Dispatched ({p.notes.match(/\[DISPATCHED:\s*([^\]]+)\]/)?.[1] || 'Batch'})
+                            </span>
+                          ) : p.tute_delivered ? (
+                            <span style={{ color: '#f59e0b', fontWeight: 600 }}>
+                              📦 Ready to Export (Pending Dispatch)
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)' }}>
+                              — No Postal Delivery
+                            </span>
+                          )}
+                        </td>
                         <td style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {p.notes || '—'}
+                          {p.notes ? p.notes.replace(/\[DISPATCHED:[^\]]+\]/g, '').trim() || '—' : '—'}
                         </td>
                       </tr>
                     ))}
