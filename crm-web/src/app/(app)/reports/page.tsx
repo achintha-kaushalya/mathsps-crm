@@ -11,7 +11,11 @@ import {
   FileSpreadsheet,
   Search,
   ShieldCheck,
-  Layers
+  Layers,
+  Printer,
+  Sparkles,
+  BookOpen,
+  GraduationCap
 } from 'lucide-react'
 import { MONTH_NAMES, CLASS_LABELS } from '@/lib/types'
 
@@ -19,7 +23,7 @@ export default function ReportsPage() {
   const supabase = createClient()
 
   // Primary Tab selection
-  const [activeTab, setActiveTab] = useState<'registrations' | 'bank_revenue' | 'daily_audit' | 'debts'>('registrations')
+  const [activeTab, setActiveTab] = useState<'day_end' | 'daily_audit' | 'registrations' | 'bank_revenue' | 'debts'>('day_end')
 
   // Date filters
   const [month, setMonth] = useState(new Date().getMonth() + 1)
@@ -27,6 +31,9 @@ export default function ReportsPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
 
   const [loading, setLoading] = useState(true)
+
+  // 0. Day-End Registrations State
+  const [dayEndRegisteredStudents, setDayEndRegisteredStudents] = useState<any[]>([])
 
   // 1. Month-by-Month New Registrations State
   const [newStudents, setNewStudents] = useState<any[]>([])
@@ -94,9 +101,10 @@ export default function ReportsPage() {
         }
       }
 
-      // 2. Fetch monthly data & new registrations in parallel
+      // 2. Fetch monthly data, day-end registrations & debts in parallel
       const [
         { data: registeredData },
+        { data: dayEndRegisteredData },
         { data: monthlyPaymentsData },
         { data: outData }
       ] = await Promise.all([
@@ -107,6 +115,15 @@ export default function ReportsPage() {
           .not('created_by', 'ilike', '%Auto-Pre-generated%')
           .gte('created_at', startOfMonth)
           .lte('created_at', endOfMonth)
+          .order('created_at', { ascending: false }),
+
+        // Real new registered students specifically on selected date
+        supabase
+          .from('students')
+          .select('*, household:households(*), enrollments(*)')
+          .not('created_by', 'ilike', '%Auto-Pre-generated%')
+          .gte('created_at', startOfDay)
+          .lte('created_at', endOfDay)
           .order('created_at', { ascending: false }),
 
         // Payments in this month (for Bank & Method revenue)
@@ -121,6 +138,9 @@ export default function ReportsPage() {
           .from('students_outstanding')
           .select('*')
       ])
+
+      // 0. Process Day-End Registered Students
+      setDayEndRegisteredStudents(dayEndRegisteredData || [])
 
       // 1. Process New Registered Students & Grade Breakdown
       const stuList = registeredData || []
@@ -245,6 +265,47 @@ export default function ReportsPage() {
   const totalDailyRevenue = dailyPayments.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
   const totalDebtAmount = outstandingList.reduce((sum, d) => sum + Math.abs(d.current_balance || 0), 0)
 
+  // Day-End calculations
+  const dayEndGradeNewMap: Record<number, number> = {}
+  dayEndRegisteredStudents.forEach(s => {
+    const gr = s.grade || 0
+    dayEndGradeNewMap[gr] = (dayEndGradeNewMap[gr] || 0) + 1
+  })
+
+  // Day-End Paid Students & Revenue Grade-wise and Class-wise
+  const dayEndGradePaidMap: Record<number, { count: number; total: number }> = {}
+  const dayEndClassPaidMap: Record<string, { count: number; total: number }> = {}
+  const dayEndAuditorMap: Record<string, { regCount: number; payCount: number; total: number }> = {}
+
+  dayEndRegisteredStudents.forEach(s => {
+    const who = s.created_by || 'System User'
+    if (!dayEndAuditorMap[who]) dayEndAuditorMap[who] = { regCount: 0, payCount: 0, total: 0 }
+    dayEndAuditorMap[who].regCount += 1
+  })
+
+  dailyPayments.forEach(p => {
+    const gr = p.students?.grade || 0
+    const amt = Number(p.amount_paid) || 0
+    const cls = p.class_type || 'UNKNOWN'
+    const who = p.recorded_by || 'System User'
+
+    if (!dayEndGradePaidMap[gr]) dayEndGradePaidMap[gr] = { count: 0, total: 0 }
+    dayEndGradePaidMap[gr].count += 1
+    dayEndGradePaidMap[gr].total += amt
+
+    if (!dayEndClassPaidMap[cls]) dayEndClassPaidMap[cls] = { count: 0, total: 0 }
+    dayEndClassPaidMap[cls].count += 1
+    dayEndClassPaidMap[cls].total += amt
+
+    if (!dayEndAuditorMap[who]) dayEndAuditorMap[who] = { regCount: 0, payCount: 0, total: 0 }
+    dayEndAuditorMap[who].payCount += 1
+    dayEndAuditorMap[who].total += amt
+  })
+
+  const allDistinctGrades = Array.from(
+    new Set([6, 7, 8, 9, 10, 11, ...Object.keys(dayEndGradeNewMap).map(Number), ...Object.keys(dayEndGradePaidMap).map(Number)])
+  ).filter(g => g > 0).sort((a, b) => a - b)
+
   return (
     <div className="fade-in" style={{ paddingBottom: 60 }}>
       {/* Header */}
@@ -255,7 +316,7 @@ export default function ReportsPage() {
             Admin Reports &amp; Audit Analytics
           </h1>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-            Month-by-month registrations, bank-wise revenue breakdowns, and daily auditor payment logs
+            Day-End summaries, month-by-month registrations, revenue breakdowns, and auditor logs
           </div>
         </div>
       </div>
@@ -264,12 +325,44 @@ export default function ReportsPage() {
         {/* Navigation Tabs */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 12, flexWrap: 'wrap' }}>
           <button
+            onClick={() => setActiveTab('day_end')}
+            className={activeTab === 'day_end' ? 'btn-primary' : 'btn-secondary'}
+            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            <Sparkles size={16} />
+            🌅 Day-End Summary
+            <span style={{
+              background: activeTab === 'day_end' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
+              color: activeTab === 'day_end' ? '#fff' : 'var(--accent-blue)',
+              padding: '2px 8px', borderRadius: 12, fontSize: 11
+            }}>
+              {selectedDate}
+            </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('daily_audit')}
+            className={activeTab === 'daily_audit' ? 'btn-primary' : 'btn-secondary'}
+            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            <ShieldCheck size={16} />
+            Audit Log
+            <span style={{
+              background: activeTab === 'daily_audit' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
+              color: activeTab === 'daily_audit' ? '#fff' : 'var(--accent-blue)',
+              padding: '2px 8px', borderRadius: 12, fontSize: 11
+            }}>
+              {dailyPayments.length} slips
+            </span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('registrations')}
             className={activeTab === 'registrations' ? 'btn-primary' : 'btn-secondary'}
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Users size={16} />
-            Registrations
+            Monthly Registrations
             <span style={{
               background: activeTab === 'registrations' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
               color: activeTab === 'registrations' ? '#fff' : 'var(--accent-blue)',
@@ -296,22 +389,6 @@ export default function ReportsPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab('daily_audit')}
-            className={activeTab === 'daily_audit' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
-          >
-            <ShieldCheck size={16} />
-            Audit Log
-            <span style={{
-              background: activeTab === 'daily_audit' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
-              color: activeTab === 'daily_audit' ? '#fff' : 'var(--accent-blue)',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
-            }}>
-              {dailyPayments.length} slips
-            </span>
-          </button>
-
-          <button
             onClick={() => setActiveTab('debts')}
             className={activeTab === 'debts' ? 'btn-primary' : 'btn-secondary'}
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
@@ -327,6 +404,394 @@ export default function ReportsPage() {
             </span>
           </button>
         </div>
+
+        {/* ========================================================================= */}
+        {/* TAB 0: DAY-END CLASS & GRADE-WISE SUMMARY REPORT                          */}
+        {/* ========================================================================= */}
+        {activeTab === 'day_end' && (
+          <div className="fade-in">
+            {/* Control & Date Bar */}
+            <div className="glass-card" style={{ padding: 18, marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                      Report Date
+                    </label>
+                    <input
+                      type="date"
+                      className="input-field"
+                      style={{ width: 160 }}
+                      value={selectedDate}
+                      onChange={e => setSelectedDate(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
+                      className={selectedDate === new Date().toISOString().slice(0, 10) ? 'btn-primary' : 'btn-secondary'}
+                      style={{ padding: '6px 12px', fontSize: 12 }}
+                    >
+                      Today
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date()
+                        d.setDate(d.getDate() - 1)
+                        setSelectedDate(d.toISOString().slice(0, 10))
+                      }}
+                      className={(() => {
+                        const d = new Date()
+                        d.setDate(d.getDate() - 1)
+                        return selectedDate === d.toISOString().slice(0, 10)
+                      })() ? 'btn-primary' : 'btn-secondary'}
+                      style={{ padding: '6px 12px', fontSize: 12 }}
+                    >
+                      Yesterday
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const d = new Date()
+                        d.setDate(d.getDate() - 2)
+                        setSelectedDate(d.toISOString().slice(0, 10))
+                      }}
+                      className={(() => {
+                        const d = new Date()
+                        d.setDate(d.getDate() - 2)
+                        return selectedDate === d.toISOString().slice(0, 10)
+                      })() ? 'btn-primary' : 'btn-secondary'}
+                      style={{ padding: '6px 12px', fontSize: 12 }}
+                    >
+                      2 Days Ago
+                    </button>
+                  </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                      Payment Filter Mode
+                    </label>
+                    <select
+                      className="input-field"
+                      style={{ width: 170 }}
+                      value={dateFilterType}
+                      onChange={e => setDateFilterType(e.target.value as any)}
+                    >
+                      <option value="created_at">System Entry Time</option>
+                      <option value="date_paid">Slip Paid Date</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="btn-secondary"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <Printer size={16} /> Print Day-End Slip
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const headers = ['METRIC TYPE', 'CATEGORY / ITEM', 'STUDENTS / COUNT', 'TOTAL AMOUNT (RS)']
+                      const rows: string[][] = []
+
+                      // Top summary
+                      rows.push(['SUMMARY', 'Total New Registered Students', `${dayEndRegisteredStudents.length}`, '0'])
+                      rows.push(['SUMMARY', 'Total Payment Slips Processed', `${dailyPayments.length}`, `${totalDailyRevenue}`])
+
+                      // Grade wise
+                      allDistinctGrades.forEach(g => {
+                        rows.push([
+                          'GRADE WISE',
+                          `Grade ${g}`,
+                          `New Reg: ${dayEndGradeNewMap[g] || 0} | Paid: ${dayEndGradePaidMap[g]?.count || 0}`,
+                          `${dayEndGradePaidMap[g]?.total || 0}`
+                        ])
+                      })
+
+                      // Class wise
+                      Object.entries(dayEndClassPaidMap).forEach(([cls, data]) => {
+                        rows.push([
+                          'CLASS WISE',
+                          `${CLASS_LABELS[cls] || cls}`,
+                          `${data.count}`,
+                          `${data.total}`
+                        ])
+                      })
+
+                      // Staff wise
+                      Object.entries(dayEndAuditorMap).forEach(([who, data]) => {
+                        rows.push([
+                          'STAFF PERFORMANCE',
+                          `${who}`,
+                          `Reg: ${data.regCount} | Slips: ${data.payCount}`,
+                          `${data.total}`
+                        ])
+                      })
+
+                      exportTableToCsv(`Day_End_Report_${selectedDate}`, headers, rows)
+                    }}
+                    className="btn-primary"
+                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <FileSpreadsheet size={16} /> Export Day-End CSV
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Top KPI Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
+              <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+                <div className="stat-card label">New Registered Students Today</div>
+                <div className="stat-card value" style={{ color: '#3b82f6', fontSize: 26 }}>
+                  {dayEndRegisteredStudents.length} Students
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Added into CRM on {selectedDate}
+                </div>
+              </div>
+
+              <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+                <div className="stat-card label">Payment Slips Processed</div>
+                <div className="stat-card value" style={{ color: '#10b981', fontSize: 26 }}>
+                  {dailyPayments.length} Slips
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Verified &amp; audited payments
+                </div>
+              </div>
+
+              <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+                <div className="stat-card label">Total Day-End Collections</div>
+                <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 26 }}>
+                  Rs. {totalDailyRevenue.toLocaleString()}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Total collected on {selectedDate}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 1: Grade-Wise Registration & Payment Breakdown Matrix */}
+            <div className="glass-card" style={{ padding: 20, marginBottom: 20 }}>
+              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <GraduationCap size={20} style={{ color: 'var(--accent-blue)' }} />
+                1. Grade-Wise Daily Registration &amp; Payment Matrix
+              </div>
+
+              <div style={{ overflowX: 'auto' }}>
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: 140 }}>Grade Level</th>
+                      <th style={{ textAlign: 'center' }}>New Registrations Today</th>
+                      <th style={{ textAlign: 'center' }}>Students Paid / Slips Today</th>
+                      <th style={{ textAlign: 'right' }}>Total Collections (Rs.)</th>
+                      <th style={{ textAlign: 'right' }}>% Revenue Share</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {allDistinctGrades.map(g => {
+                      const newCount = dayEndGradeNewMap[g] || 0
+                      const paidData = dayEndGradePaidMap[g] || { count: 0, total: 0 }
+                      const share = totalDailyRevenue > 0 ? ((paidData.total / totalDailyRevenue) * 100).toFixed(1) : '0.0'
+
+                      return (
+                        <tr key={g}>
+                          <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                            Grade {g}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {newCount > 0 ? (
+                              <span className="badge" style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--accent-blue)', fontWeight: 700, fontSize: 12 }}>
+                                {newCount} New {newCount === 1 ? 'Student' : 'Students'}
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)' }}>0</span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'center' }}>
+                            {paidData.count > 0 ? (
+                              <span className="badge" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', fontWeight: 700, fontSize: 12 }}>
+                                {paidData.count} {paidData.count === 1 ? 'Student' : 'Students'}
+                              </span>
+                            ) : (
+                              <span style={{ color: 'var(--text-muted)' }}>0</span>
+                            )}
+                          </td>
+                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            Rs. {paidData.total.toLocaleString()}
+                          </td>
+                          <td style={{ textAlign: 'right', fontSize: 12, color: 'var(--accent-blue)', fontWeight: 600 }}>
+                            {share}%
+                          </td>
+                        </tr>
+                      )
+                    })}
+
+                    {/* Matrix Totals Row */}
+                    <tr style={{ background: 'rgba(255,255,255,0.03)', fontWeight: 800 }}>
+                      <td style={{ color: 'var(--text-primary)', fontSize: 14 }}>
+                        TOTAL SUMMARY
+                      </td>
+                      <td style={{ textAlign: 'center', color: 'var(--accent-blue)', fontSize: 14 }}>
+                        {dayEndRegisteredStudents.length} Students
+                      </td>
+                      <td style={{ textAlign: 'center', color: '#10b981', fontSize: 14 }}>
+                        {dailyPayments.length} Slips
+                      </td>
+                      <td style={{ textAlign: 'right', color: '#f59e0b', fontSize: 15 }}>
+                        Rs. {totalDailyRevenue.toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'right', color: 'var(--text-primary)', fontSize: 13 }}>
+                        100.0%
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Section 2 & 3: Class-Wise Breakdown & Staff Productivity */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, marginBottom: 20 }}>
+              {/* Class / Subject Breakdown */}
+              <div className="glass-card" style={{ padding: 20 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <BookOpen size={18} style={{ color: 'var(--accent-blue)' }} />
+                  2. Class &amp; Subject-Wise Collections
+                </div>
+
+                <table className="data-table">
+                  <thead>
+                    <tr>
+                      <th>Class / Subject</th>
+                      <th style={{ textAlign: 'center' }}>Students Paid</th>
+                      <th style={{ textAlign: 'right' }}>Amount (Rs.)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {Object.entries(dayEndClassPaidMap).map(([cls, data]) => (
+                      <tr key={cls}>
+                        <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {CLASS_LABELS[cls] || cls}
+                        </td>
+                        <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                          {data.count}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
+                          Rs. {data.total.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {Object.keys(dayEndClassPaidMap).length === 0 && (
+                  <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
+                    No payments recorded for {selectedDate}.
+                  </div>
+                )}
+              </div>
+
+              {/* Staff / Registrar Breakdown */}
+              <div className="glass-card" style={{ padding: 20 }}>
+                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Users size={18} style={{ color: 'var(--accent-blue)' }} />
+                  3. Staff / Registrar Activity Today
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {Object.entries(dayEndAuditorMap).map(([who, data]) => (
+                    <div key={who} style={{ padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                          👤 {who}
+                        </span>
+                        <span style={{ fontSize: 14, fontWeight: 700, color: '#f59e0b' }}>
+                          Rs. {data.total.toLocaleString()}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)' }}>
+                        <span>New Registrations: <strong style={{ color: 'var(--text-primary)' }}>{data.regCount}</strong></span>
+                        <span>Payment Slips: <strong style={{ color: 'var(--text-primary)' }}>{data.payCount}</strong></span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {Object.keys(dayEndAuditorMap).length === 0 && (
+                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
+                      No staff actions logged on {selectedDate}.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Section 4: Registered Students List for the Day */}
+            {dayEndRegisteredStudents.length > 0 && (
+              <div className="glass-card" style={{ overflow: 'hidden' }}>
+                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Users size={16} style={{ color: 'var(--accent-blue)' }} />
+                    New Students Registered on {selectedDate} ({dayEndRegisteredStudents.length} Students)
+                  </div>
+                </div>
+
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>PS Code</th>
+                        <th>Student Name</th>
+                        <th>Grade</th>
+                        <th>Parent Name &amp; Phone</th>
+                        <th>Classes</th>
+                        <th>Registrar</th>
+                        <th>Time</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dayEndRegisteredStudents.map(s => (
+                        <tr key={s.id}>
+                          <td>
+                            <a href={`/students/${encodeURIComponent(s.ps_code)}`} style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 700 }}>
+                              {s.ps_code}
+                            </a>
+                          </td>
+                          <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.full_name || '—'}</td>
+                          <td>
+                            <span className="badge" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
+                              Grade {s.grade || '—'}
+                            </span>
+                          </td>
+                          <td style={{ fontSize: 12 }}>
+                            <div>{s.household?.parent_name || '—'}</div>
+                            <div style={{ color: 'var(--text-muted)' }}>{s.household?.parent_phone || '—'}</div>
+                          </td>
+                          <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                            {(s.enrollments || []).map((e: any) => CLASS_LABELS[e.class_type] || e.class_type).join(', ') || 'None'}
+                          </td>
+                          <td style={{ fontSize: 12 }}>{s.created_by || 'System'}</td>
+                          <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                            {new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* ========================================================================= */}
         {/* TAB 1: MONTH-BY-MONTH NEW REGISTRATIONS (PS CODES, GRADES, COUNTS)        */}
