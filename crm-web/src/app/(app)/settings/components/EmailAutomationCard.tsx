@@ -18,6 +18,7 @@ import {
 
 export default function EmailAutomationCard() {
   const [apiKey, setApiKey] = useState('')
+  const [fromEmail, setFromEmail] = useState('')
   const [recipients, setRecipients] = useState<string[]>([])
   const [recipientInput, setRecipientInput] = useState('')
   const [autoSchedule, setAutoSchedule] = useState(true)
@@ -32,16 +33,18 @@ export default function EmailAutomationCard() {
   useEffect(() => {
     try {
       const savedKey = localStorage.getItem('MATHSPS_RESEND_API_KEY') || ''
+      const savedFrom = localStorage.getItem('MATHSPS_RESEND_FROM_EMAIL') || ''
       const savedRecipients = localStorage.getItem('MATHSPS_REPORT_RECIPIENTS')
       const savedSchedule = localStorage.getItem('MATHSPS_EMAIL_SCHEDULE')
       const savedIncludeCsv = localStorage.getItem('MATHSPS_EMAIL_INCLUDE_CSV')
       const savedTime = localStorage.getItem('MATHSPS_EMAIL_TIME')
 
       if (savedKey) setApiKey(savedKey)
+      if (savedFrom) setFromEmail(savedFrom)
       if (savedRecipients) {
         setRecipients(JSON.parse(savedRecipients))
       } else {
-        setRecipients(['achinthakaushalya99@gmail.com'])
+        setRecipients(['achibro12903@gmail.com'])
       }
       if (savedSchedule !== null) setAutoSchedule(savedSchedule === 'true')
       if (savedIncludeCsv !== null) setIncludeCsv(savedIncludeCsv === 'true')
@@ -54,6 +57,7 @@ export default function EmailAutomationCard() {
   function handleSaveConfig() {
     try {
       localStorage.setItem('MATHSPS_RESEND_API_KEY', apiKey.trim())
+      localStorage.setItem('MATHSPS_RESEND_FROM_EMAIL', fromEmail.trim())
       localStorage.setItem('MATHSPS_REPORT_RECIPIENTS', JSON.stringify(recipients))
       localStorage.setItem('MATHSPS_EMAIL_SCHEDULE', String(autoSchedule))
       localStorage.setItem('MATHSPS_EMAIL_INCLUDE_CSV', String(includeCsv))
@@ -110,6 +114,7 @@ export default function EmailAutomationCard() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           senderApiKey: apiKey.trim() || undefined,
+          fromEmail: fromEmail.trim() || undefined,
           recipients,
           targetDate: new Date().toISOString().slice(0, 10),
           includeCsv
@@ -185,7 +190,35 @@ export default function EmailAutomationCard() {
               style={{ fontFamily: 'monospace', fontSize: 13 }}
             />
             <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-              Stored locally on your device or configurable via <code>RESEND_API_KEY</code> environment variable.
+              Stored securely on your device or configurable via <code>RESEND_API_KEY</code> environment variable.
+            </div>
+          </div>
+
+          {/* Custom Sender / From Email */}
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Mail size={14} style={{ color: 'var(--accent-blue)' }} /> Sender &quot;From&quot; Email Address (Optional)
+              </label>
+              <a
+                href="https://resend.com/domains"
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{ fontSize: 11, color: 'var(--accent-blue)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2 }}
+              >
+                Verify Domain <ExternalLink size={10} />
+              </a>
+            </div>
+            <input
+              type="text"
+              className="input-field"
+              placeholder="MathsPS Reports <reports@yourdomain.com>"
+              value={fromEmail}
+              onChange={e => setFromEmail(e.target.value)}
+              style={{ fontSize: 13 }}
+            />
+            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+              Leave blank to use Resend Sandbox (<code>onboarding@resend.dev</code>). <em>Note: In Sandbox mode, Resend only allows sending to your registered account email (<code>achibro12903@gmail.com</code>). To send to any email, add your domain in Resend.</em>
             </div>
           </div>
 

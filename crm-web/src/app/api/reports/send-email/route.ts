@@ -12,6 +12,7 @@ export async function POST(request: Request) {
       targetDate = new Date().toISOString().slice(0, 10),
       includeCsv = true,
       senderApiKey,
+      fromEmail,
       sections = {
         kpis: true,
         gradeTable: true,
@@ -254,8 +255,12 @@ export async function POST(request: Request) {
     }
 
     // Send email via Resend
+    const senderAddress = fromEmail && fromEmail.trim()
+      ? fromEmail.trim()
+      : 'MathsPS Reports <onboarding@resend.dev>'
+
     const sendResult = await resend.emails.send({
-      from: 'MathsPS Reports <onboarding@resend.dev>', // Users can configure custom domain on Resend
+      from: senderAddress,
       to: recipients,
       subject: `🌅 MathsPS Day-End Summary — ${targetDate} (Rs. ${totalDailyRevenue.toLocaleString()})`,
       html: emailHtml,
@@ -263,7 +268,8 @@ export async function POST(request: Request) {
     })
 
     if (sendResult.error) {
-      return NextResponse.json({ error: sendResult.error.message }, { status: 500 })
+      const errMsg = sendResult.error.message || 'Resend delivery failed'
+      return NextResponse.json({ error: errMsg }, { status: 400 })
     }
 
     return NextResponse.json({
