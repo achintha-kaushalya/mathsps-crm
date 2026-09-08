@@ -19,6 +19,7 @@ import {
   Layers,
   Archive
 } from 'lucide-react'
+import EmailAutomationCard from './components/EmailAutomationCard'
 
 export default function SettingsPage() {
   const supabase = createClient()
@@ -497,6 +498,9 @@ export default function SettingsPage() {
         </div>
 
       </div>
+
+      {/* Automated Email Reports & Dispatch Center */}
+      <EmailAutomationCard />
 
       {/* Restore Inspection & Confirmation Modal */}
       {showRestoreModal && backupPayload && (

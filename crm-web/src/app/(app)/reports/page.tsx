@@ -14,7 +14,8 @@ import {
   Layers,
   Sparkles,
   RefreshCw,
-  LineChart as LineChartIcon
+  LineChart as LineChartIcon,
+  Mail
 } from 'lucide-react'
 import { MONTH_NAMES, CLASS_LABELS } from '@/lib/types'
 import { exportTableToCsv, TARGET_GRADES } from '@/lib/reports-analytics'
@@ -722,7 +723,7 @@ export default function ReportsPage() {
   return (
     <div className="fade-in" style={{ paddingBottom: 60 }}>
       {/* Header */}
-      <div className="page-header">
+      <div className="page-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
             <BarChart2 size={22} style={{ color: 'var(--accent-blue)' }} />
@@ -732,6 +733,15 @@ export default function ReportsPage() {
             Day-End summaries, month-by-month registrations, revenue breakdowns, and auditor logs
           </div>
         </div>
+
+        <a
+          href="/settings"
+          className="btn-secondary"
+          style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, textDecoration: 'none', padding: '8px 14px' }}
+        >
+          <Mail size={16} style={{ color: 'var(--accent-blue)' }} />
+          📧 Email Automation Settings
+        </a>
       </div>
 
       <div className="page-content">
