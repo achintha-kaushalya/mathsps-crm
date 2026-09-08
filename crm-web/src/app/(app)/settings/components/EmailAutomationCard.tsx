@@ -31,11 +31,16 @@ export default function EmailAutomationCard() {
   // Common settings
   const [recipients, setRecipients] = useState<string[]>([])
   const [recipientInput, setRecipientInput] = useState('')
-  const [autoSchedule, setAutoSchedule] = useState(true)
-  const [scheduleTime, setScheduleTime] = useState('21:00') // 9:00 PM
+  
+  // Dual Schedules (Morning Strategy vs Evening Day-End)
+  const [morningSchedule, setMorningSchedule] = useState(true)
+  const [morningTime, setMorningTime] = useState('07:00') // 7:00 AM
+  const [eveningSchedule, setEveningSchedule] = useState(true)
+  const [eveningTime, setEveningTime] = useState('21:00') // 9:00 PM
+
   const [includeCsv, setIncludeCsv] = useState(true)
   
-  const [testing, setTesting] = useState(false)
+  const [testingType, setTestingType] = useState<'morning' | 'evening' | null>(null)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [savedSuccess, setSavedSuccess] = useState(false)
 
@@ -48,9 +53,11 @@ export default function EmailAutomationCard() {
       const savedSmtpUser = localStorage.getItem('MATHSPS_SMTP_USER') || ''
       const savedSmtpPass = localStorage.getItem('MATHSPS_SMTP_PASS') || ''
       const savedRecipients = localStorage.getItem('MATHSPS_REPORT_RECIPIENTS')
-      const savedSchedule = localStorage.getItem('MATHSPS_EMAIL_SCHEDULE')
+      const savedMorning = localStorage.getItem('MATHSPS_MORNING_SCHEDULE')
+      const savedMorningTime = localStorage.getItem('MATHSPS_MORNING_TIME')
+      const savedEvening = localStorage.getItem('MATHSPS_EVENING_SCHEDULE')
+      const savedEveningTime = localStorage.getItem('MATHSPS_EVENING_TIME')
       const savedIncludeCsv = localStorage.getItem('MATHSPS_EMAIL_INCLUDE_CSV')
-      const savedTime = localStorage.getItem('MATHSPS_EMAIL_TIME')
 
       setProvider(savedProvider)
       if (savedKey) setApiKey(savedKey)
@@ -63,9 +70,11 @@ export default function EmailAutomationCard() {
       } else {
         setRecipients(['sampathlankasunsoft93@gmail.com'])
       }
-      if (savedSchedule !== null) setAutoSchedule(savedSchedule === 'true')
+      if (savedMorning !== null) setMorningSchedule(savedMorning === 'true')
+      if (savedMorningTime) setMorningTime(savedMorningTime)
+      if (savedEvening !== null) setEveningSchedule(savedEvening === 'true')
+      if (savedEveningTime) setEveningTime(savedEveningTime)
       if (savedIncludeCsv !== null) setIncludeCsv(savedIncludeCsv === 'true')
-      if (savedTime) setScheduleTime(savedTime)
     } catch (e) {
       console.error(e)
     }
@@ -79,9 +88,11 @@ export default function EmailAutomationCard() {
       localStorage.setItem('MATHSPS_SMTP_USER', smtpUser.trim())
       localStorage.setItem('MATHSPS_SMTP_PASS', smtpPass.trim())
       localStorage.setItem('MATHSPS_REPORT_RECIPIENTS', JSON.stringify(recipients))
-      localStorage.setItem('MATHSPS_EMAIL_SCHEDULE', String(autoSchedule))
+      localStorage.setItem('MATHSPS_MORNING_SCHEDULE', String(morningSchedule))
+      localStorage.setItem('MATHSPS_MORNING_TIME', morningTime)
+      localStorage.setItem('MATHSPS_EVENING_SCHEDULE', String(eveningSchedule))
+      localStorage.setItem('MATHSPS_EVENING_TIME', eveningTime)
       localStorage.setItem('MATHSPS_EMAIL_INCLUDE_CSV', String(includeCsv))
-      localStorage.setItem('MATHSPS_EMAIL_TIME', scheduleTime)
 
       setSavedSuccess(true)
       setTimeout(() => setSavedSuccess(false), 3000)
@@ -108,7 +119,7 @@ export default function EmailAutomationCard() {
     localStorage.setItem('MATHSPS_REPORT_RECIPIENTS', JSON.stringify(updated))
   }
 
-  async function handleSendTestDigest() {
+  async function handleSendTestDigest(type: 'morning' | 'evening') {
     if (provider === 'smtp') {
       if (!smtpUser.trim() || !smtpPass.trim()) {
         setTestResult({
@@ -135,7 +146,7 @@ export default function EmailAutomationCard() {
       return
     }
 
-    setTesting(true)
+    setTestingType(type)
     setTestResult(null)
 
     try {
@@ -143,6 +154,7 @@ export default function EmailAutomationCard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          reportType: type,
           provider,
           // SMTP options
           smtpUser: smtpUser.trim() || undefined,
@@ -161,7 +173,7 @@ export default function EmailAutomationCard() {
 
       setTestResult({
         success: true,
-        message: `✓ Email sent successfully via ${provider.toUpperCase()} to ${recipients.join(', ')}! Check your inbox.`
+        message: `✓ ${type === 'morning' ? 'Morning Strategic Brief' : 'Evening Day-End Summary'} sent successfully via ${provider.toUpperCase()} to ${recipients.join(', ')}!`
       })
     } catch (e: any) {
       setTestResult({
@@ -169,7 +181,7 @@ export default function EmailAutomationCard() {
         message: e.message || 'Failed to send email'
       })
     } finally {
-      setTesting(false)
+      setTestingType(null)
     }
   }
 
@@ -400,32 +412,57 @@ export default function EmailAutomationCard() {
             </div>
           </div>
 
-          {/* Dispatch Schedule & Features */}
-          <div style={{ padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Clock size={15} style={{ color: 'var(--accent-blue)' }} /> Nightly Auto-Dispatch Preferences
+          {/* Dual Dispatch Schedules & Features */}
+          <div style={{ padding: 16, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
+            <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Clock size={15} style={{ color: 'var(--accent-blue)' }} /> Automated Dispatch Schedules (Daily 2-in-1 Rhythm)
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={autoSchedule}
-                  onChange={e => setAutoSchedule(e.target.checked)}
-                />
-                <span>Enable Automated Nightly Email Digest (Vercel Cron)</span>
-              </label>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+              {/* 1. Morning Strategy Brief Schedule */}
+              <div style={{ padding: 12, background: 'rgba(59,130,246,0.06)', borderRadius: 6, border: '1px solid rgba(59,130,246,0.15)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={morningSchedule}
+                    onChange={e => setMorningSchedule(e.target.checked)}
+                  />
+                  <span>☀️ Morning Strategic Brief &amp; Action Items</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Send Time:</span>
+                  <input
+                    type="time"
+                    className="input-field"
+                    style={{ width: 110, padding: '3px 8px', fontSize: 12 }}
+                    value={morningTime}
+                    onChange={e => setMorningTime(e.target.value)}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Includes Retention Alerts + SVG Trend Chart + Follow-up CSV</span>
+                </div>
+              </div>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginLeft: 24 }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Dispatch Time:</span>
-                <input
-                  type="time"
-                  className="input-field"
-                  style={{ width: 120, padding: '4px 8px' }}
-                  value={scheduleTime}
-                  onChange={e => setScheduleTime(e.target.value)}
-                />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Every night</span>
+              {/* 2. Evening Day-End Cash Summary Schedule */}
+              <div style={{ padding: 12, background: 'rgba(16,185,129,0.06)', borderRadius: 6, border: '1px solid rgba(16,185,129,0.15)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={eveningSchedule}
+                    onChange={e => setEveningSchedule(e.target.checked)}
+                  />
+                  <span>🌅 Evening Day-End Cash &amp; Auditor Audit</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24 }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Send Time:</span>
+                  <input
+                    type="time"
+                    className="input-field"
+                    style={{ width: 110, padding: '3px 8px', fontSize: 12 }}
+                    value={eveningTime}
+                    onChange={e => setEveningTime(e.target.value)}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Includes Auditor Totals + Grade Cash Slips + Day Audit CSV</span>
+                </div>
               </div>
 
               <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
@@ -436,7 +473,7 @@ export default function EmailAutomationCard() {
                 />
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <FileSpreadsheet size={14} style={{ color: '#10b981' }} />
-                  Attach complete Day-End CSV audit report file to email
+                  Attach complete Excel/CSV data sheets to reports
                 </span>
               </label>
             </div>
@@ -467,41 +504,73 @@ export default function EmailAutomationCard() {
             borderRadius: 10,
             padding: 18
           }}>
-            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Sparkles size={16} style={{ color: 'var(--accent-blue)' }} />
               Live Email Dispatch Test
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
-              Trigger an instant Day-End executive email to test your Resend connection and verify recipient deliverability.
+            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
+              Trigger an instant test email for either report type to verify recipient delivery and preview template layout.
             </div>
 
-            <button
-              type="button"
-              onClick={handleSendTestDigest}
-              disabled={testing}
-              className="btn-primary"
-              style={{
-                width: '100%',
-                padding: '10px 16px',
-                fontSize: 13,
-                fontWeight: 700,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: 8,
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
-              }}
-            >
-              {testing ? (
-                <>
-                  <RefreshCw size={16} className="spin" /> Generating &amp; Dispatching Email...
-                </>
-              ) : (
-                <>
-                  <Send size={16} /> 🚀 Send Today's Digest Now
-                </>
-              )}
-            </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {/* Morning Test Button */}
+              <button
+                type="button"
+                onClick={() => handleSendTestDigest('morning')}
+                disabled={testingType !== null}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)'
+                }}
+              >
+                {testingType === 'morning' ? (
+                  <>
+                    <RefreshCw size={15} className="spin" /> Dispatching Morning Strategic Brief...
+                  </>
+                ) : (
+                  <>
+                    <Send size={15} /> ☀️ Test Morning Strategic Brief (Trends + Retention)
+                  </>
+                )}
+              </button>
+
+              {/* Evening Test Button */}
+              <button
+                type="button"
+                onClick={() => handleSendTestDigest('evening')}
+                disabled={testingType !== null}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '10px 14px',
+                  fontSize: 13,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                }}
+              >
+                {testingType === 'evening' ? (
+                  <>
+                    <RefreshCw size={15} className="spin" /> Dispatching Evening Summary...
+                  </>
+                ) : (
+                  <>
+                    <Send size={15} /> 🌅 Test Evening Day-End Summary (Audit Slips)
+                  </>
+                )}
+              </button>
+            </div>
 
             {testResult && (
               <div style={{
@@ -524,15 +593,16 @@ export default function EmailAutomationCard() {
 
           <div style={{ padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-              Email Contents Summary
+              What&apos;s Included in Each Report
             </div>
-            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 12, color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: 4 }}>
-              <li>Executive Revenue &amp; Slips Total KPI Cards</li>
-              <li>Month-to-Date total comparison</li>
-              <li>Grade 6 to 11 registered vs paying breakdown</li>
-              <li>Staff Auditor processing metrics</li>
-              <li>Attached <code>Day_End_Audit.csv</code> data sheet</li>
-            </ul>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
+              <div>
+                <strong style={{ color: 'var(--accent-blue)' }}>☀️ Morning Report:</strong> MoM momentum, retention &amp; churn alert table, embedded SVG trend curve graph, and attached unpaid student follow-up CSV.
+              </div>
+              <div>
+                <strong style={{ color: '#10b981' }}>🌅 Evening Report:</strong> Daily collections, slip count, grade cash breakdown, auditor productivity, and attached day audit CSV.
+              </div>
+            </div>
           </div>
         </div>
       </div>
