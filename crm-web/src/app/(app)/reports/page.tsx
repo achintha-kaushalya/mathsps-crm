@@ -39,8 +39,8 @@ export default function ReportsPage() {
   // 0. Day-End Registrations State
   const [dayEndRegisteredStudents, setDayEndRegisteredStudents] = useState<any[]>([])
 
-  // 0.5. Monthly Cumulative Matrix Mode ('registrations' vs 'payments')
-  const [matrixMode, setMatrixMode] = useState<'registrations' | 'payments'>('registrations')
+  // 0.5. Monthly Cumulative Matrix Mode ('payments' vs 'registrations')
+  const [matrixMode, setMatrixMode] = useState<'registrations' | 'payments'>('payments')
 
   // 0.6. Multi-Month Business Trend Line Chart Analytics State
   const [trendYear, setTrendYear] = useState(new Date().getFullYear())
@@ -374,11 +374,46 @@ export default function ReportsPage() {
       }
     })
   } else {
+    // Unique students paid for this month:
+    // If paid before day 1 of the selected month (e.g. advance payment in August for September month),
+    // it counts on Day 1 (01/MM).
+    // If paid on or after day 1 of the selected month, it counts on its respective day.
+    const monthStartIso = `${year}-${String(month).padStart(2, '0')}-01`
+    
+    // Group unique students by grade and day so multiple class payments by same student don't double count if measuring students
+    const seenStudentDay = new Set<string>()
+
     allPaymentsMonth.forEach(p => {
-      const d = p.date_paid ? parseInt(p.date_paid.split('-')[2], 10) : new Date(p.created_at).getDate()
+      const psCode = p.students?.ps_code || p.student_id || p.id
       const g = p.students?.grade || 0
-      if (rawDailyCounts[d] && rawDailyCounts[d][g] !== undefined) {
-        rawDailyCounts[d][g] += 1
+      if (!matrixTargetGrades.includes(g)) return
+
+      const paidDateStr = p.date_paid || (p.created_at ? p.created_at.slice(0, 10) : '')
+      
+      let targetDay = 1
+      if (paidDateStr) {
+        if (paidDateStr < monthStartIso) {
+          // Advance payment made before this month started (e.g., Aug 31 for Sept month) -> starts on Day 1
+          targetDay = 1
+        } else {
+          const parts = paidDateStr.split('-')
+          if (parts.length >= 3 && parseInt(parts[0], 10) === year && parseInt(parts[1], 10) === month) {
+            targetDay = parseInt(parts[2], 10)
+          } else {
+            targetDay = 1
+          }
+        }
+      }
+
+      if (targetDay < 1) targetDay = 1
+      if (targetDay > daysInSelectedMonth) targetDay = daysInSelectedMonth
+
+      const dedupeKey = `${psCode}_G${g}`
+      if (!seenStudentDay.has(dedupeKey)) {
+        seenStudentDay.add(dedupeKey)
+        if (rawDailyCounts[targetDay] && rawDailyCounts[targetDay][g] !== undefined) {
+          rawDailyCounts[targetDay][g] += 1
+        }
       }
     })
   }
