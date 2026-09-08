@@ -12,20 +12,16 @@ import {
   Search,
   ShieldCheck,
   Layers,
-  Printer,
   Sparkles,
-  BookOpen,
-  GraduationCap,
   RefreshCw,
-  Phone,
-  TrendingUp,
-  TrendingDown,
-  UserCheck,
-  UserX,
-  UserPlus,
   LineChart as LineChartIcon
 } from 'lucide-react'
 import { MONTH_NAMES, CLASS_LABELS } from '@/lib/types'
+import { exportTableToCsv, TARGET_GRADES } from '@/lib/reports-analytics'
+import DayEndSummaryTab from './components/DayEndSummaryTab'
+import MonthlyMatrixTab from './components/MonthlyMatrixTab'
+import MultiMonthTrendsTab from './components/MultiMonthTrendsTab'
+import RetentionAnalyzerTab from './components/RetentionAnalyzerTab'
 
 export default function ReportsPage() {
   const supabase = createClient()
@@ -274,21 +270,7 @@ export default function ReportsPage() {
     }
   }
 
-  // Export CSV Helper
-  function exportTableToCsv(filename: string, headers: string[], rows: string[][]) {
-    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n')
-    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${filename}.csv`
-    document.body.appendChild(a)
-    a.click()
-    document.body.removeChild(a)
-    URL.revokeObjectURL(url)
-  }
-
-  // Filtered lists
+  // Filtered lists for simple tabs
   const filteredNewStudents = newStudents.filter(s => {
     if (!searchStu.trim()) return true
     const term = searchStu.toLowerCase()
@@ -330,14 +312,15 @@ export default function ReportsPage() {
   const totalDailyRevenue = dailyPayments.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
   const totalDebtAmount = outstandingList.reduce((sum, d) => sum + Math.abs(d.current_balance || 0), 0)
 
-  // Day-End calculations
+  // -------------------------------------------------------------------------
+  // 1. DAY-END CALCULATIONS
+  // -------------------------------------------------------------------------
   const dayEndGradeNewMap: Record<number, number> = {}
   dayEndRegisteredStudents.forEach(s => {
     const gr = s.grade || 0
     dayEndGradeNewMap[gr] = (dayEndGradeNewMap[gr] || 0) + 1
   })
 
-  // Day-End Paid Students & Revenue Grade-wise and Class-wise
   const dayEndGradePaidMap: Record<number, { count: number; total: number }> = {}
   const dayEndClassPaidMap: Record<string, { count: number; total: number }> = {}
   const dayEndAuditorMap: Record<string, { regCount: number; payCount: number; total: number }> = {}
@@ -372,12 +355,11 @@ export default function ReportsPage() {
   ).filter(g => g > 0).sort((a, b) => a - b)
 
   // -------------------------------------------------------------------------
-  // MONTHLY CUMULATIVE DATE-BY-DATE GRADE MATRIX CALCULATIONS
+  // 2. MONTHLY CUMULATIVE MATRIX CALCULATIONS
   // -------------------------------------------------------------------------
   const daysInSelectedMonth = new Date(year, month, 0).getDate()
-  const matrixTargetGrades = [6, 7, 8, 9, 10, 11]
+  const matrixTargetGrades = TARGET_GRADES
 
-  // Daily raw bucket maps: dayNumber -> { grade -> count, dailyTotal }
   const rawDailyCounts: Record<number, Record<number, number>> = {}
   for (let d = 1; d <= daysInSelectedMonth; d++) {
     rawDailyCounts[d] = { 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
@@ -392,7 +374,6 @@ export default function ReportsPage() {
       }
     })
   } else {
-    // Payments mode: payments in that month bucketed by payment entry/deposit day
     allPaymentsMonth.forEach(p => {
       const d = p.date_paid ? parseInt(p.date_paid.split('-')[2], 10) : new Date(p.created_at).getDate()
       const g = p.students?.grade || 0
@@ -402,7 +383,6 @@ export default function ReportsPage() {
     })
   }
 
-  // Calculate Cumulative totals progressing day by day
   const cumulativeMatrixRows: {
     day: number
     dateStr: string
@@ -417,7 +397,7 @@ export default function ReportsPage() {
 
   for (let d = 1; d <= daysInSelectedMonth; d++) {
     const dayDate = new Date(year, month - 1, d)
-    const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6 // Sunday or Saturday
+    const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6
     const dateFormatted = `${String(d).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
 
     let dayRawSum = 0
@@ -441,9 +421,8 @@ export default function ReportsPage() {
   }
 
   // -------------------------------------------------------------------------
-  // MONTH-OVER-MONTH RETENTION & PAYMENT CONTINUITY ANALYZER CALCULATIONS
+  // 3. RETENTION & CONTINUITY CALCULATIONS
   // -------------------------------------------------------------------------
-  // 1. Unique students who paid in PREVIOUS month
   const prevMonthStudentsMap = new Map<string, any>()
   prevMonthPayments.forEach(p => {
     const ps = p.students?.ps_code || p.student_id
@@ -463,7 +442,6 @@ export default function ReportsPage() {
     }
   })
 
-  // 2. Unique students who paid in CURRENT month
   const currentMonthStudentsMap = new Map<string, any>()
   allPaymentsMonth.forEach(p => {
     const ps = p.students?.ps_code || p.student_id
@@ -483,12 +461,10 @@ export default function ReportsPage() {
     }
   })
 
-  // 3. Classify students into categories
   const retainedStudentsList: any[] = []
   const droppedStudentsList: any[] = []
   const newPayingStudentsList: any[] = []
 
-  // Check from Previous Month pool
   prevMonthStudentsMap.forEach((prevStu, ps) => {
     if (currentMonthStudentsMap.has(ps)) {
       const currStu = currentMonthStudentsMap.get(ps)
@@ -507,7 +483,6 @@ export default function ReportsPage() {
     }
   })
 
-  // Check for New Inflow in Current Month pool
   currentMonthStudentsMap.forEach((currStu, ps) => {
     if (!prevMonthStudentsMap.has(ps)) {
       newPayingStudentsList.push({
@@ -517,7 +492,6 @@ export default function ReportsPage() {
     }
   })
 
-  // Overall Retention Metrics
   const totalPrevPaid = prevMonthStudentsMap.size
   const totalCurrPaid = currentMonthStudentsMap.size
   const totalRetained = retainedStudentsList.length
@@ -528,7 +502,6 @@ export default function ReportsPage() {
   const overallChurnRate = totalPrevPaid > 0 ? ((totalDropped / totalPrevPaid) * 100).toFixed(1) : '0.0'
   const potentialLostRevenue = droppedStudentsList.reduce((sum, s) => sum + (Number(s.last_amount) || 0), 0)
 
-  // Grade-wise Retention Matrix Calculations
   const gradeRetentionMatrix: Record<number, { prev: number; retained: number; dropped: number; newPaying: number; rate: string }> = {}
   matrixTargetGrades.forEach(g => {
     const prevCount = Array.from(prevMonthStudentsMap.values()).filter(s => s.grade === g).length
@@ -546,7 +519,6 @@ export default function ReportsPage() {
     }
   })
 
-  // Filtered Retention Action List
   const allRetentionCombined = [
     ...droppedStudentsList,
     ...retainedStudentsList,
@@ -572,33 +544,17 @@ export default function ReportsPage() {
   })
 
   // -------------------------------------------------------------------------
-  // MULTI-MONTH BUSINESS TREND LINE CHART CALCULATIONS
+  // 4. MULTI-MONTH BUSINESS TREND LINE CHART CALCULATIONS
   // -------------------------------------------------------------------------
   const sortedTrendMonths = [...selectedTrendMonths].sort((a, b) => a - b)
 
-  // Grade color map for multi-line SVG chart
-  const gradeColorMap: Record<number, { stroke: string; fill: string; name: string }> = {
-    0: { stroke: '#3b82f6', fill: 'rgba(59, 130, 246, 0.2)', name: 'Total All Grades' },
-    6: { stroke: '#10b981', fill: 'rgba(16, 185, 129, 0.2)', name: 'Grade 6' },
-    7: { stroke: '#f59e0b', fill: 'rgba(245, 158, 11, 0.2)', name: 'Grade 7' },
-    8: { stroke: '#ec4899', fill: 'rgba(236, 72, 153, 0.2)', name: 'Grade 8' },
-    9: { stroke: '#8b5cf6', fill: 'rgba(139, 92, 246, 0.2)', name: 'Grade 9' },
-    10: { stroke: '#06b6d4', fill: 'rgba(6, 182, 212, 0.2)', name: 'Grade 10' },
-    11: { stroke: '#f97316', fill: 'rgba(249, 115, 22, 0.2)', name: 'Grade 11' },
-  }
-
-  // Monthly aggregated data series
   const trendMonthlySeries = sortedTrendMonths.map(m => {
-    // Payments in this month of trendYear
     const mPayments = trendPaymentsYear.filter(p => p.month === m)
 
-    // Grade breakdown for paying students (distinct students per grade)
     const gradePayingStudentsMap: Record<number, Set<string>> = {
       6: new Set(), 7: new Set(), 8: new Set(), 9: new Set(), 10: new Set(), 11: new Set()
     }
     const allPayingStudentsSet = new Set<string>()
-
-    // Grade breakdown for revenue
     const gradeRevenueMap: Record<number, number> = { 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
     let totalRevenue = 0
 
@@ -618,7 +574,6 @@ export default function ReportsPage() {
       }
     })
 
-    // Registrations in this month
     const mStudents = trendStudentsYear.filter(s => {
       const d = new Date(s.created_at)
       return d.getMonth() + 1 === m
@@ -631,46 +586,39 @@ export default function ReportsPage() {
       }
     })
 
-    const studentCountsByGrade: Record<number, number> = {
-      0: allPayingStudentsSet.size,
-      6: gradePayingStudentsMap[6].size,
-      7: gradePayingStudentsMap[7].size,
-      8: gradePayingStudentsMap[8].size,
-      9: gradePayingStudentsMap[9].size,
-      10: gradePayingStudentsMap[10].size,
-      11: gradePayingStudentsMap[11].size,
-    }
-
-    const revenueByGrade: Record<number, number> = {
-      0: totalRevenue,
-      6: gradeRevenueMap[6],
-      7: gradeRevenueMap[7],
-      8: gradeRevenueMap[8],
-      9: gradeRevenueMap[9],
-      10: gradeRevenueMap[10],
-      11: gradeRevenueMap[11],
-    }
-
-    const regByGrade: Record<number, number> = {
-      0: mStudents.length,
-      6: gradeRegMap[6],
-      7: gradeRegMap[7],
-      8: gradeRegMap[8],
-      9: gradeRegMap[9],
-      10: gradeRegMap[10],
-      11: gradeRegMap[11],
-    }
-
     return {
       month: m,
       monthName: MONTH_NAMES[m - 1],
-      studentCountsByGrade,
-      revenueByGrade,
-      regByGrade
+      studentCountsByGrade: {
+        0: allPayingStudentsSet.size,
+        6: gradePayingStudentsMap[6].size,
+        7: gradePayingStudentsMap[7].size,
+        8: gradePayingStudentsMap[8].size,
+        9: gradePayingStudentsMap[9].size,
+        10: gradePayingStudentsMap[10].size,
+        11: gradePayingStudentsMap[11].size,
+      } as Record<number, number>,
+      revenueByGrade: {
+        0: totalRevenue,
+        6: gradeRevenueMap[6],
+        7: gradeRevenueMap[7],
+        8: gradeRevenueMap[8],
+        9: gradeRevenueMap[9],
+        10: gradeRevenueMap[10],
+        11: gradeRevenueMap[11],
+      } as Record<number, number>,
+      regByGrade: {
+        0: mStudents.length,
+        6: gradeRegMap[6],
+        7: gradeRegMap[7],
+        8: gradeRegMap[8],
+        9: gradeRegMap[9],
+        10: gradeRegMap[10],
+        11: gradeRegMap[11],
+      } as Record<number, number>
     }
   })
 
-  // MoM Growth calculations
   const trendMoMTable = trendMonthlySeries.map((item, idx) => {
     const prevItem = idx > 0 ? trendMonthlySeries[idx - 1] : null
     
@@ -700,7 +648,6 @@ export default function ReportsPage() {
     }
   })
 
-  // Maximum value for SVG chart scaling
   let chartMaxVal = 10
   trendMonthlySeries.forEach(mItem => {
     activeTrendGrades.forEach(g => {
@@ -712,11 +659,9 @@ export default function ReportsPage() {
       if (val > chartMaxVal) chartMaxVal = val
     })
   })
-  // Pad the max value nicely
   chartMaxVal = Math.ceil((chartMaxVal * 1.15) / 10) * 10
   if (chartMaxVal < 10) chartMaxVal = 10
 
-  // SVG Chart Dimensions
   const svgWidth = 900
   const svgHeight = 360
   const padLeft = 70
@@ -877,396 +822,27 @@ export default function ReportsPage() {
         {/* TAB 0: DAY-END CLASS & GRADE-WISE SUMMARY REPORT                          */}
         {/* ========================================================================= */}
         {activeTab === 'day_end' && (
-          <div className="fade-in">
-            {/* Control & Date Bar */}
-            <div className="glass-card" style={{ padding: 18, marginBottom: 20 }}>
-              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between' }}>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Report Date
-                    </label>
-                    <input
-                      type="date"
-                      className="input-field"
-                      style={{ width: 160 }}
-                      value={selectedDate}
-                      onChange={e => setSelectedDate(e.target.value)}
-                    />
-                  </div>
-
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
-                      className={selectedDate === new Date().toISOString().slice(0, 10) ? 'btn-primary' : 'btn-secondary'}
-                      style={{ padding: '6px 12px', fontSize: 12 }}
-                    >
-                      Today
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const d = new Date()
-                        d.setDate(d.getDate() - 1)
-                        setSelectedDate(d.toISOString().slice(0, 10))
-                      }}
-                      className={(() => {
-                        const d = new Date()
-                        d.setDate(d.getDate() - 1)
-                        return selectedDate === d.toISOString().slice(0, 10)
-                      })() ? 'btn-primary' : 'btn-secondary'}
-                      style={{ padding: '6px 12px', fontSize: 12 }}
-                    >
-                      Yesterday
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const d = new Date()
-                        d.setDate(d.getDate() - 2)
-                        setSelectedDate(d.toISOString().slice(0, 10))
-                      }}
-                      className={(() => {
-                        const d = new Date()
-                        d.setDate(d.getDate() - 2)
-                        return selectedDate === d.toISOString().slice(0, 10)
-                      })() ? 'btn-primary' : 'btn-secondary'}
-                      style={{ padding: '6px 12px', fontSize: 12 }}
-                    >
-                      2 Days Ago
-                    </button>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Payment Filter Mode
-                    </label>
-                    <select
-                      className="input-field"
-                      style={{ width: 170 }}
-                      value={dateFilterType}
-                      onChange={e => setDateFilterType(e.target.value as any)}
-                    >
-                      <option value="created_at">System Entry Time</option>
-                      <option value="date_paid">Slip Paid Date</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={() => window.print()}
-                    className="btn-secondary"
-                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                  >
-                    <Printer size={16} /> Print Day-End Slip
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const headers = ['METRIC TYPE', 'CATEGORY / ITEM', 'STUDENTS / COUNT', 'TOTAL AMOUNT (RS)']
-                      const rows: string[][] = []
-
-                      // Top summary
-                      rows.push(['SUMMARY', 'Total New Registered Students', `${dayEndRegisteredStudents.length}`, '0'])
-                      rows.push(['SUMMARY', 'Total Payment Slips Processed', `${dailyPayments.length}`, `${totalDailyRevenue}`])
-
-                      // Grade wise
-                      allDistinctGrades.forEach(g => {
-                        rows.push([
-                          'GRADE WISE',
-                          `Grade ${g}`,
-                          `New Reg: ${dayEndGradeNewMap[g] || 0} | Paid: ${dayEndGradePaidMap[g]?.count || 0}`,
-                          `${dayEndGradePaidMap[g]?.total || 0}`
-                        ])
-                      })
-
-                      // Class wise
-                      Object.entries(dayEndClassPaidMap).forEach(([cls, data]) => {
-                        rows.push([
-                          'CLASS WISE',
-                          `${CLASS_LABELS[cls] || cls}`,
-                          `${data.count}`,
-                          `${data.total}`
-                        ])
-                      })
-
-                      // Staff wise
-                      Object.entries(dayEndAuditorMap).forEach(([who, data]) => {
-                        rows.push([
-                          'STAFF PERFORMANCE',
-                          `${who}`,
-                          `Reg: ${data.regCount} | Slips: ${data.payCount}`,
-                          `${data.total}`
-                        ])
-                      })
-
-                      exportTableToCsv(`Day_End_Report_${selectedDate}`, headers, rows)
-                    }}
-                    className="btn-primary"
-                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                  >
-                    <FileSpreadsheet size={16} /> Export Day-End CSV
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* Top KPI Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
-              <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
-                <div className="stat-card label">New Registered Students Today</div>
-                <div className="stat-card value" style={{ color: '#3b82f6', fontSize: 26 }}>
-                  {dayEndRegisteredStudents.length} Students
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Added into CRM on {selectedDate}
-                </div>
-              </div>
-
-              <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
-                <div className="stat-card label">Payment Slips Processed</div>
-                <div className="stat-card value" style={{ color: '#10b981', fontSize: 26 }}>
-                  {dailyPayments.length} Slips
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Verified &amp; audited payments
-                </div>
-              </div>
-
-              <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-                <div className="stat-card label">Total Day-End Collections</div>
-                <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 26 }}>
-                  Rs. {totalDailyRevenue.toLocaleString()}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Total collected on {selectedDate}
-                </div>
-              </div>
-            </div>
-
-            {/* Section 1: Grade-Wise Registration & Payment Breakdown Matrix */}
-            <div className="glass-card" style={{ padding: 20, marginBottom: 20 }}>
-              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <GraduationCap size={20} style={{ color: 'var(--accent-blue)' }} />
-                1. Grade-Wise Daily Registration &amp; Payment Matrix
-              </div>
-
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th style={{ width: 140 }}>Grade Level</th>
-                      <th style={{ textAlign: 'center' }}>New Registrations Today</th>
-                      <th style={{ textAlign: 'center' }}>Students Paid / Slips Today</th>
-                      <th style={{ textAlign: 'right' }}>Total Collections (Rs.)</th>
-                      <th style={{ textAlign: 'right' }}>% Revenue Share</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {allDistinctGrades.map(g => {
-                      const newCount = dayEndGradeNewMap[g] || 0
-                      const paidData = dayEndGradePaidMap[g] || { count: 0, total: 0 }
-                      const share = totalDailyRevenue > 0 ? ((paidData.total / totalDailyRevenue) * 100).toFixed(1) : '0.0'
-
-                      return (
-                        <tr key={g}>
-                          <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                            Grade {g}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            {newCount > 0 ? (
-                              <span className="badge" style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--accent-blue)', fontWeight: 700, fontSize: 12 }}>
-                                {newCount} New {newCount === 1 ? 'Student' : 'Students'}
-                              </span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)' }}>0</span>
-                            )}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            {paidData.count > 0 ? (
-                              <span className="badge" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', fontWeight: 700, fontSize: 12 }}>
-                                {paidData.count} {paidData.count === 1 ? 'Student' : 'Students'}
-                              </span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)' }}>0</span>
-                            )}
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
-                            Rs. {paidData.total.toLocaleString()}
-                          </td>
-                          <td style={{ textAlign: 'right', fontSize: 12, color: 'var(--accent-blue)', fontWeight: 600 }}>
-                            {share}%
-                          </td>
-                        </tr>
-                      )
-                    })}
-
-                    {/* Matrix Totals Row */}
-                    <tr style={{ background: 'rgba(255,255,255,0.03)', fontWeight: 800 }}>
-                      <td style={{ color: 'var(--text-primary)', fontSize: 14 }}>
-                        TOTAL SUMMARY
-                      </td>
-                      <td style={{ textAlign: 'center', color: 'var(--accent-blue)', fontSize: 14 }}>
-                        {dayEndRegisteredStudents.length} Students
-                      </td>
-                      <td style={{ textAlign: 'center', color: '#10b981', fontSize: 14 }}>
-                        {dailyPayments.length} Slips
-                      </td>
-                      <td style={{ textAlign: 'right', color: '#f59e0b', fontSize: 15 }}>
-                        Rs. {totalDailyRevenue.toLocaleString()}
-                      </td>
-                      <td style={{ textAlign: 'right', color: 'var(--text-primary)', fontSize: 13 }}>
-                        100.0%
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            {/* Section 2 & 3: Class-Wise Breakdown & Staff Productivity */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, marginBottom: 20 }}>
-              {/* Class / Subject Breakdown */}
-              <div className="glass-card" style={{ padding: 20 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <BookOpen size={18} style={{ color: 'var(--accent-blue)' }} />
-                  2. Class &amp; Subject-Wise Collections
-                </div>
-
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Class / Subject</th>
-                      <th style={{ textAlign: 'center' }}>Students Paid</th>
-                      <th style={{ textAlign: 'right' }}>Amount (Rs.)</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {Object.entries(dayEndClassPaidMap).map(([cls, data]) => (
-                      <tr key={cls}>
-                        <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {CLASS_LABELS[cls] || cls}
-                        </td>
-                        <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                          {data.count}
-                        </td>
-                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
-                          Rs. {data.total.toLocaleString()}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-
-                {Object.keys(dayEndClassPaidMap).length === 0 && (
-                  <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
-                    No payments recorded for {selectedDate}.
-                  </div>
-                )}
-              </div>
-
-              {/* Staff / Registrar Breakdown */}
-              <div className="glass-card" style={{ padding: 20 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Users size={18} style={{ color: 'var(--accent-blue)' }} />
-                  3. Staff / Registrar Activity Today
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {Object.entries(dayEndAuditorMap).map(([who, data]) => (
-                    <div key={who} style={{ padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                        <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                          👤 {who}
-                        </span>
-                        <span style={{ fontSize: 14, fontWeight: 700, color: '#f59e0b' }}>
-                          Rs. {data.total.toLocaleString()}
-                        </span>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)' }}>
-                        <span>New Registrations: <strong style={{ color: 'var(--text-primary)' }}>{data.regCount}</strong></span>
-                        <span>Payment Slips: <strong style={{ color: 'var(--text-primary)' }}>{data.payCount}</strong></span>
-                      </div>
-                    </div>
-                  ))}
-
-                  {Object.keys(dayEndAuditorMap).length === 0 && (
-                    <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
-                      No staff actions logged on {selectedDate}.
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Section 4: Registered Students List for the Day */}
-            {dayEndRegisteredStudents.length > 0 && (
-              <div className="glass-card" style={{ overflow: 'hidden' }}>
-                <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Users size={16} style={{ color: 'var(--accent-blue)' }} />
-                    New Students Registered on {selectedDate} ({dayEndRegisteredStudents.length} Students)
-                  </div>
-                </div>
-
-                <div style={{ overflowX: 'auto' }}>
-                  <table className="data-table">
-                    <thead>
-                      <tr>
-                        <th>PS Code</th>
-                        <th>Student Name</th>
-                        <th>Grade</th>
-                        <th>Parent Name &amp; Phone</th>
-                        <th>Classes</th>
-                        <th>Registrar</th>
-                        <th>Time</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dayEndRegisteredStudents.map(s => (
-                        <tr key={s.id}>
-                          <td>
-                            <a href={`/students/${encodeURIComponent(s.ps_code)}`} style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 700 }}>
-                              {s.ps_code}
-                            </a>
-                          </td>
-                          <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{s.full_name || '—'}</td>
-                          <td>
-                            <span className="badge" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
-                              Grade {s.grade || '—'}
-                            </span>
-                          </td>
-                          <td style={{ fontSize: 12 }}>
-                            <div>{s.household?.parent_name || '—'}</div>
-                            <div style={{ color: 'var(--text-muted)' }}>{s.household?.parent_phone || '—'}</div>
-                          </td>
-                          <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                            {(s.enrollments || []).map((e: any) => CLASS_LABELS[e.class_type] || e.class_type).join(', ') || 'None'}
-                          </td>
-                          <td style={{ fontSize: 12 }}>{s.created_by || 'System'}</td>
-                          <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                            {new Date(s.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-          </div>
+          <DayEndSummaryTab
+            selectedDate={selectedDate}
+            setSelectedDate={setSelectedDate}
+            dateFilterType={dateFilterType}
+            setDateFilterType={setDateFilterType}
+            dayEndRegisteredStudents={dayEndRegisteredStudents}
+            dailyPayments={dailyPayments}
+            totalDailyRevenue={totalDailyRevenue}
+            allDistinctGrades={allDistinctGrades}
+            dayEndGradeNewMap={dayEndGradeNewMap}
+            dayEndGradePaidMap={dayEndGradePaidMap}
+            dayEndClassPaidMap={dayEndClassPaidMap}
+            dayEndAuditorMap={dayEndAuditorMap}
+          />
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 1: MONTH-BY-MONTH NEW REGISTRATIONS (PS CODES, GRADES, COUNTS)        */}
+        {/* TAB 1: MONTH-BY-MONTH NEW REGISTRATIONS                                    */}
         {/* ========================================================================= */}
         {activeTab === 'registrations' && (
           <div className="fade-in">
-            {/* Filter Bar */}
             <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
                 <div>
@@ -1316,7 +892,6 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Grade-by-Grade Summary Cards Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 20 }}>
               <div className="stat-card" style={{ padding: '12px 14px' }}>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total New</div>
@@ -1332,7 +907,6 @@ export default function ReportsPage() {
               ))}
             </div>
 
-            {/* Students Table */}
             <div className="glass-card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1415,7 +989,6 @@ export default function ReportsPage() {
                 <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
                   <Users size={32} style={{ margin: '0 auto 10px', opacity: 0.3 }} />
                   <div>No new student registrations recorded in {MONTH_NAMES[month - 1]} {year}.</div>
-                  <div style={{ fontSize: 12, marginTop: 4 }}>Newly registered students will appear here cleanly as they are added.</div>
                 </div>
               )}
             </div>
@@ -1423,11 +996,10 @@ export default function ReportsPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: BANK-WISE TOTAL REVENUE & PAYMENT METHOD BREAKDOWN                  */}
+        {/* TAB 2: BANK-WISE TOTAL REVENUE                                            */}
         {/* ========================================================================= */}
         {activeTab === 'bank_revenue' && (
           <div className="fade-in">
-            {/* Filter Bar */}
             <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
               <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
                 <div>
@@ -1464,7 +1036,6 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Revenue Highlights */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
               <div className="stat-card">
                 <div className="stat-card label">Total Collected ({MONTH_NAMES[month - 1]})</div>
@@ -1481,9 +1052,7 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Bank-Wise Grid & Payment Channel Breakdown */}
             <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
-              {/* Bank Revenue Table */}
               <div className="glass-card" style={{ padding: 20 }}>
                 <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Building2 size={18} style={{ color: 'var(--accent-blue)' }} />
@@ -1521,15 +1090,8 @@ export default function ReportsPage() {
                     })}
                   </tbody>
                 </table>
-
-                {bankRevenue.length === 0 && (
-                  <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
-                    No payment deposits recorded for {MONTH_NAMES[month - 1]} {year}.
-                  </div>
-                )}
               </div>
 
-              {/* Payment Method / Channel Breakdown */}
               <div className="glass-card" style={{ padding: 20 }}>
                 <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Layers size={18} style={{ color: 'var(--accent-blue)' }} />
@@ -1563,15 +1125,13 @@ export default function ReportsPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: DATE-WISE DAILY PAYMENT MARK PANEL & AUDIT REPORT                  */}
+        {/* TAB 3: DATE-WISE DAILY PAYMENT AUDIT REPORT                               */}
         {/* ========================================================================= */}
         {activeTab === 'daily_audit' && (
           <div className="fade-in">
-            {/* Date & Auditor Filter Bar */}
             <div className="glass-card" style={{ padding: 18, marginBottom: 20 }}>
               <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                  {/* Select Date */}
                   <div>
                     <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
                       Select Date
@@ -1585,7 +1145,6 @@ export default function ReportsPage() {
                     />
                   </div>
 
-                  {/* Quick Preset Buttons */}
                   <div style={{ display: 'flex', gap: 6 }}>
                     <button
                       type="button"
@@ -1629,7 +1188,6 @@ export default function ReportsPage() {
                     </button>
                   </div>
 
-                  {/* Filter Mode (System Entry Time vs Bank Slip Date) */}
                   <div>
                     <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
                       Audit By
@@ -1645,7 +1203,6 @@ export default function ReportsPage() {
                     </select>
                   </div>
 
-                  {/* Filter Auditor */}
                   <div>
                     <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
                       Filter Auditor
@@ -1690,7 +1247,6 @@ export default function ReportsPage() {
                 </div>
               </div>
 
-              {/* Search Audit Box */}
               <div style={{ position: 'relative' }}>
                 <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input
@@ -1704,7 +1260,6 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Daily Auditor Performance Stat Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
               <div className="stat-card">
                 <div className="stat-card label">Total Collected ({selectedDate})</div>
@@ -1723,7 +1278,6 @@ export default function ReportsPage() {
               ))}
             </div>
 
-            {/* Daily Audit Table */}
             <div className="glass-card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1798,12 +1352,6 @@ export default function ReportsPage() {
                   </tbody>
                 </table>
               </div>
-
-              {filteredDailyPayments.length === 0 && (
-                <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)' }}>
-                  No payment entries logged on {selectedDate}.
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -1813,7 +1361,6 @@ export default function ReportsPage() {
         {/* ========================================================================= */}
         {activeTab === 'debts' && (
           <div className="fade-in">
-            {/* Filter Bar */}
             <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
               <div style={{ width: 280 }}>
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Search Debtor</label>
@@ -1846,7 +1393,6 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Debts Total Stat Card */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
               <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
                 <div className="stat-card label">Total Outstanding Portfolio Debt</div>
@@ -1855,7 +1401,6 @@ export default function ReportsPage() {
               </div>
             </div>
 
-            {/* Debts Table */}
             <div className="glass-card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 600, fontSize: 14, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -1893,12 +1438,6 @@ export default function ReportsPage() {
                   </tbody>
                 </table>
               </div>
-
-              {filteredDebts.length === 0 && (
-                <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)' }}>
-                  No outstanding debts recorded in system!
-                </div>
-              )}
             </div>
           </div>
         )}
@@ -1907,1384 +1446,75 @@ export default function ReportsPage() {
         {/* TAB 5: MONTHLY CUMULATIVE DATE-BY-DATE GRADE PROGRESSION MATRIX           */}
         {/* ========================================================================= */}
         {activeTab === 'matrix_report' && (
-          <div className="fade-in">
-            {/* Filter & Export Bar */}
-            <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Month
-                  </label>
-                  <select
-                    className="input-field"
-                    style={{ width: 140 }}
-                    value={month}
-                    onChange={e => setMonth(parseInt(e.target.value))}
-                  >
-                    {MONTH_NAMES.map((m, i) => (
-                      <option key={i} value={i + 1}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Year
-                  </label>
-                  <select
-                    className="input-field"
-                    style={{ width: 100 }}
-                    value={year}
-                    onChange={e => setYear(parseInt(e.target.value))}
-                  >
-                    {[2024, 2025, 2026, 2027].map(y => (
-                      <option key={y} value={y}>{y}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Matrix Data Metric
-                  </label>
-                  <div style={{ display: 'flex', gap: 4, background: 'var(--bg-base)', padding: 4, borderRadius: 8, border: '1px solid var(--border)' }}>
-                    <button
-                      type="button"
-                      onClick={() => setMatrixMode('registrations')}
-                      style={{
-                        padding: '6px 12px',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        borderRadius: 6,
-                        border: 'none',
-                        cursor: 'pointer',
-                        background: matrixMode === 'registrations' ? 'var(--accent-blue)' : 'transparent',
-                        color: matrixMode === 'registrations' ? '#fff' : 'var(--text-muted)'
-                      }}
-                    >
-                      👥 New Registrations
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setMatrixMode('payments')}
-                      style={{
-                        padding: '6px 12px',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        borderRadius: 6,
-                        border: 'none',
-                        cursor: 'pointer',
-                        background: matrixMode === 'payments' ? '#10b981' : 'transparent',
-                        color: matrixMode === 'payments' ? '#fff' : 'var(--text-muted)'
-                      }}
-                    >
-                      💳 Paid Students / Slips
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="btn-secondary"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <Printer size={16} /> Print Matrix Sheet
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const monthTitle = MONTH_NAMES[month - 1]
-                    // CSV headers
-                    const headers = ['Date', '6', '7', '8', '9', '10', '11', 'Total', 'Daily Increment']
-                    const rows = cumulativeMatrixRows.map(r => [
-                      `"${r.dateStr}"`,
-                      `"${r.counts[6] || 0}"`,
-                      `"${r.counts[7] || 0}"`,
-                      `"${r.counts[8] || 0}"`,
-                      `"${r.counts[9] || 0}"`,
-                      `"${r.counts[10] || 0}"`,
-                      `"${r.counts[11] || 0}"`,
-                      `"${r.cumulativeTotal}"`,
-                      `"${r.dailyCountTotal}"`
-                    ])
-                    exportTableToCsv(`${monthTitle}_${year}_Grade_Progression_Matrix`, headers, rows)
-                  }}
-                  className="btn-primary"
-                  style={{ background: '#1e7e34', display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <FileSpreadsheet size={16} /> Export Excel / CSV
-                </button>
-              </div>
-            </div>
-
-            {/* Matrix SpreadSheet Layout */}
-            <div className="glass-card" style={{ overflow: 'hidden', padding: 0, borderRadius: 12 }}>
-              {/* Green Excel Header Banner */}
-              <div style={{
-                background: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)',
-                color: '#fff',
-                padding: '16px 20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                borderBottom: '2px solid #145a17'
-              }}>
-                <div>
-                  <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.5 }}>
-                    📅 {MONTH_NAMES[month - 1]} {year} — Grade-Wise Cumulative Progression Sheet
-                  </div>
-                  <div style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>
-                    {matrixMode === 'registrations'
-                      ? 'Daily and cumulative count of new registered students across Grades 6–11'
-                      : 'Daily and cumulative count of students paying fees across Grades 6–11'}
-                  </div>
-                </div>
-                <span style={{
-                  background: 'rgba(255,255,255,0.2)',
-                  padding: '4px 12px',
-                  borderRadius: 20,
-                  fontSize: 12,
-                  fontWeight: 700
-                }}>
-                  {MONTH_NAMES[month - 1]} Total: {cumulativeMatrixRows[cumulativeMatrixRows.length - 1]?.cumulativeTotal || 0}
-                </span>
-              </div>
-
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{
-                  width: '100%',
-                  borderCollapse: 'collapse',
-                  textAlign: 'center',
-                  fontFamily: 'inherit',
-                  fontSize: 13
-                }}>
-                  <thead>
-                    {/* Top Grouping Header: Date | August (Grades 6-11) | Total */}
-                    <tr style={{ background: '#2e7d32', color: '#fff', fontWeight: 800 }}>
-                      <th rowSpan={2} style={{ padding: '12px 16px', border: '1px solid #1b5e20', width: 130 }}>
-                        Date
-                      </th>
-                      <th colSpan={6} style={{ padding: '8px 12px', border: '1px solid #1b5e20', fontSize: 14, letterSpacing: 1 }}>
-                        {MONTH_NAMES[month - 1]} (Grades)
-                      </th>
-                      <th rowSpan={2} style={{ padding: '12px 16px', border: '1px solid #1b5e20', width: 110, background: '#1b5e20' }}>
-                        Total
-                      </th>
-                    </tr>
-                    {/* Grade Columns Subheader */}
-                    <tr style={{ background: '#388e3c', color: '#fff', fontWeight: 700 }}>
-                      {matrixTargetGrades.map(g => (
-                        <th key={g} style={{ padding: '8px 12px', border: '1px solid #1b5e20', minWidth: 65 }}>
-                          {g}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {cumulativeMatrixRows.map((r, idx) => {
-                      // Distinct styling: Highlight weekend days in a soft rose/peach tint matching user screenshot
-                      const rowBg = r.isWeekend
-                        ? 'rgba(239, 68, 68, 0.12)'
-                        : idx % 2 === 0
-                        ? 'var(--bg-base)'
-                        : 'rgba(255, 255, 255, 0.02)'
-
-                      return (
-                        <tr
-                          key={r.day}
-                          style={{
-                            background: rowBg,
-                            borderBottom: '1px solid var(--border)',
-                            transition: 'background 0.15s'
-                          }}
-                        >
-                          {/* Date Column */}
-                          <td style={{
-                            padding: '10px 14px',
-                            fontWeight: 600,
-                            color: 'var(--text-primary)',
-                            borderRight: '1px solid var(--border)',
-                            textAlign: 'center'
-                          }}>
-                            {r.dateStr}
-                          </td>
-
-                          {/* Grade 6 to 11 Columns */}
-                          {matrixTargetGrades.map(g => {
-                            const count = r.counts[g] || 0
-                            return (
-                              <td
-                                key={g}
-                                style={{
-                                  padding: '10px 12px',
-                                  borderRight: '1px solid var(--border)',
-                                  fontWeight: count > 0 ? 600 : 400,
-                                  color: count > 0 ? 'var(--text-primary)' : 'var(--text-muted)'
-                                }}
-                              >
-                                {count}
-                              </td>
-                            )
-                          })}
-
-                          {/* Cumulative Row Total Column */}
-                          <td style={{
-                            padding: '10px 14px',
-                            fontWeight: 800,
-                            color: '#10b981',
-                            fontSize: 14,
-                            background: r.isWeekend ? 'rgba(239, 68, 68, 0.15)' : 'rgba(16, 185, 129, 0.08)'
-                          }}>
-                            {r.cumulativeTotal}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <MonthlyMatrixTab
+            month={month}
+            setMonth={setMonth}
+            year={year}
+            setYear={setYear}
+            matrixMode={matrixMode}
+            setMatrixMode={setMatrixMode}
+            cumulativeMatrixRows={cumulativeMatrixRows}
+          />
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 6: STUDENT PAYMENT RETENTION & CONTINUITY ANALYZER (WITH CHARTS)      */}
+        {/* TAB 6: STUDENT PAYMENT RETENTION & CONTINUITY ANALYZER                     */}
         {/* ========================================================================= */}
         {activeTab === 'retention' && (
-          <div className="fade-in">
-            {/* Filter & Export Bar */}
-            <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Current Month
-                  </label>
-                  <select
-                    className="input-field"
-                    style={{ width: 140 }}
-                    value={month}
-                    onChange={e => setMonth(parseInt(e.target.value))}
-                  >
-                    {MONTH_NAMES.map((m, i) => (
-                      <option key={i} value={i + 1}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Year
-                  </label>
-                  <select
-                    className="input-field"
-                    style={{ width: 100 }}
-                    value={year}
-                    onChange={e => setYear(parseInt(e.target.value))}
-                  >
-                    {[2024, 2025, 2026, 2027].map(y => (
-                      <option key={y} value={y}>{y}</option>
-                    ))}
-                  </select>
-                </div>
-
-                <div style={{ padding: '8px 14px', background: 'rgba(139,92,246,0.1)', borderRadius: 8, border: '1px solid rgba(139,92,246,0.2)' }}>
-                  <div style={{ fontSize: 11, color: '#a78bfa', fontWeight: 600 }}>Comparing Baseline:</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
-                    {MONTH_NAMES[month === 1 ? 11 : month - 2]} {month === 1 ? year - 1 : year} ➡️ {MONTH_NAMES[month - 1]} {year}
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => window.print()}
-                  className="btn-secondary"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <Printer size={16} /> Print Retention Report
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    const headers = ['PS CODE', 'STUDENT NAME', 'GRADE', 'STATUS', 'LAST MONTH AMOUNT', 'CURRENT MONTH AMOUNT', 'PARENT NAME', 'PARENT PHONE', 'ADDRESS']
-                    const rows = filteredRetentionList.map(s => [
-                      `"${s.ps_code}"`,
-                      `"${(s.full_name || '').replace(/"/g, '""')}"`,
-                      `"Grade ${s.grade || '?'}"`,
-                      `"${s.status}"`,
-                      `"${s.last_amount || 0}"`,
-                      `"${s.curr_amount || 0}"`,
-                      `"${(s.parent_name || '').replace(/"/g, '""')}"`,
-                      `"${(s.parent_phone || '').replace(/"/g, '""')}"`,
-                      `"${(s.address || '').replace(/"/g, '""')}"`
-                    ])
-                    exportTableToCsv(`Retention_Analysis_${MONTH_NAMES[month - 1]}_${year}`, headers, rows)
-                  }}
-                  className="btn-primary"
-                  style={{ background: '#8b5cf6', display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <FileSpreadsheet size={16} /> Export Follow-Up List (CSV)
-                </button>
-              </div>
-            </div>
-
-            {/* Top 4 KPI Executive Metric Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 14, marginBottom: 20 }}>
-              <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
-                <div className="stat-card label">Paid Last Month ({MONTH_NAMES[month === 1 ? 11 : month - 2]})</div>
-                <div className="stat-card value" style={{ color: '#3b82f6', fontSize: 24 }}>
-                  {totalPrevPaid} Students
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Baseline cohort paying pool</div>
-              </div>
-
-              <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
-                <div className="stat-card label">🟢 Retained This Month</div>
-                <div className="stat-card value" style={{ color: '#10b981', fontSize: 24 }}>
-                  {totalRetained} Students
-                  <span style={{ fontSize: 14, fontWeight: 600, marginLeft: 8, color: '#10b981' }}>
-                    ({overallRetentionRate}%)
-                  </span>
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Paid both last &amp; this month</div>
-              </div>
-
-              <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
-                <div className="stat-card label">🔴 Dropped / Unpaid (Churn)</div>
-                <div className="stat-card value" style={{ color: '#ef4444', fontSize: 24 }}>
-                  {totalDropped} Students
-                  <span style={{ fontSize: 14, fontWeight: 600, marginLeft: 8, color: '#ef4444' }}>
-                    ({overallChurnRate}%)
-                  </span>
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Est. revenue at risk: Rs. {potentialLostRevenue.toLocaleString()}
-                </div>
-              </div>
-
-              <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-                <div className="stat-card label">🔵 New Paying Students</div>
-                <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 24 }}>
-                  +{totalNewPaying} Students
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Net Student Change: <strong style={{ color: totalCurrPaid >= totalPrevPaid ? '#10b981' : '#ef4444' }}>
-                    {totalCurrPaid >= totalPrevPaid ? `+${totalCurrPaid - totalPrevPaid}` : `${totalCurrPaid - totalPrevPaid}`} Students
-                  </strong>
-                </div>
-              </div>
-            </div>
-
-            {/* VISUAL CHARTS SECTION */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20, marginBottom: 20 }}>
-              {/* Chart 1: Grade-Wise Retention vs Drop-off Progress Bars */}
-              <div className="glass-card" style={{ padding: 20 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <BarChart2 size={18} style={{ color: 'var(--accent-blue)' }} />
-                  Grade-Wise Student Retention &amp; Churn Bars
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-                  {matrixTargetGrades.map(g => {
-                    const row = gradeRetentionMatrix[g] || { prev: 0, retained: 0, dropped: 0, newPaying: 0, rate: '0.0' }
-                    const rateNum = parseFloat(row.rate) || 0
-
-                    return (
-                      <div key={g} style={{ padding: '10px 14px', background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <span style={{ fontWeight: 700, fontSize: 13, color: 'var(--text-primary)' }}>
-                            Grade {g}
-                          </span>
-                          <span style={{ fontSize: 12, fontWeight: 700, color: rateNum >= 90 ? '#10b981' : rateNum >= 75 ? '#f59e0b' : '#ef4444' }}>
-                            {row.rate}% Retained ({row.retained}/{row.prev})
-                          </span>
-                        </div>
-
-                        {/* Stacked Visual Bar */}
-                        <div style={{ height: 10, width: '100%', background: 'rgba(255,255,255,0.08)', borderRadius: 6, overflow: 'hidden', display: 'flex' }}>
-                          <div
-                            style={{
-                              width: `${rateNum}%`,
-                              background: 'linear-gradient(90deg, #10b981 0%, #059669 100%)',
-                              borderRadius: '6px 0 0 6px',
-                              transition: 'width 0.5s'
-                            }}
-                            title={`Retained: ${row.retained}`}
-                          />
-                          <div
-                            style={{
-                              width: `${100 - rateNum}%`,
-                              background: '#ef4444',
-                              borderRadius: '0 6px 6px 0',
-                              transition: 'width 0.5s'
-                            }}
-                            title={`Dropped: ${row.dropped}`}
-                          />
-                        </div>
-
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>
-                          <span>🟢 Retained: <strong style={{ color: '#10b981' }}>{row.retained}</strong></span>
-                          <span>🔴 Unpaid / Dropped: <strong style={{ color: '#ef4444' }}>{row.dropped}</strong></span>
-                          <span>🔵 New Inflow: <strong style={{ color: 'var(--accent-blue)' }}>+{row.newPaying}</strong></span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              {/* Chart 2: Retention Gauge & Flow Summary */}
-              <div className="glass-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <TrendingUp size={18} style={{ color: '#10b981' }} />
-                    Cohort Flow &amp; Institute Retention Gauge
-                  </div>
-
-                  {/* Circular Gauge Representation */}
-                  <div style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '24px 0',
-                    background: 'radial-gradient(circle, rgba(16,185,129,0.12) 0%, transparent 70%)'
-                  }}>
-                    <div style={{
-                      width: 130,
-                      height: 130,
-                      borderRadius: '50%',
-                      border: '8px solid #10b981',
-                      borderTopColor: '#ef4444',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexDirection: 'column',
-                      transform: 'rotate(-45deg)'
-                    }}>
-                      <div style={{ transform: 'rotate(45deg)', textAlign: 'center' }}>
-                        <div style={{ fontSize: 26, fontWeight: 800, color: '#10b981' }}>
-                          {overallRetentionRate}%
-                        </div>
-                        <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                          Retention
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Flow Summary Legend */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 14 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(16,185,129,0.08)', borderRadius: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#10b981' }}>🟢 Retained Students</span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{totalRetained}</strong>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(239,68,68,0.08)', borderRadius: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#ef4444' }}>🔴 Churned / Dropped</span>
-                      <strong style={{ color: 'var(--text-primary)' }}>{totalDropped}</strong>
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 12px', background: 'rgba(59,130,246,0.08)', borderRadius: 6 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-blue)' }}>🔵 New Inflow</span>
-                      <strong style={{ color: 'var(--text-primary)' }}>+{totalNewPaying}</strong>
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 14, textAlign: 'center' }}>
-                  Target Benchmark: <strong style={{ color: '#10b981' }}>&gt;85% Retention</strong> | Call dropped students within the first 10 days to maximize recovery.
-                </div>
-              </div>
-            </div>
-
-            {/* ACTIONABLE STUDENT LIST & CALL CENTER FOLLOW-UP TABLE */}
-            <div className="glass-card" style={{ overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12 }}>
-                <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Users size={16} style={{ color: 'var(--accent-blue)' }} />
-                  Actionable Student List ({filteredRetentionList.length} Students)
-                </div>
-
-                {/* Sub Filters: Status + Grade + Search */}
-                <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {/* Status Pills */}
-                  <div style={{ display: 'flex', gap: 4, background: 'var(--bg-base)', padding: 3, borderRadius: 8, border: '1px solid var(--border)' }}>
-                    <button
-                      type="button"
-                      onClick={() => setRetentionStatusFilter('DROPPED')}
-                      style={{
-                        padding: '4px 10px',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        borderRadius: 6,
-                        border: 'none',
-                        cursor: 'pointer',
-                        background: retentionStatusFilter === 'DROPPED' ? '#ef4444' : 'transparent',
-                        color: retentionStatusFilter === 'DROPPED' ? '#fff' : 'var(--text-muted)'
-                      }}
-                    >
-                      🔴 Unpaid / Dropped ({totalDropped})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRetentionStatusFilter('RETAINED')}
-                      style={{
-                        padding: '4px 10px',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        borderRadius: 6,
-                        border: 'none',
-                        cursor: 'pointer',
-                        background: retentionStatusFilter === 'RETAINED' ? '#10b981' : 'transparent',
-                        color: retentionStatusFilter === 'RETAINED' ? '#fff' : 'var(--text-muted)'
-                      }}
-                    >
-                      🟢 Retained ({totalRetained})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRetentionStatusFilter('NEW')}
-                      style={{
-                        padding: '4px 10px',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        borderRadius: 6,
-                        border: 'none',
-                        cursor: 'pointer',
-                        background: retentionStatusFilter === 'NEW' ? 'var(--accent-blue)' : 'transparent',
-                        color: retentionStatusFilter === 'NEW' ? '#fff' : 'var(--text-muted)'
-                      }}
-                    >
-                      🔵 New Inflow ({totalNewPaying})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setRetentionStatusFilter('ALL')}
-                      style={{
-                        padding: '4px 10px',
-                        fontSize: 11,
-                        fontWeight: 700,
-                        borderRadius: 6,
-                        border: 'none',
-                        cursor: 'pointer',
-                        background: retentionStatusFilter === 'ALL' ? 'var(--text-primary)' : 'transparent',
-                        color: retentionStatusFilter === 'ALL' ? 'var(--bg-base)' : 'var(--text-muted)'
-                      }}
-                    >
-                      All ({allRetentionCombined.length})
-                    </button>
-                  </div>
-
-                  {/* Grade Filter */}
-                  <select
-                    className="input-field"
-                    style={{ width: 110, padding: '4px 8px', fontSize: 12 }}
-                    value={retentionGradeFilter}
-                    onChange={e => setRetentionGradeFilter(e.target.value)}
-                  >
-                    <option value="ALL">All Grades</option>
-                    {[6, 7, 8, 9, 10, 11].map(g => (
-                      <option key={g} value={String(g)}>Grade {g}</option>
-                    ))}
-                  </select>
-
-                  {/* Search Input */}
-                  <div style={{ position: 'relative', width: 200 }}>
-                    <Search size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input
-                      type="text"
-                      className="input-field"
-                      style={{ paddingLeft: 26, paddingRight: 8, paddingBottom: 4, paddingTop: 4, fontSize: 12, width: '100%' }}
-                      placeholder="Search PS, Name, Phone..."
-                      value={searchRetention}
-                      onChange={e => setSearchRetention(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Data Table with Direct WhatsApp / Call Links */}
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>PS Code</th>
-                      <th>Student Name</th>
-                      <th>Grade</th>
-                      <th>Status</th>
-                      <th>Last Month Fee</th>
-                      <th>This Month Fee</th>
-                      <th>Parent Contact</th>
-                      <th>Direct Follow-Up</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredRetentionList.map(s => {
-                      const cleanPhone = (s.parent_phone || '').replace(/[^0-9]/g, '')
-                      const waPhone = cleanPhone.startsWith('0') ? `94${cleanPhone.slice(1)}` : cleanPhone
-
-                      return (
-                        <tr key={`${s.ps_code}-${s.status}`}>
-                          <td>
-                            <a href={`/students/${encodeURIComponent(s.ps_code)}`} style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 700 }}>
-                              {s.ps_code}
-                            </a>
-                          </td>
-                          <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {s.full_name || '—'}
-                          </td>
-                          <td>
-                            <span className="badge" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
-                              Grade {s.grade || '—'}
-                            </span>
-                          </td>
-                          <td>
-                            {s.status === 'DROPPED' && (
-                              <span className="badge" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444', fontWeight: 700 }}>
-                                🔴 Unpaid / Dropped
-                              </span>
-                            )}
-                            {s.status === 'RETAINED' && (
-                              <span className="badge" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', fontWeight: 700 }}>
-                                🟢 Paid &amp; Retained
-                              </span>
-                            )}
-                            {s.status === 'NEW' && (
-                              <span className="badge" style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--accent-blue)', fontWeight: 700 }}>
-                                🔵 New Inflow
-                              </span>
-                            )}
-                          </td>
-                          <td style={{ fontSize: 12 }}>
-                            {s.last_amount ? (
-                              <span>Rs. {s.last_amount.toLocaleString()}</span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)' }}>—</span>
-                            )}
-                          </td>
-                          <td style={{ fontSize: 12, fontWeight: s.curr_amount ? 700 : 400, color: s.curr_amount ? '#10b981' : 'var(--text-muted)' }}>
-                            {s.curr_amount ? `Rs. ${s.curr_amount.toLocaleString()}` : 'Not Paid Yet'}
-                          </td>
-                          <td style={{ fontSize: 12 }}>
-                            <div>{s.parent_name || '—'}</div>
-                            <div style={{ color: 'var(--text-muted)', fontFamily: 'monospace' }}>{s.parent_phone || '—'}</div>
-                          </td>
-                          <td>
-                            {s.parent_phone ? (
-                              <div style={{ display: 'flex', gap: 6 }}>
-                                <a
-                                  href={`tel:${s.parent_phone}`}
-                                  className="btn-secondary"
-                                  style={{ padding: '4px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
-                                  title="Call Parent"
-                                >
-                                  <Phone size={12} /> Call
-                                </a>
-                                <a
-                                  href={`https://wa.me/${waPhone}?text=${encodeURIComponent(`Hello ${s.parent_name || 'Parent'}, regarding ${s.full_name || 'student'}'s (${s.ps_code}) Maths class registration for ${MONTH_NAMES[month - 1]} ${year}. Please let us know if you need assistance with class fees.`)}`}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="btn-primary"
-                                  style={{ padding: '4px 8px', fontSize: 11, background: '#25D366', color: '#fff', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
-                                  title="Send WhatsApp Follow-Up"
-                                >
-                                  💬 WhatsApp
-                                </a>
-                              </div>
-                            ) : (
-                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>No phone</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              {filteredRetentionList.length === 0 && (
-                <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)' }}>
-                  No students match the selected retention filters.
-                </div>
-              )}
-            </div>
-          </div>
+          <RetentionAnalyzerTab
+            month={month}
+            setMonth={setMonth}
+            year={year}
+            setYear={setYear}
+            totalPrevPaid={totalPrevPaid}
+            totalCurrPaid={totalCurrPaid}
+            totalRetained={totalRetained}
+            totalDropped={totalDropped}
+            totalNewPaying={totalNewPaying}
+            overallRetentionRate={overallRetentionRate}
+            overallChurnRate={overallChurnRate}
+            potentialLostRevenue={potentialLostRevenue}
+            gradeRetentionMatrix={gradeRetentionMatrix}
+            filteredRetentionList={filteredRetentionList}
+            allRetentionCombined={allRetentionCombined}
+            retentionGradeFilter={retentionGradeFilter}
+            setRetentionGradeFilter={setRetentionGradeFilter}
+            retentionStatusFilter={retentionStatusFilter}
+            setRetentionStatusFilter={setRetentionStatusFilter}
+            searchRetention={searchRetention}
+            setSearchRetention={setSearchRetention}
+          />
         )}
 
         {/* ========================================================================= */}
         {/* TAB 7: MULTI-MONTH BUSINESS TRENDS & MULTI-LINE GROWTH ANALYTICS          */}
         {/* ========================================================================= */}
         {activeTab === 'trend_analytics' && (
-          <div className="fade-in">
-            {/* Control & Filter Dashboard */}
-            <div className="glass-card" style={{ padding: 18, marginBottom: 20 }}>
-              <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-                <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
-                  {/* Year selector */}
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Analysis Year
-                    </label>
-                    <select
-                      className="input-field"
-                      style={{ width: 110 }}
-                      value={trendYear}
-                      onChange={e => setTrendYear(parseInt(e.target.value))}
-                    >
-                      {[2024, 2025, 2026, 2027].map(y => (
-                        <option key={y} value={y}>{y}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Metric Switcher */}
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Chart Metric
-                    </label>
-                    <div style={{ display: 'flex', gap: 4, background: 'var(--bg-base)', padding: 4, borderRadius: 8, border: '1px solid var(--border)' }}>
-                      <button
-                        type="button"
-                        onClick={() => setTrendMetric('students')}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          borderRadius: 6,
-                          border: 'none',
-                          cursor: 'pointer',
-                          background: trendMetric === 'students' ? 'var(--accent-blue)' : 'transparent',
-                          color: trendMetric === 'students' ? '#fff' : 'var(--text-muted)'
-                        }}
-                      >
-                        👥 Active Paying Students
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTrendMetric('revenue')}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          borderRadius: 6,
-                          border: 'none',
-                          cursor: 'pointer',
-                          background: trendMetric === 'revenue' ? '#10b981' : 'transparent',
-                          color: trendMetric === 'revenue' ? '#fff' : 'var(--text-muted)'
-                        }}
-                      >
-                        💰 Total Revenue (Rs.)
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setTrendMetric('registrations')}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: 12,
-                          fontWeight: 700,
-                          borderRadius: 6,
-                          border: 'none',
-                          cursor: 'pointer',
-                          background: trendMetric === 'registrations' ? '#8b5cf6' : 'transparent',
-                          color: trendMetric === 'registrations' ? '#fff' : 'var(--text-muted)'
-                        }}
-                      >
-                        ✨ New Registrations
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Quick Multi-Month Preset Range Buttons */}
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    Quick Month Presets
-                  </label>
-                  <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTrendMonths([6, 7, 8])}
-                      className="btn-secondary"
-                      style={{ padding: '5px 10px', fontSize: 12 }}
-                    >
-                      Last 3 Months (Jun-Aug)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTrendMonths([3, 4, 5, 6, 7, 8])}
-                      className="btn-secondary"
-                      style={{ padding: '5px 10px', fontSize: 12 }}
-                    >
-                      Last 6 Months (Mar-Aug)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTrendMonths([1, 2, 3, 4, 5, 6, 7, 8])}
-                      className="btn-secondary"
-                      style={{ padding: '5px 10px', fontSize: 12 }}
-                    >
-                      YTD (Jan–Aug)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedTrendMonths([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])}
-                      className="btn-secondary"
-                      style={{ padding: '5px 10px', fontSize: 12 }}
-                    >
-                      All 12 Months
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Multi-Month Interactive Checkboxes */}
-              <div style={{ borderTop: '1px solid var(--border)', paddingTop: 12 }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-                  Select Individual Months to Include ({selectedTrendMonths.length} Selected):
-                </div>
-                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {MONTH_NAMES.map((mName, idx) => {
-                    const mNum = idx + 1
-                    const isSelected = selectedTrendMonths.includes(mNum)
-                    return (
-                      <button
-                        key={mNum}
-                        type="button"
-                        onClick={() => {
-                          if (isSelected) {
-                            if (selectedTrendMonths.length > 1) {
-                              setSelectedTrendMonths(selectedTrendMonths.filter(m => m !== mNum))
-                            }
-                          } else {
-                            setSelectedTrendMonths([...selectedTrendMonths, mNum])
-                          }
-                        }}
-                        style={{
-                          padding: '4px 12px',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          borderRadius: 20,
-                          border: isSelected ? '1px solid var(--accent-blue)' : '1px solid var(--border)',
-                          background: isSelected ? 'rgba(59,130,246,0.15)' : 'var(--bg-base)',
-                          color: isSelected ? 'var(--accent-blue)' : 'var(--text-muted)',
-                          cursor: 'pointer',
-                          transition: 'all 0.15s'
-                        }}
-                      >
-                        {isSelected ? '✓ ' : ''}{mName.slice(0, 3)}
-                      </button>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Top KPI Metrics Bar */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
-              {/* Peak Month */}
-              {(() => {
-                let peakItem = trendMonthlySeries[0]
-                trendMonthlySeries.forEach(item => {
-                  let v = 0
-                  if (trendMetric === 'students') v = item.studentCountsByGrade[0]
-                  else if (trendMetric === 'revenue') v = item.revenueByGrade[0]
-                  else v = item.regByGrade[0]
-
-                  let peakV = 0
-                  if (trendMetric === 'students') peakV = peakItem?.studentCountsByGrade[0] || 0
-                  else if (trendMetric === 'revenue') peakV = peakItem?.revenueByGrade[0] || 0
-                  else peakV = peakItem?.regByGrade[0] || 0
-
-                  if (v > peakV) peakItem = item
-                })
-
-                return (
-                  <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
-                    <div className="stat-card label">Highest Performing Month</div>
-                    <div className="stat-card value" style={{ color: '#3b82f6', fontSize: 22 }}>
-                      {peakItem?.monthName || '—'} {trendYear}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                      {trendMetric === 'students' && `${peakItem?.studentCountsByGrade[0] || 0} Students`}
-                      {trendMetric === 'revenue' && `Rs. ${(peakItem?.revenueByGrade[0] || 0).toLocaleString()}`}
-                      {trendMetric === 'registrations' && `${peakItem?.regByGrade[0] || 0} New Registrations`}
-                    </div>
-                  </div>
-                )
-              })()}
-
-              {/* Latest Month In Series */}
-              {(() => {
-                const latest = trendMonthlySeries[trendMonthlySeries.length - 1]
-                return (
-                  <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
-                    <div className="stat-card label">Latest Selected Month ({latest?.monthName || '—'})</div>
-                    <div className="stat-card value" style={{ color: '#10b981', fontSize: 22 }}>
-                      {trendMetric === 'students' && `${latest?.studentCountsByGrade[0] || 0} Students`}
-                      {trendMetric === 'revenue' && `Rs. ${(latest?.revenueByGrade[0] || 0).toLocaleString()}`}
-                      {trendMetric === 'registrations' && `${latest?.regByGrade[0] || 0} New Registrations`}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                      Active Grade 6–11 pool
-                    </div>
-                  </div>
-                )
-              })()}
-
-              {/* Average Monthly Volume */}
-              {(() => {
-                const total = trendMonthlySeries.reduce((sum, item) => {
-                  if (trendMetric === 'students') return sum + item.studentCountsByGrade[0]
-                  if (trendMetric === 'revenue') return sum + item.revenueByGrade[0]
-                  return sum + item.regByGrade[0]
-                }, 0)
-                const avg = trendMonthlySeries.length > 0 ? Math.round(total / trendMonthlySeries.length) : 0
-
-                return (
-                  <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-                    <div className="stat-card label">Selected Average / Month</div>
-                    <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 22 }}>
-                      {trendMetric === 'revenue' ? `Rs. ${avg.toLocaleString()}` : `${avg.toLocaleString()} / Mo`}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                      Across {trendMonthlySeries.length} selected months
-                    </div>
-                  </div>
-                )
-              })()}
-
-              {/* Total Accumulated in Range */}
-              {(() => {
-                const totalRev = trendMonthlySeries.reduce((sum, item) => sum + item.revenueByGrade[0], 0)
-                const totalReg = trendMonthlySeries.reduce((sum, item) => sum + item.regByGrade[0], 0)
-
-                return (
-                  <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
-                    <div className="stat-card label">Total Cumulative in Range</div>
-                    <div className="stat-card value" style={{ color: '#8b5cf6', fontSize: 22 }}>
-                      {trendMetric === 'revenue'
-                        ? `Rs. ${totalRev.toLocaleString()}`
-                        : trendMetric === 'registrations'
-                        ? `${totalReg} Total Regs`
-                        : `Rs. ${totalRev.toLocaleString()}`}
-                    </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-                      Aggregated revenue &amp; momentum
-                    </div>
-                  </div>
-                )
-              })()}
-            </div>
-
-            {/* Interactive SVG Multi-Line Chart Card */}
-            <div className="glass-card" style={{ padding: 22, marginBottom: 20, position: 'relative' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
-                <div>
-                  <h2 style={{ fontSize: 16, fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <LineChartIcon size={18} style={{ color: 'var(--accent-blue)' }} />
-                    Multi-Month Trend Line Chart ({trendYear})
-                  </h2>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Click badges below to toggle Total or Grade-specific trajectory lines
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (activeTrendGrades.length === 7) {
-                        setActiveTrendGrades([0])
-                      } else {
-                        setActiveTrendGrades([0, 6, 7, 8, 9, 10, 11])
-                      }
-                    }}
-                    className="btn-secondary"
-                    style={{ padding: '4px 10px', fontSize: 11 }}
-                  >
-                    {activeTrendGrades.length === 7 ? 'Show Total Only' : 'Show All Grades'}
-                  </button>
-                </div>
-              </div>
-
-              {/* Interactive Grade Toggles Badges */}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 18, alignItems: 'center' }}>
-                <span style={{ fontSize: 12, color: 'var(--text-muted)', fontWeight: 600 }}>Toggle Lines:</span>
-                {[0, 6, 7, 8, 9, 10, 11].map(g => {
-                  const isActive = activeTrendGrades.includes(g)
-                  const meta = gradeColorMap[g]
-                  return (
-                    <button
-                      key={g}
-                      type="button"
-                      onClick={() => {
-                        if (isActive) {
-                          if (activeTrendGrades.length > 1) {
-                            setActiveTrendGrades(activeTrendGrades.filter(x => x !== g))
-                          }
-                        } else {
-                          setActiveTrendGrades([...activeTrendGrades, g])
-                        }
-                      }}
-                      style={{
-                        padding: '4px 12px',
-                        fontSize: 12,
-                        fontWeight: 700,
-                        borderRadius: 16,
-                        border: `1px solid ${isActive ? meta.stroke : 'var(--border)'}`,
-                        background: isActive ? meta.fill : 'var(--bg-base)',
-                        color: isActive ? meta.stroke : 'var(--text-muted)',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: 6,
-                        opacity: isActive ? 1 : 0.6,
-                        transition: 'all 0.15s'
-                      }}
-                    >
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: meta.stroke }} />
-                      {meta.name}
-                    </button>
-                  )
-                })}
-              </div>
-
-              {/* Responsive SVG Chart Container */}
-              <div style={{ width: '100%', overflowX: 'auto' }}>
-                <svg
-                  viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-                  style={{ width: '100%', minWidth: 600, height: 'auto', overflow: 'visible' }}
-                >
-                  {/* Grid Lines & Y-Axis Labels (5 levels) */}
-                  {[0, 0.25, 0.5, 0.75, 1].map((ratio, idx) => {
-                    const y = padTop + plotHeight * (1 - ratio)
-                    const val = Math.round(chartMaxVal * ratio)
-                    return (
-                      <g key={idx}>
-                        <line
-                          x1={padLeft}
-                          y1={y}
-                          x2={padLeft + plotWidth}
-                          y2={y}
-                          stroke="var(--border)"
-                          strokeDasharray="4 4"
-                          strokeWidth={1}
-                        />
-                        <text
-                          x={padLeft - 10}
-                          y={y + 4}
-                          fill="var(--text-muted)"
-                          fontSize={11}
-                          textAnchor="end"
-                          fontFamily="sans-serif"
-                        >
-                          {trendMetric === 'revenue'
-                            ? val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val
-                            : val}
-                        </text>
-                      </g>
-                    )
-                  })}
-
-                  {/* X-Axis Month Labels */}
-                  {trendMonthlySeries.map((mItem, idx) => {
-                    const x =
-                      trendMonthlySeries.length > 1
-                        ? padLeft + (idx / (trendMonthlySeries.length - 1)) * plotWidth
-                        : padLeft + plotWidth / 2
-
-                    return (
-                      <g key={mItem.month}>
-                        <line
-                          x1={x}
-                          y1={padTop + plotHeight}
-                          x2={x}
-                          y2={padTop + plotHeight + 6}
-                          stroke="var(--text-muted)"
-                          strokeWidth={1}
-                        />
-                        <text
-                          x={x}
-                          y={padTop + plotHeight + 22}
-                          fill="var(--text-primary)"
-                          fontSize={12}
-                          fontWeight={600}
-                          textAnchor="middle"
-                          fontFamily="sans-serif"
-                        >
-                          {mItem.monthName.slice(0, 3)}
-                        </text>
-                      </g>
-                    )
-                  })}
-
-                  {/* Draw Trajectory Lines for Active Grades */}
-                  {activeTrendGrades.map(g => {
-                    const meta = gradeColorMap[g]
-                    if (!meta) return null
-
-                    // Generate points for this grade
-                    const points = trendMonthlySeries.map((mItem, idx) => {
-                      let val = 0
-                      if (trendMetric === 'students') val = mItem.studentCountsByGrade[g] || 0
-                      else if (trendMetric === 'revenue') val = mItem.revenueByGrade[g] || 0
-                      else val = mItem.regByGrade[g] || 0
-
-                      const x =
-                        trendMonthlySeries.length > 1
-                          ? padLeft + (idx / (trendMonthlySeries.length - 1)) * plotWidth
-                          : padLeft + plotWidth / 2
-                      const y = padTop + plotHeight * (1 - Math.min(val, chartMaxVal) / chartMaxVal)
-
-                      return { x, y, val, month: mItem.month, monthName: mItem.monthName }
-                    })
-
-                    const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ')
-
-                    // Area path under line
-                    const firstP = points[0]
-                    const lastP = points[points.length - 1]
-                    const areaPath = `M ${firstP?.x},${padTop + plotHeight} ` +
-                      points.map(p => `L ${p.x},${p.y}`).join(' ') +
-                      ` L ${lastP?.x},${padTop + plotHeight} Z`
-
-                    const isTotalLine = g === 0
-
-                    return (
-                      <g key={g}>
-                        {/* Shaded Area for Total Line */}
-                        {isTotalLine && (
-                          <path
-                            d={areaPath}
-                            fill={meta.fill}
-                            opacity={0.4}
-                          />
-                        )}
-
-                        {/* Line Stroke */}
-                        <polyline
-                          fill="none"
-                          stroke={meta.stroke}
-                          strokeWidth={isTotalLine ? 3.5 : 2}
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          points={polylinePoints}
-                          style={{ filter: isTotalLine ? 'drop-shadow(0 2px 4px rgba(59,130,246,0.3))' : undefined }}
-                        />
-
-                        {/* Data Points / Dots */}
-                        {points.map((p, pIdx) => (
-                          <circle
-                            key={pIdx}
-                            cx={p.x}
-                            cy={p.y}
-                            r={isTotalLine ? 5.5 : 4}
-                            fill="#fff"
-                            stroke={meta.stroke}
-                            strokeWidth={isTotalLine ? 3 : 2}
-                            style={{ cursor: 'pointer', transition: 'r 0.15s' }}
-                            onMouseEnter={() => {
-                              setTrendHoverPoint({
-                                month: p.month,
-                                grade: g,
-                                value: p.val,
-                                x: p.x,
-                                y: p.y
-                              })
-                            }}
-                            onMouseLeave={() => setTrendHoverPoint(null)}
-                          />
-                        ))}
-                      </g>
-                    )
-                  })}
-
-                  {/* Hover Tooltip Overlay in SVG */}
-                  {trendHoverPoint && (
-                    <g pointerEvents="none">
-                      <rect
-                        x={Math.min(trendHoverPoint.x - 60, svgWidth - 140)}
-                        y={Math.max(trendHoverPoint.y - 45, 10)}
-                        width={120}
-                        height={34}
-                        rx={6}
-                        fill="#1e293b"
-                        stroke="var(--border)"
-                        strokeWidth={1}
-                        style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.4))' }}
-                      />
-                      <text
-                        x={Math.min(trendHoverPoint.x, svgWidth - 80)}
-                        y={Math.max(trendHoverPoint.y - 28, 27)}
-                        fill="#94a3b8"
-                        fontSize={10}
-                        fontWeight={600}
-                        textAnchor="middle"
-                        fontFamily="sans-serif"
-                      >
-                        {gradeColorMap[trendHoverPoint.grade]?.name} ({MONTH_NAMES[trendHoverPoint.month - 1].slice(0, 3)})
-                      </text>
-                      <text
-                        x={Math.min(trendHoverPoint.x, svgWidth - 80)}
-                        y={Math.max(trendHoverPoint.y - 14, 41)}
-                        fill="#ffffff"
-                        fontSize={12}
-                        fontWeight={800}
-                        textAnchor="middle"
-                        fontFamily="sans-serif"
-                      >
-                        {trendMetric === 'revenue'
-                          ? `Rs. ${trendHoverPoint.value.toLocaleString()}`
-                          : `${trendHoverPoint.value} students`}
-                      </text>
-                    </g>
-                  )}
-                </svg>
-              </div>
-            </div>
-
-            {/* Month-Over-Month Detailed Growth Analytics Table */}
-            <div className="glass-card" style={{ overflow: 'hidden', padding: 0, borderRadius: 12 }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
-                <div>
-                  <h3 style={{ fontSize: 14, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <TrendingUp size={16} style={{ color: '#10b981' }} />
-                    Month-over-Month (MoM) Grade Breakdown &amp; Growth Analysis
-                  </h3>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Detailed progression across Grades 6 through 11 for {trendYear}
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const headers = ['Month', 'Gr 6', 'Gr 7', 'Gr 8', 'Gr 9', 'Gr 10', 'Gr 11', 'Total', 'MoM Delta', 'MoM Growth %']
-                      const rows = trendMoMTable.map(r => {
-                        let grCounts = [6, 7, 8, 9, 10, 11].map(g => {
-                          if (trendMetric === 'students') return r.studentCountsByGrade[g]
-                          if (trendMetric === 'revenue') return r.revenueByGrade[g]
-                          return r.regByGrade[g]
-                        })
-
-                        return [
-                          `"${r.monthName} ${trendYear}"`,
-                          ...grCounts.map(c => `"${c}"`),
-                          `"${r.currentVal}"`,
-                          `"${r.delta >= 0 ? '+' : ''}${r.delta}"`,
-                          `"${r.pctChange !== null ? r.pctChange + '%' : '—'}"`
-                        ]
-                      })
-
-                      exportTableToCsv(`${trendYear}_MultiMonth_Trend_Analytics`, headers, rows)
-                    }}
-                    className="btn-primary"
-                    style={{ background: '#10b981', display: 'flex', alignItems: 'center', gap: 6, fontSize: 12 }}
-                  >
-                    <FileSpreadsheet size={15} /> Export Trend CSV
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'center' }}>
-                  <thead>
-                    <tr style={{ background: 'var(--bg-base)' }}>
-                      <th style={{ textAlign: 'left', padding: '12px 16px' }}>Month</th>
-                      <th>Gr 6</th>
-                      <th>Gr 7</th>
-                      <th>Gr 8</th>
-                      <th>Gr 9</th>
-                      <th>Gr 10</th>
-                      <th>Gr 11</th>
-                      <th style={{ fontWeight: 800, color: 'var(--accent-blue)', background: 'rgba(59,130,246,0.08)' }}>
-                        {trendMetric === 'revenue' ? 'Total Revenue' : 'Total Count'}
-                      </th>
-                      <th>MoM Delta</th>
-                      <th>Growth %</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {trendMoMTable.map(row => {
-                      const isPositive = row.delta > 0
-                      const isNegative = row.delta < 0
-
-                      return (
-                        <tr key={row.month} style={{ borderBottom: '1px solid var(--border)' }}>
-                          <td style={{ textAlign: 'left', fontWeight: 700, padding: '12px 16px', color: 'var(--text-primary)' }}>
-                            {row.monthName} {trendYear}
-                          </td>
-                          <td style={{ color: '#10b981', fontWeight: 600 }}>
-                            {trendMetric === 'revenue' ? `Rs. ${row.revenueByGrade[6].toLocaleString()}` : trendMetric === 'students' ? row.studentCountsByGrade[6] : row.regByGrade[6]}
-                          </td>
-                          <td style={{ color: '#f59e0b', fontWeight: 600 }}>
-                            {trendMetric === 'revenue' ? `Rs. ${row.revenueByGrade[7].toLocaleString()}` : trendMetric === 'students' ? row.studentCountsByGrade[7] : row.regByGrade[7]}
-                          </td>
-                          <td style={{ color: '#ec4899', fontWeight: 600 }}>
-                            {trendMetric === 'revenue' ? `Rs. ${row.revenueByGrade[8].toLocaleString()}` : trendMetric === 'students' ? row.studentCountsByGrade[8] : row.regByGrade[8]}
-                          </td>
-                          <td style={{ color: '#8b5cf6', fontWeight: 600 }}>
-                            {trendMetric === 'revenue' ? `Rs. ${row.revenueByGrade[9].toLocaleString()}` : trendMetric === 'students' ? row.studentCountsByGrade[9] : row.regByGrade[9]}
-                          </td>
-                          <td style={{ color: '#06b6d4', fontWeight: 600 }}>
-                            {trendMetric === 'revenue' ? `Rs. ${row.revenueByGrade[10].toLocaleString()}` : trendMetric === 'students' ? row.studentCountsByGrade[10] : row.regByGrade[10]}
-                          </td>
-                          <td style={{ color: '#f97316', fontWeight: 600 }}>
-                            {trendMetric === 'revenue' ? `Rs. ${row.revenueByGrade[11].toLocaleString()}` : trendMetric === 'students' ? row.studentCountsByGrade[11] : row.regByGrade[11]}
-                          </td>
-                          <td style={{ fontWeight: 800, fontSize: 14, color: 'var(--accent-blue)', background: 'rgba(59,130,246,0.08)' }}>
-                            {trendMetric === 'revenue' ? `Rs. ${row.currentVal.toLocaleString()}` : `${row.currentVal.toLocaleString()}`}
-                          </td>
-                          <td>
-                            {row.prevVal > 0 ? (
-                              <span style={{
-                                color: isPositive ? '#10b981' : isNegative ? '#ef4444' : 'var(--text-muted)',
-                                fontWeight: 700,
-                                fontSize: 12
-                              }}>
-                                {isPositive ? `+${row.delta.toLocaleString()}` : row.delta.toLocaleString()}
-                              </span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)' }}>— (Base)</span>
-                            )}
-                          </td>
-                          <td>
-                            {row.pctChange !== null ? (
-                              <span
-                                className="badge"
-                                style={{
-                                  background: isPositive ? 'rgba(16,185,129,0.15)' : isNegative ? 'rgba(239,68,68,0.15)' : 'rgba(255,255,255,0.05)',
-                                  color: isPositive ? '#10b981' : isNegative ? '#ef4444' : 'var(--text-muted)',
-                                  fontWeight: 700,
-                                  fontSize: 11
-                                }}
-                              >
-                                {isPositive ? '↗ +' : isNegative ? '↘ ' : ''}{row.pctChange}%
-                              </span>
-                            ) : (
-                              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
-                            )}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+          <MultiMonthTrendsTab
+            trendYear={trendYear}
+            setTrendYear={setTrendYear}
+            trendMetric={trendMetric}
+            setTrendMetric={setTrendMetric}
+            selectedTrendMonths={selectedTrendMonths}
+            setSelectedTrendMonths={setSelectedTrendMonths}
+            activeTrendGrades={activeTrendGrades}
+            setActiveTrendGrades={setActiveTrendGrades}
+            trendHoverPoint={trendHoverPoint}
+            setTrendHoverPoint={setTrendHoverPoint}
+            trendMonthlySeries={trendMonthlySeries}
+            trendMoMTable={trendMoMTable}
+            chartMaxVal={chartMaxVal}
+            svgWidth={svgWidth}
+            svgHeight={svgHeight}
+            padLeft={padLeft}
+            padRight={padRight}
+            padTop={padTop}
+            padBottom={padBottom}
+            plotWidth={plotWidth}
+            plotHeight={plotHeight}
+          />
         )}
       </div>
     </div>
   )
 }
-
-
