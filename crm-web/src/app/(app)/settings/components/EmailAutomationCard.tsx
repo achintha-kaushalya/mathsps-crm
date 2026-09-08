@@ -13,12 +13,22 @@ import {
   RefreshCw,
   Sparkles,
   ExternalLink,
-  ShieldCheck
+  ShieldCheck,
+  Server
 } from 'lucide-react'
 
 export default function EmailAutomationCard() {
+  const [provider, setProvider] = useState<'smtp' | 'resend'>('smtp')
+
+  // Resend API state
   const [apiKey, setApiKey] = useState('')
   const [fromEmail, setFromEmail] = useState('')
+
+  // Gmail / SMTP state
+  const [smtpUser, setSmtpUser] = useState('')
+  const [smtpPass, setSmtpPass] = useState('')
+
+  // Common settings
   const [recipients, setRecipients] = useState<string[]>([])
   const [recipientInput, setRecipientInput] = useState('')
   const [autoSchedule, setAutoSchedule] = useState(true)
@@ -32,19 +42,26 @@ export default function EmailAutomationCard() {
   // Load saved settings from localStorage
   useEffect(() => {
     try {
+      const savedProvider = (localStorage.getItem('MATHSPS_EMAIL_PROVIDER') as 'smtp' | 'resend') || 'smtp'
       const savedKey = localStorage.getItem('MATHSPS_RESEND_API_KEY') || ''
       const savedFrom = localStorage.getItem('MATHSPS_RESEND_FROM_EMAIL') || ''
+      const savedSmtpUser = localStorage.getItem('MATHSPS_SMTP_USER') || ''
+      const savedSmtpPass = localStorage.getItem('MATHSPS_SMTP_PASS') || ''
       const savedRecipients = localStorage.getItem('MATHSPS_REPORT_RECIPIENTS')
       const savedSchedule = localStorage.getItem('MATHSPS_EMAIL_SCHEDULE')
       const savedIncludeCsv = localStorage.getItem('MATHSPS_EMAIL_INCLUDE_CSV')
       const savedTime = localStorage.getItem('MATHSPS_EMAIL_TIME')
 
+      setProvider(savedProvider)
       if (savedKey) setApiKey(savedKey)
       if (savedFrom) setFromEmail(savedFrom)
+      if (savedSmtpUser) setSmtpUser(savedSmtpUser)
+      if (savedSmtpPass) setSmtpPass(savedSmtpPass)
+
       if (savedRecipients) {
         setRecipients(JSON.parse(savedRecipients))
       } else {
-        setRecipients(['achibro12903@gmail.com'])
+        setRecipients(['sampathlankasunsoft93@gmail.com'])
       }
       if (savedSchedule !== null) setAutoSchedule(savedSchedule === 'true')
       if (savedIncludeCsv !== null) setIncludeCsv(savedIncludeCsv === 'true')
@@ -56,8 +73,11 @@ export default function EmailAutomationCard() {
 
   function handleSaveConfig() {
     try {
+      localStorage.setItem('MATHSPS_EMAIL_PROVIDER', provider)
       localStorage.setItem('MATHSPS_RESEND_API_KEY', apiKey.trim())
       localStorage.setItem('MATHSPS_RESEND_FROM_EMAIL', fromEmail.trim())
+      localStorage.setItem('MATHSPS_SMTP_USER', smtpUser.trim())
+      localStorage.setItem('MATHSPS_SMTP_PASS', smtpPass.trim())
       localStorage.setItem('MATHSPS_REPORT_RECIPIENTS', JSON.stringify(recipients))
       localStorage.setItem('MATHSPS_EMAIL_SCHEDULE', String(autoSchedule))
       localStorage.setItem('MATHSPS_EMAIL_INCLUDE_CSV', String(includeCsv))
@@ -89,12 +109,22 @@ export default function EmailAutomationCard() {
   }
 
   async function handleSendTestDigest() {
-    if (!apiKey.trim() && !process.env.NEXT_PUBLIC_RESEND_API_KEY) {
-      setTestResult({
-        success: false,
-        message: 'Please provide a Resend API Key before sending.'
-      })
-      return
+    if (provider === 'smtp') {
+      if (!smtpUser.trim() || !smtpPass.trim()) {
+        setTestResult({
+          success: false,
+          message: 'Please provide both your Gmail address and 16-character Google App Password.'
+        })
+        return
+      }
+    } else {
+      if (!apiKey.trim() && !process.env.NEXT_PUBLIC_RESEND_API_KEY) {
+        setTestResult({
+          success: false,
+          message: 'Please provide a Resend API Key before sending.'
+        })
+        return
+      }
     }
 
     if (recipients.length === 0) {
@@ -113,6 +143,11 @@ export default function EmailAutomationCard() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          provider,
+          // SMTP options
+          smtpUser: smtpUser.trim() || undefined,
+          smtpPass: smtpPass.trim() || undefined,
+          // Resend options
           senderApiKey: apiKey.trim() || undefined,
           fromEmail: fromEmail.trim() || undefined,
           recipients,
@@ -126,7 +161,7 @@ export default function EmailAutomationCard() {
 
       setTestResult({
         success: true,
-        message: `✓ Email sent successfully to ${recipients.join(', ')}! Check your inbox.`
+        message: `✓ Email sent successfully via ${provider.toUpperCase()} to ${recipients.join(', ')}! Check your inbox.`
       })
     } catch (e: any) {
       setTestResult({
@@ -153,74 +188,161 @@ export default function EmailAutomationCard() {
           <div>
             <h2 style={{ fontSize: 18, fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
               Automated Email Reports &amp; Dispatch Center
-              <span className="badge" style={{ background: 'rgba(59,130,246,0.15)', color: 'var(--accent-blue)', fontSize: 11 }}>
-                Resend Engine
+              <span className="badge" style={{ background: provider === 'smtp' ? 'rgba(16,185,129,0.15)' : 'rgba(59,130,246,0.15)', color: provider === 'smtp' ? '#10b981' : 'var(--accent-blue)', fontSize: 11 }}>
+                {provider === 'smtp' ? 'Gmail SMTP Mode' : 'Resend API Mode'}
               </span>
             </h2>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-              Configure automatic nightly Day-End summaries, recipient lists, and trigger on-demand executive digests
+              Send automatic nightly Day-End summaries, recipient lists, and trigger on-demand executive digests
             </div>
           </div>
         </div>
 
-        <a
-          href="https://resend.com/api-keys"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{ fontSize: 12, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
-        >
-          Get Free Resend API Key <ExternalLink size={12} />
-        </a>
+        {/* Provider Switcher Tabs */}
+        <div style={{ display: 'flex', gap: 4, background: 'var(--bg-base)', padding: 4, borderRadius: 8, border: '1px solid var(--border)' }}>
+          <button
+            type="button"
+            onClick={() => setProvider('smtp')}
+            style={{
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 700,
+              borderRadius: 6,
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: provider === 'smtp' ? '#10b981' : 'transparent',
+              color: provider === 'smtp' ? '#fff' : 'var(--text-muted)'
+            }}
+          >
+            <Server size={14} /> ⚡ Gmail SMTP (Instant)
+          </button>
+          <button
+            type="button"
+            onClick={() => setProvider('resend')}
+            style={{
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 700,
+              borderRadius: 6,
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: provider === 'resend' ? 'var(--accent-blue)' : 'transparent',
+              color: provider === 'resend' ? '#fff' : 'var(--text-muted)'
+            }}
+          >
+            <Key size={14} /> 🚀 Resend API
+          </button>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 24 }}>
-        {/* Left Column: API & Schedule Settings */}
+        {/* Left Column: Provider Config & Recipients */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* API Key */}
-          <div>
-            <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-              <Key size={14} style={{ color: 'var(--accent-blue)' }} /> Resend API Key
-            </label>
-            <input
-              type="password"
-              className="input-field"
-              placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxx"
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              style={{ fontFamily: 'monospace', fontSize: 13 }}
-            />
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-              Stored securely on your device or configurable via <code>RESEND_API_KEY</code> environment variable.
-            </div>
-          </div>
+          
+          {/* ======================================================== */}
+          {/* 1. GMAIL SMTP CONFIGURATION                              */}
+          {/* ======================================================== */}
+          {provider === 'smtp' && (
+            <div style={{ padding: 16, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, color: '#10b981' }}>
+                <Server size={16} /> Gmail SMTP Authentication
+              </div>
 
-          {/* Custom Sender / From Email */}
-          <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Mail size={14} style={{ color: 'var(--accent-blue)' }} /> Sender &quot;From&quot; Email Address (Optional)
-              </label>
-              <a
-                href="https://resend.com/domains"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ fontSize: 11, color: 'var(--accent-blue)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2 }}
-              >
-                Verify Domain <ExternalLink size={10} />
-              </a>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
+                  Sender Gmail Address
+                </label>
+                <input
+                  type="email"
+                  className="input-field"
+                  placeholder="yourname@gmail.com"
+                  value={smtpUser}
+                  onChange={e => setSmtpUser(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Google 16-Character App Password
+                  </label>
+                  <a
+                    href="https://myaccount.google.com/apppasswords"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 11, color: 'var(--accent-blue)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2 }}
+                  >
+                    Generate App Password <ExternalLink size={10} />
+                  </a>
+                </div>
+                <input
+                  type="password"
+                  className="input-field"
+                  placeholder="abcd efgh ijkl mnop"
+                  value={smtpPass}
+                  onChange={e => setSmtpPass(e.target.value)}
+                  style={{ fontFamily: 'monospace', letterSpacing: 1 }}
+                />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  💡 <em>Go to Google Account → Security → 2-Step Verification → App passwords → Create an app password for &quot;MathsPS CRM&quot;.</em>
+                </div>
+              </div>
             </div>
-            <input
-              type="text"
-              className="input-field"
-              placeholder="MathsPS Reports <reports@yourdomain.com>"
-              value={fromEmail}
-              onChange={e => setFromEmail(e.target.value)}
-              style={{ fontSize: 13 }}
-            />
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-              Leave blank to use Resend Sandbox (<code>onboarding@resend.dev</code>). <em>Note: In Sandbox mode, Resend only allows sending to your registered account email (<code>achibro12903@gmail.com</code>). To send to any email, add your domain in Resend.</em>
+          )}
+
+          {/* ======================================================== */}
+          {/* 2. RESEND API CONFIGURATION                              */}
+          {/* ======================================================== */}
+          {provider === 'resend' && (
+            <div style={{ padding: 16, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent-blue)' }}>
+                <Key size={16} /> Resend API Credentials
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', display: 'block', marginBottom: 4 }}>
+                  Resend API Key
+                </label>
+                <input
+                  type="password"
+                  className="input-field"
+                  placeholder="re_xxxxxxxxxxxxxxxxxxxxxxxxx"
+                  value={apiKey}
+                  onChange={e => setApiKey(e.target.value)}
+                  style={{ fontFamily: 'monospace', fontSize: 13 }}
+                />
+              </div>
+
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Sender &quot;From&quot; Address (Optional)
+                  </label>
+                  <a
+                    href="https://resend.com/domains"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ fontSize: 11, color: 'var(--accent-blue)', textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 2 }}
+                  >
+                    Verify Domain <ExternalLink size={10} />
+                  </a>
+                </div>
+                <input
+                  type="text"
+                  className="input-field"
+                  placeholder="MathsPS Reports <reports@yourdomain.com>"
+                  value={fromEmail}
+                  onChange={e => setFromEmail(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* Recipients List */}
           <div>

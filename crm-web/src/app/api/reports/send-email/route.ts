@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
+import nodemailer from 'nodemailer'
 
 export const dynamic = 'force-dynamic'
 
@@ -8,11 +9,18 @@ export async function POST(request: Request) {
   try {
     const body = await request.json()
     const {
+      provider = 'smtp', // 'smtp' | 'resend'
       recipients = [],
       targetDate = new Date().toISOString().slice(0, 10),
       includeCsv = true,
+      // Resend options
       senderApiKey,
       fromEmail,
+      // SMTP options
+      smtpUser,
+      smtpPass,
+      smtpHost = 'smtp.gmail.com',
+      smtpPort = 465,
       sections = {
         kpis: true,
         gradeTable: true,
@@ -25,14 +33,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'At least one recipient email is required.' }, { status: 400 })
     }
 
-    const apiKey = senderApiKey || process.env.RESEND_API_KEY
-    if (!apiKey) {
-      return NextResponse.json({
-        error: 'Resend API Key is missing. Please provide your API Key or set RESEND_API_KEY in environment variables.'
-      }, { status: 400 })
+    if (provider === 'smtp') {
+      const user = smtpUser || process.env.SMTP_USER
+      const pass = smtpPass || process.env.SMTP_PASS
+      if (!user || !pass) {
+        return NextResponse.json({
+          error: 'Gmail SMTP requires both Sender Gmail Address and Google App Password.'
+        }, { status: 400 })
+      }
+    } else {
+      const apiKey = senderApiKey || process.env.RESEND_API_KEY
+      if (!apiKey) {
+        return NextResponse.json({
+          error: 'Resend API Key is missing. Please provide your API Key or set RESEND_API_KEY.'
+        }, { status: 400 })
+      }
     }
-
-    const resend = new Resend(apiKey)
 
     // Supabase Admin/Server Client
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -229,6 +245,7 @@ export async function POST(request: Request) {
 
     // Generate CSV attachment if enabled
     const attachments: any[] = []
+    let csvRawBuffer: Buffer | null = null
     if (includeCsv && paymentsList.length > 0) {
       const csvHeader = 'PS Code,Student Name,Grade,Class,Amount Paid,Method,Bank,Auditor,Time,Notes\n'
       const csvRows = paymentsList.map(p => {
@@ -246,7 +263,8 @@ export async function POST(request: Request) {
       }).join('\n')
 
       const csvContent = `${csvHeader}${csvRows}`
-      const base64Csv = Buffer.from(csvContent, 'utf-8').toString('base64')
+      csvRawBuffer = Buffer.from(csvContent, 'utf-8')
+      const base64Csv = csvRawBuffer.toString('base64')
 
       attachments.push({
         filename: `Day_End_Audit_${targetDate}.csv`,
@@ -254,28 +272,73 @@ export async function POST(request: Request) {
       })
     }
 
-    // Send email via Resend
-    const senderAddress = fromEmail && fromEmail.trim()
-      ? fromEmail.trim()
-      : 'MathsPS Reports <onboarding@resend.dev>'
+    const emailSubject = `🌅 MathsPS Day-End Summary — ${targetDate} (Rs. ${totalDailyRevenue.toLocaleString()})`
+    let emailId = ''
 
-    const sendResult = await resend.emails.send({
-      from: senderAddress,
-      to: recipients,
-      subject: `🌅 MathsPS Day-End Summary — ${targetDate} (Rs. ${totalDailyRevenue.toLocaleString()})`,
-      html: emailHtml,
-      attachments: attachments.length > 0 ? attachments : undefined
-    })
+    if (provider === 'smtp') {
+      // -------------------------------------------------------------
+      // 1. DISPATCH VIA GMAIL / STANDARD SMTP
+      // -------------------------------------------------------------
+      const user = smtpUser || process.env.SMTP_USER
+      const pass = (smtpPass || process.env.SMTP_PASS || '').replace(/\s+/g, '') // remove spaces from Google app passwords
 
-    if (sendResult.error) {
-      const errMsg = sendResult.error.message || 'Resend delivery failed'
-      return NextResponse.json({ error: errMsg }, { status: 400 })
+      const transporter = nodemailer.createTransport({
+        host: smtpHost || 'smtp.gmail.com',
+        port: Number(smtpPort) || 465,
+        secure: Number(smtpPort) === 465, // true for 465, false for 587
+        auth: {
+          user,
+          pass
+        }
+      })
+
+      const info = await transporter.sendMail({
+        from: `"MathsPS Reports" <${user}>`,
+        to: recipients.join(', '),
+        subject: emailSubject,
+        html: emailHtml,
+        attachments: csvRawBuffer ? [
+          {
+            filename: `Day_End_Audit_${targetDate}.csv`,
+            content: csvRawBuffer
+          }
+        ] : undefined
+      })
+
+      emailId = info.messageId || 'smtp-ok'
+
+    } else {
+      // -------------------------------------------------------------
+      // 2. DISPATCH VIA RESEND API
+      // -------------------------------------------------------------
+      const apiKey = senderApiKey || process.env.RESEND_API_KEY
+      const resend = new Resend(apiKey)
+
+      const senderAddress = fromEmail && fromEmail.trim()
+        ? fromEmail.trim()
+        : 'MathsPS Reports <onboarding@resend.dev>'
+
+      const sendResult = await resend.emails.send({
+        from: senderAddress,
+        to: recipients,
+        subject: emailSubject,
+        html: emailHtml,
+        attachments: attachments.length > 0 ? attachments : undefined
+      })
+
+      if (sendResult.error) {
+        const errMsg = sendResult.error.message || 'Resend delivery failed'
+        return NextResponse.json({ error: errMsg }, { status: 400 })
+      }
+
+      emailId = sendResult.data?.id || 'resend-ok'
     }
 
     return NextResponse.json({
       success: true,
-      message: `Daily executive digest sent successfully to ${recipients.join(', ')}`,
-      emailId: sendResult.data?.id,
+      message: `Daily executive digest sent successfully via ${provider.toUpperCase()} to ${recipients.join(', ')}`,
+      emailId,
+      provider,
       stats: {
         dailyRevenue: totalDailyRevenue,
         dailySlips: paymentsList.length,
