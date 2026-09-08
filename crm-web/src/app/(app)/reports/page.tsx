@@ -418,6 +418,19 @@ export default function ReportsPage() {
     })
   }
 
+  // Calculate max days to display in table:
+  // If viewing current year & current month, only show up to today's date so future days are not repeated.
+  // If viewing a past month/year, show all days of that month.
+  const today = new Date()
+  const isCurrentMonthAndYear = (today.getFullYear() === year && (today.getMonth() + 1) === month)
+  const isFutureMonthAndYear = (year > today.getFullYear() || (year === today.getFullYear() && month > (today.getMonth() + 1)))
+  
+  const maxDisplayDays = isFutureMonthAndYear 
+    ? 0 
+    : isCurrentMonthAndYear 
+      ? Math.min(today.getDate(), daysInSelectedMonth) 
+      : daysInSelectedMonth
+
   const cumulativeMatrixRows: {
     day: number
     dateStr: string
@@ -430,7 +443,7 @@ export default function ReportsPage() {
 
   const runningGradeTotals: Record<number, number> = { 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
 
-  for (let d = 1; d <= daysInSelectedMonth; d++) {
+  for (let d = 1; d <= maxDisplayDays; d++) {
     const dayDate = new Date(year, month - 1, d)
     const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6
     const dateFormatted = `${String(d).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
