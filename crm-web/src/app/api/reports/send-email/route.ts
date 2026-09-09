@@ -253,6 +253,36 @@ async function dispatchReportEmail(params: {
     const overallChurnRate = (100 - parseFloat(overallRetentionRate)).toFixed(1)
     const potentialLostRevenue = droppedCount * 2200
 
+    // Bank Breakdown & Auditor Breakdown for Day-End Evening Digest
+    const bankDailyRevenueMap: Record<string, { count: number; total: number }> = {}
+    const auditorDailyRevenueMap: Record<string, { count: number; total: number; regCount: number }> = {}
+
+    regList.forEach(s => {
+      const who = (s.created_by || 'System User').trim()
+      if (!auditorDailyRevenueMap[who]) {
+        auditorDailyRevenueMap[who] = { count: 0, total: 0, regCount: 0 }
+      }
+      auditorDailyRevenueMap[who].regCount++
+    })
+
+    paymentsList.forEach(p => {
+      const amt = Number(p.amount_paid) || 0
+      const bank = (p.bank_name || p.payment_type || 'BANK').trim()
+      const who = (p.recorded_by || 'System User').trim()
+
+      if (!bankDailyRevenueMap[bank]) {
+        bankDailyRevenueMap[bank] = { count: 0, total: 0 }
+      }
+      bankDailyRevenueMap[bank].count++
+      bankDailyRevenueMap[bank].total += amt
+
+      if (!auditorDailyRevenueMap[who]) {
+        auditorDailyRevenueMap[who] = { count: 0, total: 0, regCount: 0 }
+      }
+      auditorDailyRevenueMap[who].count++
+      auditorDailyRevenueMap[who].total += amt
+    })
+
     // Grade breakdown for retention
     const gradeStatsMap: Record<number, { prev: number; curr: number; retained: number; dropped: number }> = {}
     targetGrades.forEach(g => {
@@ -550,6 +580,57 @@ async function dispatchReportEmail(params: {
                     <td style="text-align: center;">${paymentsList.length}</td>
                     <td style="text-align: right; color: #2563eb;">Rs. ${totalDailyRevenue.toLocaleString()}</td>
                   </tr>
+                </tbody>
+              </table>
+
+              <!-- Bank & Payment Method Collections -->
+              <div class="section-title">🏦 Bank &amp; Payment Method Breakdown</div>
+              <table class="data">
+                <thead>
+                  <tr>
+                    <th>Bank / Channel</th>
+                    <th style="text-align: center;">Transactions</th>
+                    <th style="text-align: right;">Collections (Rs.)</th>
+                    <th style="text-align: right;">Share</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Object.entries(bankDailyRevenueMap).sort((a, b) => b[1].total - a[1].total).map(([bank, data]) => {
+                    const share = totalDailyRevenue > 0 ? ((data.total / totalDailyRevenue) * 100).toFixed(1) : '0.0'
+                    return `
+                      <tr>
+                        <td><strong>${bank}</strong></td>
+                        <td style="text-align: center;">${data.count}</td>
+                        <td style="text-align: right; font-weight: 700; color: #0f172a;">Rs. ${data.total.toLocaleString()}</td>
+                        <td style="text-align: right; color: #64748b;">${share}%</td>
+                      </tr>
+                    `
+                  }).join('')}
+                  ${Object.keys(bankDailyRevenueMap).length === 0 ? '<tr><td colspan="4" style="text-align:center;color:#64748b;">No bank collections recorded today.</td></tr>' : ''}
+                </tbody>
+              </table>
+
+              <!-- Staff Audit & Registration Activity -->
+              <div class="section-title">👤 Staff Performance &amp; Audit Activity</div>
+              <table class="data">
+                <thead>
+                  <tr>
+                    <th>Staff / Auditor</th>
+                    <th style="text-align: center;">New Reg</th>
+                    <th style="text-align: center;">Slips Audited</th>
+                    <th style="text-align: right;">Total Verified (Rs.)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${Object.entries(auditorDailyRevenueMap).sort((a, b) => b[1].total - a[1].total).map(([who, data]) => `
+                    <tr>
+                      <td><strong>🔒 ${who}</strong></td>
+                      <td style="text-align: center;">${data.regCount}</td>
+                      <td style="text-align: center;">${data.count}</td>
+                      <td style="text-align: right; font-weight: 700; color: #2563eb;">Rs. ${data.total.toLocaleString()}</td>
+                    </tr>
+                  `).join('')}
+                  ${Object.keys(auditorDailyRevenueMap).length === 0 ? '<tr><td colspan="4" style="text-align:center;color:#64748b;">No staff activity logged today.</td></tr>' : ''}
                 </tbody>
               </table>
             </div>
