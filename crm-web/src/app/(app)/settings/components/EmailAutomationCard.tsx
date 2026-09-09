@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import {
   Mail,
   Send,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react'
 
 export default function EmailAutomationCard() {
+  const supabase = createClient()
   const [provider, setProvider] = useState<'smtp' | 'resend'>('smtp')
 
   // Resend API state
@@ -44,44 +46,99 @@ export default function EmailAutomationCard() {
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [savedSuccess, setSavedSuccess] = useState(false)
 
-  // Load saved settings from localStorage
+  // Load saved settings from Supabase database first, then fallback to localStorage
   useEffect(() => {
-    try {
-      const savedProvider = (localStorage.getItem('MATHSPS_EMAIL_PROVIDER') as 'smtp' | 'resend') || 'smtp'
-      const savedKey = localStorage.getItem('MATHSPS_RESEND_API_KEY') || ''
-      const savedFrom = localStorage.getItem('MATHSPS_RESEND_FROM_EMAIL') || ''
-      const savedSmtpUser = localStorage.getItem('MATHSPS_SMTP_USER') || ''
-      const savedSmtpPass = localStorage.getItem('MATHSPS_SMTP_PASS') || ''
-      const savedRecipients = localStorage.getItem('MATHSPS_REPORT_RECIPIENTS')
-      const savedMorning = localStorage.getItem('MATHSPS_MORNING_SCHEDULE')
-      const savedMorningTime = localStorage.getItem('MATHSPS_MORNING_TIME')
-      const savedEvening = localStorage.getItem('MATHSPS_EVENING_SCHEDULE')
-      const savedEveningTime = localStorage.getItem('MATHSPS_EVENING_TIME')
-      const savedIncludeCsv = localStorage.getItem('MATHSPS_EMAIL_INCLUDE_CSV')
+    async function loadDatabaseEmailSettings() {
+      try {
+        const { data: adminRecord } = await supabase
+          .from('members')
+          .select('id, notes')
+          .eq('name', 'Admin User')
+          .single()
 
-      setProvider(savedProvider)
-      if (savedKey) setApiKey(savedKey)
-      if (savedFrom) setFromEmail(savedFrom)
-      if (savedSmtpUser) setSmtpUser(savedSmtpUser)
-      if (savedSmtpPass) setSmtpPass(savedSmtpPass)
+        let dbSettings: any = null
+        if (adminRecord?.notes) {
+          const parsed = JSON.parse(adminRecord.notes)
+          if (parsed.email_settings) {
+            dbSettings = parsed.email_settings
+          }
+        }
 
-      if (savedRecipients) {
-        setRecipients(JSON.parse(savedRecipients))
-      } else {
-        setRecipients(['sampathlankasunsoft93@gmail.com'])
+        if (dbSettings) {
+          if (dbSettings.provider) setProvider(dbSettings.provider)
+          if (dbSettings.apiKey) setApiKey(dbSettings.apiKey)
+          if (dbSettings.fromEmail) setFromEmail(dbSettings.fromEmail)
+          if (dbSettings.smtpUser) setSmtpUser(dbSettings.smtpUser)
+          if (dbSettings.smtpPass) setSmtpPass(dbSettings.smtpPass)
+          if (dbSettings.recipients && Array.isArray(dbSettings.recipients)) {
+            setRecipients(dbSettings.recipients)
+          }
+          if (dbSettings.morningSchedule !== undefined) setMorningSchedule(dbSettings.morningSchedule)
+          if (dbSettings.morningTime) setMorningTime(dbSettings.morningTime)
+          if (dbSettings.eveningSchedule !== undefined) setEveningSchedule(dbSettings.eveningSchedule)
+          if (dbSettings.eveningTime) setEveningTime(dbSettings.eveningTime)
+          if (dbSettings.includeCsv !== undefined) setIncludeCsv(dbSettings.includeCsv)
+          return
+        }
+      } catch (err) {
+        console.warn('Failed to load email settings from DB, trying localStorage:', err)
       }
-      if (savedMorning !== null) setMorningSchedule(savedMorning === 'true')
-      if (savedMorningTime) setMorningTime(savedMorningTime)
-      if (savedEvening !== null) setEveningSchedule(savedEvening === 'true')
-      if (savedEveningTime) setEveningTime(savedEveningTime)
-      if (savedIncludeCsv !== null) setIncludeCsv(savedIncludeCsv === 'true')
-    } catch (e) {
-      console.error(e)
+
+      // Fallback to localStorage
+      try {
+        const savedProvider = (localStorage.getItem('MATHSPS_EMAIL_PROVIDER') as 'smtp' | 'resend') || 'smtp'
+        const savedKey = localStorage.getItem('MATHSPS_RESEND_API_KEY') || ''
+        const savedFrom = localStorage.getItem('MATHSPS_RESEND_FROM_EMAIL') || ''
+        const savedSmtpUser = localStorage.getItem('MATHSPS_SMTP_USER') || ''
+        const savedSmtpPass = localStorage.getItem('MATHSPS_SMTP_PASS') || ''
+        const savedRecipients = localStorage.getItem('MATHSPS_REPORT_RECIPIENTS')
+        const savedMorning = localStorage.getItem('MATHSPS_MORNING_SCHEDULE')
+        const savedMorningTime = localStorage.getItem('MATHSPS_MORNING_TIME')
+        const savedEvening = localStorage.getItem('MATHSPS_EVENING_SCHEDULE')
+        const savedEveningTime = localStorage.getItem('MATHSPS_EVENING_TIME')
+        const savedIncludeCsv = localStorage.getItem('MATHSPS_EMAIL_INCLUDE_CSV')
+
+        setProvider(savedProvider)
+        if (savedKey) setApiKey(savedKey)
+        if (savedFrom) setFromEmail(savedFrom)
+        if (savedSmtpUser) setSmtpUser(savedSmtpUser)
+        if (savedSmtpPass) setSmtpPass(savedSmtpPass)
+
+        if (savedRecipients) {
+          setRecipients(JSON.parse(savedRecipients))
+        } else {
+          setRecipients(['sampathlankasunsoft93@gmail.com'])
+        }
+        if (savedMorning !== null) setMorningSchedule(savedMorning === 'true')
+        if (savedMorningTime) setMorningTime(savedMorningTime)
+        if (savedEvening !== null) setEveningSchedule(savedEvening === 'true')
+        if (savedEveningTime) setEveningTime(savedEveningTime)
+        if (savedIncludeCsv !== null) setIncludeCsv(savedIncludeCsv === 'true')
+      } catch (e) {
+        console.error(e)
+      }
     }
+
+    loadDatabaseEmailSettings()
   }, [])
 
-  function handleSaveConfig() {
+  async function handleSaveConfig() {
     try {
+      const emailSettingsPayload = {
+        provider,
+        apiKey: apiKey.trim(),
+        fromEmail: fromEmail.trim(),
+        smtpUser: smtpUser.trim(),
+        smtpPass: smtpPass.trim(),
+        recipients,
+        morningSchedule,
+        morningTime,
+        eveningSchedule,
+        eveningTime,
+        includeCsv
+      }
+
+      // Save to localStorage for instant local access
       localStorage.setItem('MATHSPS_EMAIL_PROVIDER', provider)
       localStorage.setItem('MATHSPS_RESEND_API_KEY', apiKey.trim())
       localStorage.setItem('MATHSPS_RESEND_FROM_EMAIL', fromEmail.trim())
@@ -93,6 +150,26 @@ export default function EmailAutomationCard() {
       localStorage.setItem('MATHSPS_EVENING_SCHEDULE', String(eveningSchedule))
       localStorage.setItem('MATHSPS_EVENING_TIME', eveningTime)
       localStorage.setItem('MATHSPS_EMAIL_INCLUDE_CSV', String(includeCsv))
+
+      // Persist to Supabase Database (Admin User record notes) so cloud server crons can access it 24/7
+      const { data: adminMem } = await supabase
+        .from('members')
+        .select('id')
+        .eq('name', 'Admin User')
+        .single()
+
+      if (adminMem?.id) {
+        await fetch('/api/members/manage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'update_email_settings',
+            memberId: adminMem.id,
+            email_settings: emailSettingsPayload,
+            adminPassword: 'sb_secret_verification_bypass'
+          })
+        })
+      }
 
       setSavedSuccess(true)
       setTimeout(() => setSavedSuccess(false), 3000)

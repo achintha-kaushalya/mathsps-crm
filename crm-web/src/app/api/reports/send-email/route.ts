@@ -22,21 +22,53 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized cron invocation.' }, { status: 401 })
     }
 
-    const recipientsEnv = process.env.REPORT_RECIPIENTS || 'sampathlankasunsoft93@gmail.com'
-    const recipients = recipientsEnv.split(',').map(e => e.trim()).filter(Boolean)
+    // Supabase Admin/Server Client to retrieve live database settings
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const supabase = createClient(supabaseUrl, supabaseKey)
+
+    let dbSettings: any = {}
+    try {
+      const { data: adminRecord } = await supabase
+        .from('members')
+        .select('notes')
+        .eq('name', 'Admin User')
+        .single()
+      if (adminRecord?.notes) {
+        const parsed = JSON.parse(adminRecord.notes)
+        if (parsed.email_settings) {
+          dbSettings = parsed.email_settings
+        }
+      }
+    } catch (e) {
+      console.warn('Could not load email_settings from DB, using fallback env:', e)
+    }
+
+    const provider = dbSettings.provider || (process.env.EMAIL_PROVIDER as 'smtp' | 'resend') || 'smtp'
+    const recipients = (dbSettings.recipients && dbSettings.recipients.length > 0)
+      ? dbSettings.recipients
+      : (process.env.REPORT_RECIPIENTS || 'sampathlankasunsoft93@gmail.com').split(',').map((e: string) => e.trim()).filter(Boolean)
+
+    const smtpUser = dbSettings.smtpUser || process.env.SMTP_USER
+    const smtpPass = dbSettings.smtpPass || process.env.SMTP_PASS
+    const smtpHost = dbSettings.smtpHost || process.env.SMTP_HOST || 'smtp.gmail.com'
+    const smtpPort = dbSettings.smtpPort ? Number(dbSettings.smtpPort) : (process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 465)
+    const senderApiKey = dbSettings.apiKey || process.env.RESEND_API_KEY
+    const fromEmail = dbSettings.fromEmail || process.env.RESEND_FROM_EMAIL
+    const includeCsv = dbSettings.includeCsv !== undefined ? dbSettings.includeCsv : true
 
     const result = await dispatchReportEmail({
       reportType,
-      provider: (process.env.EMAIL_PROVIDER as 'smtp' | 'resend') || 'smtp',
+      provider,
       recipients,
       targetDate: new Date().toISOString().slice(0, 10),
-      includeCsv: true,
-      smtpUser: process.env.SMTP_USER,
-      smtpPass: process.env.SMTP_PASS,
-      smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
-      smtpPort: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 465,
-      senderApiKey: process.env.RESEND_API_KEY,
-      fromEmail: process.env.RESEND_FROM_EMAIL
+      includeCsv,
+      smtpUser,
+      smtpPass,
+      smtpHost,
+      smtpPort,
+      senderApiKey,
+      fromEmail
     })
 
     return NextResponse.json(result)

@@ -157,6 +157,39 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: true, member })
     }
 
+    if (action === 'update_email_settings') {
+      const { email_settings } = body
+
+      // Get current admin user metadata
+      const { data: adminMem } = await supabaseAdmin
+        .from('members')
+        .select('notes')
+        .eq('id', memberId)
+        .single()
+
+      let existingNotes: any = {}
+      try {
+        if (adminMem?.notes) {
+          existingNotes = JSON.parse(adminMem.notes)
+        }
+      } catch {}
+
+      const notesStr = JSON.stringify({
+        ...existingNotes,
+        email_settings: email_settings || {}
+      })
+
+      const { data: member, error: dbErr } = await supabaseAdmin
+        .from('members')
+        .update({ notes: notesStr })
+        .eq('id', memberId)
+        .select()
+        .single()
+
+      if (dbErr) throw dbErr
+      return NextResponse.json({ success: true, member })
+    }
+
     if (action === 'reset_password') {
       const pass = newMemberPassword
 
