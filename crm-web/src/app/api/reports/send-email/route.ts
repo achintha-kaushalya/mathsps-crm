@@ -191,8 +191,17 @@ async function dispatchReportEmail(params: {
         .select('*')
     ])
 
+    function isNewRegistration(psCode: string | null | undefined): boolean {
+      if (!psCode) return false
+      const clean = psCode.toUpperCase().trim()
+      const num = parseInt(clean.replace(/\D/g, ''), 10)
+      if (isNaN(num)) return false
+      if (clean.startsWith('SM')) return num >= 101
+      return num >= 10500
+    }
+
     const paymentsList = dailyPayments || []
-    const regList = dailyRegistrations || []
+    const regList = (dailyRegistrations || []).filter(s => isNewRegistration(s.ps_code))
     const currPayList = currentMonthPayments || []
     const prevPayList = prevMonthPayments || []
     const outstandingList = debtsData || []

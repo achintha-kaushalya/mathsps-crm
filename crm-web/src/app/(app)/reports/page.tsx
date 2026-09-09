@@ -24,6 +24,19 @@ import MonthlyMatrixTab from './components/MonthlyMatrixTab'
 import MultiMonthTrendsTab from './components/MultiMonthTrendsTab'
 import RetentionAnalyzerTab from './components/RetentionAnalyzerTab'
 
+export function isNewRegistrationPsCode(psCode: string | null | undefined): boolean {
+  if (!psCode) return false
+  const clean = psCode.toUpperCase().trim()
+  const num = parseInt(clean.replace(/\D/g, ''), 10)
+  if (isNaN(num)) return false
+
+  if (clean.startsWith('SM')) {
+    return num >= 101
+  }
+  // Default PS codes: PS10500 and upper are new students in the new system
+  return num >= 10500
+}
+
 export default function ReportsPage() {
   const supabase = createClient()
 
@@ -224,7 +237,7 @@ export default function ReportsPage() {
         // Multi-Month Trends: All new students registered in the selected trend year
         supabase
           .from('students')
-          .select('created_at, grade')
+          .select('ps_code, created_at, grade')
           .not('created_by', 'ilike', '%Auto-Pre-generated%')
           .gte('created_at', startOfTrendYear)
           .lte('created_at', endOfTrendYear)
@@ -234,8 +247,9 @@ export default function ReportsPage() {
       setTrendPaymentsYear(trendYearPaymentsData || [])
       setTrendStudentsYear(trendYearStudentsData || [])
 
-      // 0. Process Day-End Registered Students
-      setDayEndRegisteredStudents(dayEndRegisteredData || [])
+      // 0. Process Day-End Registered Students (only real new registrations PS10500+ / SM101+)
+      const filteredDayEndRegistered = (dayEndRegisteredData || []).filter(s => isNewRegistrationPsCode(s.ps_code))
+      setDayEndRegisteredStudents(filteredDayEndRegistered)
 
       // 0.75. Process Previous Month Payments for Retention
       setPrevMonthPayments(prevMonthPaymentsData || [])
@@ -243,6 +257,7 @@ export default function ReportsPage() {
       // 1. Process New Registered Students & Grade Breakdown
       // Sync advance registrations: A student whose first target payment month is this month
       // or who physically registered in this month (without prior payments) belongs to this month's cohort.
+      // MUST be a real new registration (PS10500+ or SM101+)
       const payList = monthlyPaymentsData || []
       setAllPaymentsMonth(payList)
 
@@ -267,10 +282,11 @@ export default function ReportsPage() {
       // Collect unique new registered students for this month
       const newStuMap = new Map<string, any>()
 
-      // A. Add students directly registered in the current month bounds
-      // BUT if they paid for NEXT month (and NOT for this month), they are advance registrants for next month!
+      // A. Add students directly registered in the current month bounds (strictly PS10500+ / SM101+)
       ;(registeredData || []).forEach(s => {
         const ps = s.ps_code || s.id
+        if (!isNewRegistrationPsCode(ps)) return
+
         const sCreatedAt = s.created_at ? new Date(s.created_at).toISOString() : ''
         if (sCreatedAt >= startOfMonth && sCreatedAt <= endOfMonth) {
           // If this student has paid for next month (e.g. September) and didn't pay for this month (e.g. August),
@@ -283,12 +299,12 @@ export default function ReportsPage() {
       })
 
       // B. Add students from payments for this month who registered in advance (e.g. late August for September)
-      // and who were not already paying students in previous months
+      // and who were not already paying students in previous months (strictly PS10500+ / SM101+)
       payList.forEach((p: any) => {
         const s = p.students
         if (!s) return
         const ps = s.ps_code || p.student_id
-        if (!ps || prevPaidPsCodes.has(ps)) return
+        if (!ps || !isNewRegistrationPsCode(ps) || prevPaidPsCodes.has(ps)) return
 
         const sCreatedAt = s.created_at ? new Date(s.created_at).toISOString() : ''
         // If created before this month started (advance registration) up to end of this month
@@ -747,6 +763,8 @@ export default function ReportsPage() {
 
     const mStudents = trendStudentsYear.filter(s => {
       const ps = s.ps_code || s.id
+      if (!isNewRegistrationPsCode(ps)) return false
+
       const firstPaidMonth = ps ? studentFirstPaidMonthInTrendYear.get(ps) : undefined
       if (firstPaidMonth !== undefined) {
         return firstPaidMonth === m
