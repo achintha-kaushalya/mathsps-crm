@@ -92,20 +92,49 @@ export default function AnalyticsDashboard() {
       const curMonth = now.getMonth() + 1
       const curYear = now.getFullYear()
 
-      const [leadsData, payRes, studRes] = await Promise.all([
+      // Chunked fetch for payments to bypass Supabase 1,000-row limit
+      const fetchAllPaymentsThisMonth = async () => {
+        let allPmts: any[] = []
+        let from = 0
+        const pageSize = 1000
+        let hasMore = true
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('payments')
+            .select('amount_paid,payment_type,student_id')
+            .eq('month', curMonth)
+            .eq('year', curYear)
+            .range(from, from + pageSize - 1)
+          if (error) {
+            console.error('Error fetching payments in dashboard:', error)
+            break
+          }
+          if (data && data.length > 0) {
+            allPmts = allPmts.concat(data)
+            if (data.length < pageSize) {
+              hasMore = false
+            } else {
+              from += pageSize
+            }
+          } else {
+            hasMore = false
+          }
+        }
+        return allPmts
+      }
+
+      const [leadsData, pmts, studRes] = await Promise.all([
         fetchAllLeadsSequential().catch(async (err) => {
           console.warn('Direct fetch failed, falling back to API:', err)
           const res = await fetch('/api/leads/analytics')
           const json = await res.json()
           return (json.leads || []) as LeadRow[]
         }),
-        supabase.from('payments').select('amount_paid,payment_type,student_id')
-          .eq('month', curMonth).eq('year', curYear),
+        fetchAllPaymentsThisMonth(),
         supabase.from('students').select('*', { count: 'exact', head: true }).not('created_by', 'ilike', '%Auto-Pre-generated%'),
       ])
 
       setLeads(leadsData || [])
-      const pmts = payRes.data || []
       const rev = pmts
         .filter((p: any) => !['FREE', 'IMS'].includes(p.payment_type || ''))
         .reduce((s: number, p: any) => s + (p.amount_paid || 0), 0)
