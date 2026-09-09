@@ -410,7 +410,7 @@ export default function StudentDetailPage() {
                       onChange={e => setForm(f => ({ ...f, grade: e.target.value ? parseInt(e.target.value) : undefined }))}
                     >
                       <option value="">Select Grade</option>
-                      {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                      {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
                         <option key={g} value={g}>Grade {g}</option>
                       ))}
                     </select>

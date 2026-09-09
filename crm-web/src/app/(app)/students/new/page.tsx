@@ -99,7 +99,7 @@ export default function NewStudentPage() {
       try {
         const notesObj = JSON.parse(adminRecord.notes)
         if (notesObj.grade_courses) {
-          const gc: Record<number, CourseConfig[]> = {}
+          const gc: Record<number, CourseConfig[]> = { ...DEFAULT_GRADE_COURSES }
           Object.entries(notesObj.grade_courses).forEach(([grStr, list]: [string, any]) => {
             gc[Number(grStr)] = list
           })
@@ -524,7 +524,7 @@ export default function NewStudentPage() {
                     onChange={e => handlePrimaryGradeChange(parseInt(e.target.value))}
                     style={{ fontWeight: 600 }}
                   >
-                    {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                    {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
                       <option key={g} value={g}>Grade {g}</option>
                     ))}
                   </select>
@@ -697,7 +697,7 @@ export default function NewStudentPage() {
                           onChange={e => handleClassGradeChange(row.id, parseInt(e.target.value))}
                           style={{ padding: '6px 8px', fontSize: 13, fontWeight: 600 }}
                         >
-                          {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                          {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
                             <option key={g} value={g}>Grade {g}</option>
                           ))}
                         </select>

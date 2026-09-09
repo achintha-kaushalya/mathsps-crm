@@ -607,9 +607,9 @@ export default function MultiMonthTrendsTab({
             <button
               type="button"
               onClick={() => {
-                const headers = ['Month', 'Gr 6', 'Gr 7', 'Gr 8', 'Gr 9', 'Gr 10', 'Gr 11', 'Total', 'MoM Delta', 'MoM Growth %']
+                const headers = ['Month', 'Gr 5', 'Gr 6', 'Gr 7', 'Gr 8', 'Gr 9', 'Gr 10', 'Gr 11', 'Total', 'MoM Delta', 'MoM Growth %']
                 const rows = trendMoMTable.map(r => {
-                  let grCounts = [6, 7, 8, 9, 10, 11].map(g => {
+                  let grCounts = [5, 6, 7, 8, 9, 10, 11].map(g => {
                     if (trendMetric === 'students') return r.studentCountsByGrade[g]
                     if (trendMetric === 'revenue') return r.revenueByGrade[g]
                     return r.regByGrade[g]
@@ -639,6 +639,7 @@ export default function MultiMonthTrendsTab({
             <thead>
               <tr style={{ background: 'var(--bg-base)' }}>
                 <th style={{ textAlign: 'left', padding: '12px 16px' }}>Month</th>
+                <th>Gr 5</th>
                 <th>Gr 6</th>
                 <th>Gr 7</th>
                 <th>Gr 8</th>
@@ -661,6 +662,9 @@ export default function MultiMonthTrendsTab({
                   <tr key={row.month} style={{ borderBottom: '1px solid var(--border)' }}>
                     <td style={{ textAlign: 'left', fontWeight: 700, padding: '12px 16px', color: 'var(--text-primary)' }}>
                       {row.monthName} {trendYear}
+                    </td>
+                    <td style={{ color: '#14b8a6', fontWeight: 600 }}>
+                      {trendMetric === 'revenue' ? `Rs. ${row.revenueByGrade[5]?.toLocaleString() || 0}` : trendMetric === 'students' ? (row.studentCountsByGrade[5] || 0) : (row.regByGrade[5] || 0)}
                     </td>
                     <td style={{ color: '#10b981', fontWeight: 600 }}>
                       {trendMetric === 'revenue' ? `Rs. ${row.revenueByGrade[6].toLocaleString()}` : trendMetric === 'students' ? row.studentCountsByGrade[6] : row.regByGrade[6]}

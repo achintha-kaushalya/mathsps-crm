@@ -60,7 +60,7 @@ export default function ReportsPage() {
   const [trendYear, setTrendYear] = useState(new Date().getFullYear())
   const [trendMetric, setTrendMetric] = useState<'students' | 'revenue' | 'registrations'>('students')
   const [selectedTrendMonths, setSelectedTrendMonths] = useState<number[]>([1, 2, 3, 4, 5, 6, 7, 8])
-  const [activeTrendGrades, setActiveTrendGrades] = useState<number[]>([0, 6, 7, 8, 9, 10, 11]) // 0 is Total
+  const [activeTrendGrades, setActiveTrendGrades] = useState<number[]>([0, 5, 6, 7, 8, 9, 10, 11]) // 0 is Total
   const [trendPaymentsYear, setTrendPaymentsYear] = useState<any[]>([])
   const [trendStudentsYear, setTrendStudentsYear] = useState<any[]>([])
   const [trendHoverPoint, setTrendHoverPoint] = useState<{ month: number; grade: number; value: number; x: number; y: number } | null>(null)
@@ -492,7 +492,7 @@ export default function ReportsPage() {
   })
 
   const allDistinctGrades = Array.from(
-    new Set([6, 7, 8, 9, 10, 11, ...Object.keys(dayEndGradeNewMap).map(Number), ...Object.keys(dayEndGradePaidMap).map(Number)])
+    new Set([5, 6, 7, 8, 9, 10, 11, ...Object.keys(dayEndGradeNewMap).map(Number), ...Object.keys(dayEndGradePaidMap).map(Number)])
   ).filter(g => g > 0).sort((a, b) => a - b)
 
   // -------------------------------------------------------------------------
@@ -503,7 +503,7 @@ export default function ReportsPage() {
 
   const rawDailyCounts: Record<number, Record<number, number>> = {}
   for (let d = 1; d <= daysInSelectedMonth; d++) {
-    rawDailyCounts[d] = { 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
+    rawDailyCounts[d] = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
   }
 
   if (matrixMode === 'registrations') {
@@ -594,7 +594,7 @@ export default function ReportsPage() {
     hasActivity: boolean
   }[] = []
 
-  const runningGradeTotals: Record<number, number> = { 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
+  const runningGradeTotals: Record<number, number> = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
 
   for (let d = 1; d <= maxDisplayDays; d++) {
     const dayDate = new Date(year, month - 1, d)
@@ -764,10 +764,10 @@ export default function ReportsPage() {
     const mPayments = trendPaymentsYear.filter(p => p.month === m)
 
     const gradePayingStudentsMap: Record<number, Set<string>> = {
-      6: new Set(), 7: new Set(), 8: new Set(), 9: new Set(), 10: new Set(), 11: new Set()
+      5: new Set(), 6: new Set(), 7: new Set(), 8: new Set(), 9: new Set(), 10: new Set(), 11: new Set()
     }
     const allPayingStudentsSet = new Set<string>()
-    const gradeRevenueMap: Record<number, number> = { 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
+    const gradeRevenueMap: Record<number, number> = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
     let totalRevenue = 0
 
     mPayments.forEach((p: any) => {
@@ -797,7 +797,7 @@ export default function ReportsPage() {
       const d = new Date(s.created_at)
       return d.getMonth() + 1 === m
     })
-    const gradeRegMap: Record<number, number> = { 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
+    const gradeRegMap: Record<number, number> = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
     mStudents.forEach((s: any) => {
       const gr = s.grade || 0
       if (gradeRegMap[gr] !== undefined) {
@@ -810,6 +810,7 @@ export default function ReportsPage() {
       monthName: MONTH_NAMES[m - 1],
       studentCountsByGrade: {
         0: allPayingStudentsSet.size,
+        5: gradePayingStudentsMap[5].size,
         6: gradePayingStudentsMap[6].size,
         7: gradePayingStudentsMap[7].size,
         8: gradePayingStudentsMap[8].size,
@@ -819,6 +820,7 @@ export default function ReportsPage() {
       } as Record<number, number>,
       revenueByGrade: {
         0: totalRevenue,
+        5: gradeRevenueMap[5],
         6: gradeRevenueMap[6],
         7: gradeRevenueMap[7],
         8: gradeRevenueMap[8],
@@ -828,6 +830,7 @@ export default function ReportsPage() {
       } as Record<number, number>,
       regByGrade: {
         0: mStudents.length,
+        5: gradeRegMap[5],
         6: gradeRegMap[6],
         7: gradeRegMap[7],
         8: gradeRegMap[8],
@@ -1198,7 +1201,7 @@ export default function ReportsPage() {
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total New</div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{newStudents.length}</div>
               </div>
-              {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+              {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
                 <div key={g} className="stat-card" style={{ padding: '12px 14px' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Grade {g}</div>
                   <div style={{ fontSize: 20, fontWeight: 700, color: (gradeStats[g] || 0) > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>

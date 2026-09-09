@@ -137,7 +137,7 @@ export default function StudentsPage() {
         </div>
         <select className="input-field" style={{ width: 120 }} value={gradeFilter} onChange={e => setGradeFilter(e.target.value)}>
           <option value="">All Grades</option>
-          {[6,7,8,9,10,11].map(g => <option key={g} value={g}>Grade {g}</option>)}
+          {[5,6,7,8,9,10,11].map(g => <option key={g} value={g}>Grade {g}</option>)}
         </select>
       </div>
 

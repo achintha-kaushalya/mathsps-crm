@@ -793,7 +793,7 @@ function AddPaymentForm() {
                       value={editGrade}
                       onChange={e => setEditGrade(e.target.value ? parseInt(e.target.value) : '')}
                     >
-                      {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                      {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
                         <option key={g} value={g}>Grade {g}</option>
                       ))}
                     </select>
@@ -956,7 +956,7 @@ function AddPaymentForm() {
                             onChange={e => handleRowGradeChange(row.itemId, parseInt(e.target.value))}
                             style={{ padding: '5px 6px', fontSize: 12, fontWeight: 600 }}
                           >
-                            {[6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                            {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
                               <option key={g} value={g}>Grade {g}</option>
                             ))}
                           </select>

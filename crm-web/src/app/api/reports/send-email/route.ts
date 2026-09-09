@@ -210,7 +210,7 @@ async function dispatchReportEmail(params: {
     const totalMonthRevenue = currPayList.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
     const totalDebtAmount = outstandingList.reduce((sum, d) => sum + Math.abs(d.current_balance || 0), 0)
 
-    const targetGrades = [6, 7, 8, 9, 10, 11]
+    const targetGrades = [5, 6, 7, 8, 9, 10, 11]
 
     // =========================================================================
     // RETENTION & CHURN ANALYSIS

@@ -3,13 +3,14 @@ import { MONTH_NAMES } from './types'
 /**
  * Standard target grades in system
  */
-export const TARGET_GRADES = [6, 7, 8, 9, 10, 11] as const
+export const TARGET_GRADES = [5, 6, 7, 8, 9, 10, 11] as const
 
 /**
  * Grade visual color map for badges, charts, and table highlights
  */
 export const GRADE_COLOR_MAP: Record<number, { stroke: string; fill: string; name: string }> = {
   0: { stroke: '#3b82f6', fill: 'rgba(59, 130, 246, 0.2)', name: 'Total All Grades' },
+  5: { stroke: '#14b8a6', fill: 'rgba(20, 184, 166, 0.2)', name: 'Grade 5' },
   6: { stroke: '#10b981', fill: 'rgba(16, 185, 129, 0.2)', name: 'Grade 6' },
   7: { stroke: '#f59e0b', fill: 'rgba(245, 158, 11, 0.2)', name: 'Grade 7' },
   8: { stroke: '#ec4899', fill: 'rgba(236, 72, 153, 0.2)', name: 'Grade 8' },

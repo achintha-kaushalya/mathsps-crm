@@ -397,7 +397,7 @@ export default function RetentionAnalyzerTab({
               onChange={e => setRetentionGradeFilter(e.target.value)}
             >
               <option value="ALL">All Grades</option>
-              {[6, 7, 8, 9, 10, 11].map(g => (
+              {[5, 6, 7, 8, 9, 10, 11].map(g => (
                 <option key={g} value={String(g)}>Grade {g}</option>
               ))}
             </select>

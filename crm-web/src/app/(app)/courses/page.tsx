@@ -36,7 +36,7 @@ export default function CoursesManagerPage() {
       if (adminRecord?.notes) {
         const notesObj = JSON.parse(adminRecord.notes)
         if (notesObj.grade_courses) {
-          const gc: Record<number, CourseConfig[]> = {}
+          const gc: Record<number, CourseConfig[]> = { ...DEFAULT_GRADE_COURSES }
           Object.entries(notesObj.grade_courses).forEach(([grStr, list]: [string, any]) => {
             gc[Number(grStr)] = list
           })
@@ -187,8 +187,8 @@ export default function CoursesManagerPage() {
     await persistCourses(updatedGC)
   }
 
-  // Available grade tabs (6 through 13)
-  const grades = [6, 7, 8, 9, 10, 11, 12, 13]
+  // Available grade tabs (5 through 13)
+  const grades = [5, 6, 7, 8, 9, 10, 11, 12, 13]
   const currentTabCourses = gradeCourses[selectedGradeTab] || []
 
   // Total courses count across all grades

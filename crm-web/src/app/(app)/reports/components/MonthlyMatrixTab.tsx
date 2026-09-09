@@ -165,8 +165,8 @@ export default function MonthlyMatrixTab({
             </div>
             <div style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>
               {matrixMode === 'registrations'
-                ? 'Daily and cumulative count of new registered students across Grades 6–11'
-                : 'Daily and cumulative count of students paying fees across Grades 6–11'}
+                ? 'Daily and cumulative count of new registered students across Grades 5–11'
+                : 'Daily and cumulative count of students paying fees across Grades 5–11'}
             </div>
           </div>
           <span style={{
@@ -189,12 +189,12 @@ export default function MonthlyMatrixTab({
             fontSize: 13
           }}>
             <thead>
-              {/* Top Grouping Header: Date | August (Grades 6-11) | Total */}
+              {/* Top Grouping Header: Date | August (Grades 5-11) | Total */}
               <tr style={{ background: '#2e7d32', color: '#fff', fontWeight: 800 }}>
                 <th rowSpan={2} style={{ padding: '12px 16px', border: '1px solid #1b5e20', width: 130 }}>
                   Date
                 </th>
-                <th colSpan={6} style={{ padding: '8px 12px', border: '1px solid #1b5e20', fontSize: 14, letterSpacing: 1 }}>
+                <th colSpan={matrixTargetGrades.length} style={{ padding: '8px 12px', border: '1px solid #1b5e20', fontSize: 14, letterSpacing: 1 }}>
                   {MONTH_NAMES[month - 1]} (Grades)
                 </th>
                 <th rowSpan={2} style={{ padding: '12px 16px', border: '1px solid #1b5e20', width: 110, background: '#1b5e20' }}>

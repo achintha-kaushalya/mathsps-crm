@@ -14,6 +14,9 @@ export interface GradeConfig {
 }
 
 export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
+  5: [
+    { code: 'GR5_FOUNDATION', name: 'Grade 5–6 — Foundation Maths', defaultFee: 1500, grade: 5 }
+  ],
   6: [
     { code: 'GR6_THEORY', name: 'Grade 6 — Theory', defaultFee: 1500, grade: 6 }
   ],
@@ -45,6 +48,7 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
 export function getAllCourseLabels(gradeCourses: Record<number, CourseConfig[]> = DEFAULT_GRADE_COURSES): Record<string, string> {
   const map: Record<string, string> = {
     // Legacy support
+    GR5_FOUNDATION: 'Grade 5–6 — Foundation Maths',
     MAIN_GR6: 'Grade 6 — Theory',
     MAIN_GR7: 'Grade 7 — Theory',
     MAIN_GR8: 'Grade 8 — Theory',
