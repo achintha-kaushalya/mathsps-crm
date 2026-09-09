@@ -6,45 +6,103 @@ import { MONTH_NAMES } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
 
+// ---------------------------------------------------------------------------
+// GET Handler: Invoked automatically by Vercel Cron
+// ---------------------------------------------------------------------------
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const reportType = (searchParams.get('type') as 'morning' | 'evening') || 'evening'
+
+    // Verify Vercel Cron Authorization Secret if configured
+    const authHeader = request.headers.get('authorization')
+    const cronSecret = process.env.CRON_SECRET
+
+    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
+      return NextResponse.json({ error: 'Unauthorized cron invocation.' }, { status: 401 })
+    }
+
+    const recipientsEnv = process.env.REPORT_RECIPIENTS || 'sampathlankasunsoft93@gmail.com'
+    const recipients = recipientsEnv.split(',').map(e => e.trim()).filter(Boolean)
+
+    const result = await dispatchReportEmail({
+      reportType,
+      provider: (process.env.EMAIL_PROVIDER as 'smtp' | 'resend') || 'smtp',
+      recipients,
+      targetDate: new Date().toISOString().slice(0, 10),
+      includeCsv: true,
+      smtpUser: process.env.SMTP_USER,
+      smtpPass: process.env.SMTP_PASS,
+      smtpHost: process.env.SMTP_HOST || 'smtp.gmail.com',
+      smtpPort: process.env.SMTP_PORT ? Number(process.env.SMTP_PORT) : 465,
+      senderApiKey: process.env.RESEND_API_KEY,
+      fromEmail: process.env.RESEND_FROM_EMAIL
+    })
+
+    return NextResponse.json(result)
+  } catch (err: any) {
+    console.error('Vercel Cron dispatch error:', err)
+    return NextResponse.json({ error: err.message || 'Internal Error' }, { status: 500 })
+  }
+}
+
+// ---------------------------------------------------------------------------
+// POST Handler: Invoked by Admin Settings UI (with manual / live test payload)
+// ---------------------------------------------------------------------------
 export async function POST(request: Request) {
   try {
     const body = await request.json()
-    const {
-      reportType = 'evening', // 'evening' (Day-End Cash Audit) | 'morning' (Strategic Analytics & Trends)
-      provider = 'smtp', // 'smtp' | 'resend'
-      recipients = [],
-      targetDate = new Date().toISOString().slice(0, 10),
-      includeCsv = true,
-      // Resend options
-      senderApiKey,
-      fromEmail,
-      // SMTP options
-      smtpUser,
-      smtpPass,
-      smtpHost = 'smtp.gmail.com',
-      smtpPort = 465
-    } = body
+    const result = await dispatchReportEmail(body)
+    return NextResponse.json(result)
+  } catch (error: any) {
+    console.error('Email report send error:', error)
+    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 })
+  }
+}
 
-    if (!recipients || recipients.length === 0) {
-      return NextResponse.json({ error: 'At least one recipient email is required.' }, { status: 400 })
-    }
+async function dispatchReportEmail(params: {
+  reportType?: 'morning' | 'evening'
+  provider?: 'smtp' | 'resend'
+  recipients: string[]
+  targetDate?: string
+  includeCsv?: boolean
+  senderApiKey?: string
+  fromEmail?: string
+  smtpUser?: string
+  smtpPass?: string
+  smtpHost?: string
+  smtpPort?: number
+}) {
+  const {
+    reportType = 'evening',
+    provider = 'smtp',
+    recipients = [],
+    targetDate = new Date().toISOString().slice(0, 10),
+    includeCsv = true,
+    senderApiKey,
+    fromEmail,
+    smtpUser,
+    smtpPass,
+    smtpHost = 'smtp.gmail.com',
+    smtpPort = 465
+  } = params
 
-    if (provider === 'smtp') {
-      const user = smtpUser || process.env.SMTP_USER
-      const pass = smtpPass || process.env.SMTP_PASS
-      if (!user || !pass) {
-        return NextResponse.json({
-          error: 'Gmail SMTP requires both Sender Gmail Address and Google App Password.'
-        }, { status: 400 })
-      }
-    } else {
-      const apiKey = senderApiKey || process.env.RESEND_API_KEY
-      if (!apiKey) {
-        return NextResponse.json({
-          error: 'Resend API Key is missing. Please provide your API Key or set RESEND_API_KEY.'
-        }, { status: 400 })
-      }
+  if (!recipients || recipients.length === 0) {
+    throw new Error('At least one recipient email is required.')
+  }
+
+  if (provider === 'smtp') {
+    const user = smtpUser || process.env.SMTP_USER
+    const pass = smtpPass || process.env.SMTP_PASS
+    if (!user || !pass) {
+      throw new Error('Gmail SMTP requires both Sender Gmail Address and Google App Password.')
     }
+  } else {
+    const apiKey = senderApiKey || process.env.RESEND_API_KEY
+    if (!apiKey) {
+      throw new Error('Resend API Key is missing. Please provide your API Key or set RESEND_API_KEY.')
+    }
+  }
 
     // Supabase Admin/Server Client
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -565,13 +623,13 @@ export async function POST(request: Request) {
 
       if (sendResult.error) {
         const errMsg = sendResult.error.message || 'Resend delivery failed'
-        return NextResponse.json({ error: errMsg }, { status: 400 })
+        throw new Error(errMsg)
       }
 
       emailId = sendResult.data?.id || 'resend-ok'
     }
 
-    return NextResponse.json({
+    return {
       success: true,
       message: `${reportType === 'morning' ? 'Morning Strategic Brief' : 'Evening Day-End Summary'} sent successfully via ${provider.toUpperCase()} to ${recipients.join(', ')}`,
       emailId,
@@ -583,10 +641,5 @@ export async function POST(request: Request) {
         retentionRate: overallRetentionRate,
         droppedStudents: droppedCount
       }
-    })
-
-  } catch (error: any) {
-    console.error('Email report send error:', error)
-    return NextResponse.json({ error: error.message || 'Internal Server Error' }, { status: 500 })
-  }
+    }
 }
