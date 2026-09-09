@@ -89,6 +89,8 @@ export default function ReportsPage() {
       // Calculate start and end of the selected month
       const startOfMonth = new Date(year, month - 1, 1).toISOString()
       const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999).toISOString()
+      // Also look back 45 days before the selected month for any advance registrations targeting this month
+      const startOfAdvanceLookback = new Date(year, month - 2, 1).toISOString()
 
       // Calculate start and end of the trend analysis year
       const startOfTrendYear = new Date(trendYear, 0, 1).toISOString()
@@ -107,7 +109,7 @@ export default function ReportsPage() {
       while (hasMoreDaily) {
         let q = supabase
           .from('payments')
-          .select('*, students(ps_code, full_name, grade)')
+          .select('*, students(ps_code, full_name, grade, created_at, household:households(parent_name, parent_phone, address), enrollments(*))')
           .range(dailyFrom, dailyFrom + CHUNK_SIZE - 1)
           .order('created_at', { ascending: false })
 
@@ -161,11 +163,11 @@ export default function ReportsPage() {
         { data: outData },
         { data: trendYearStudentsData }
       ] = await Promise.all([
-        // Payments in this month (paginated)
+        // Payments in this month (paginated) - with students info, created_at, household & enrollments
         fetchAllPaginated((from, to) =>
           supabase
             .from('payments')
-            .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+            .select('*, students(id, ps_code, full_name, grade, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(*))')
             .eq('month', month)
             .eq('year', year)
             .range(from, to)
@@ -183,16 +185,16 @@ export default function ReportsPage() {
         fetchAllPaginated((from, to) =>
           supabase
             .from('payments')
-            .select('month, year, amount_paid, class_type, students(ps_code, full_name, grade)')
+            .select('month, year, amount_paid, class_type, students(ps_code, full_name, grade, created_at)')
             .eq('year', trendYear)
             .range(from, to)
         ),
-        // Real new registered students in this month
+        // Real new registered students created in this month or advance window
         supabase
           .from('students')
           .select('*, household:households(*), enrollments(*)')
           .not('created_by', 'ilike', '%Auto-Pre-generated%')
-          .gte('created_at', startOfMonth)
+          .gte('created_at', startOfAdvanceLookback)
           .lte('created_at', endOfMonth)
           .order('created_at', { ascending: false }),
         // Real new registered students specifically on selected date
@@ -227,7 +229,55 @@ export default function ReportsPage() {
       setPrevMonthPayments(prevMonthPaymentsData || [])
 
       // 1. Process New Registered Students & Grade Breakdown
-      const stuList = registeredData || []
+      // Sync advance registrations: A student whose first target payment month is this month
+      // or who physically registered in this month (without prior payments) belongs to this month's cohort.
+      const payList = monthlyPaymentsData || []
+      setAllPaymentsMonth(payList)
+
+      const prevPaidPsCodes = new Set<string>()
+      ;(prevMonthPaymentsData || []).forEach((p: any) => {
+        const ps = p.students?.ps_code || p.student_id
+        if (ps) prevPaidPsCodes.add(ps)
+      })
+
+      // Collect unique new registered students for this month
+      const newStuMap = new Map<string, any>()
+
+      // A. Add students directly registered in the current month bounds
+      ;(registeredData || []).forEach(s => {
+        const sCreatedAt = s.created_at ? new Date(s.created_at).toISOString() : ''
+        if (sCreatedAt >= startOfMonth && sCreatedAt <= endOfMonth) {
+          newStuMap.set(s.ps_code || s.id, s)
+        }
+      })
+
+      // B. Add students from payments for this month who registered in advance (e.g. late August for September)
+      // and who were not already paying students in previous months
+      payList.forEach((p: any) => {
+        const s = p.students
+        if (!s) return
+        const ps = s.ps_code || p.student_id
+        if (!ps || prevPaidPsCodes.has(ps)) return
+
+        const sCreatedAt = s.created_at ? new Date(s.created_at).toISOString() : ''
+        // If created before this month started (advance registration) up to end of this month
+        if (sCreatedAt && sCreatedAt <= endOfMonth) {
+          if (!newStuMap.has(ps)) {
+            newStuMap.set(ps, {
+              id: s.id || p.student_id,
+              ps_code: s.ps_code || ps,
+              full_name: s.full_name || '—',
+              grade: s.grade || 0,
+              created_at: s.created_at,
+              created_by: s.created_by || p.recorded_by || 'Admin',
+              household: s.household || {},
+              enrollments: s.enrollments || []
+            })
+          }
+        }
+      })
+
+      const stuList = Array.from(newStuMap.values())
       setNewStudents(stuList)
 
       const gMap: Record<number, number> = {}
@@ -236,10 +286,6 @@ export default function ReportsPage() {
         gMap[gr] = (gMap[gr] || 0) + 1
       })
       setGradeStats(gMap)
-
-      // 2. Process Bank-Wise & Payment Type Breakdown
-      const payList = monthlyPaymentsData || []
-      setAllPaymentsMonth(payList)
 
       const bMap: Record<string, { count: number; total: number }> = {}
       const mMap: Record<string, { count: number; total: number }> = {}
@@ -389,8 +435,20 @@ export default function ReportsPage() {
   }
 
   if (matrixMode === 'registrations') {
+    const monthStartIso = `${year}-${String(month).padStart(2, '0')}-01`
     newStudents.forEach(s => {
-      const d = new Date(s.created_at).getDate()
+      let d = 1
+      if (s.created_at) {
+        const sCreatedAt = new Date(s.created_at).toISOString()
+        if (sCreatedAt < monthStartIso) {
+          // Advance registration made before this month (e.g. late August for September) -> counts on Day 1
+          d = 1
+        } else {
+          d = new Date(s.created_at).getDate()
+        }
+      }
+      if (d < 1) d = 1
+      if (d > daysInSelectedMonth) d = daysInSelectedMonth
       const g = s.grade || 0
       if (rawDailyCounts[d] && rawDailyCounts[d][g] !== undefined) {
         rawDailyCounts[d][g] += 1
@@ -617,9 +675,20 @@ export default function ReportsPage() {
   // -------------------------------------------------------------------------
   // 4. MULTI-MONTH BUSINESS TREND LINE CHART CALCULATIONS
   // -------------------------------------------------------------------------
-  const sortedTrendMonths = [...selectedTrendMonths].sort((a, b) => a - b)
+  // Build student earliest payment month mapping for accurate multi-month trend registration cohorts
+  const studentFirstPaidMonthInTrendYear = new Map<string, number>()
+  trendPaymentsYear.forEach((p: any) => {
+    const ps = p.students?.ps_code || p.student_id
+    if (!ps || !p.month) return
+    const cur = studentFirstPaidMonthInTrendYear.get(ps)
+    if (cur === undefined || p.month < cur) {
+      studentFirstPaidMonthInTrendYear.set(ps, p.month)
+    }
+  })
 
-  const trendMonthlySeries = sortedTrendMonths.map(m => {
+  const sortedTrendMonths: number[] = [...selectedTrendMonths].sort((a: number, b: number) => a - b)
+
+  const trendMonthlySeries = sortedTrendMonths.map((m: number) => {
     const mPayments = trendPaymentsYear.filter(p => p.month === m)
 
     const gradePayingStudentsMap: Record<number, Set<string>> = {
@@ -646,6 +715,11 @@ export default function ReportsPage() {
     })
 
     const mStudents = trendStudentsYear.filter(s => {
+      const ps = s.ps_code || s.id
+      const firstPaidMonth = ps ? studentFirstPaidMonthInTrendYear.get(ps) : undefined
+      if (firstPaidMonth !== undefined) {
+        return firstPaidMonth === m
+      }
       const d = new Date(s.created_at)
       return d.getMonth() + 1 === m
     })
