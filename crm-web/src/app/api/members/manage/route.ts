@@ -14,8 +14,8 @@ export async function POST(request: Request) {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 
-    // 1. Verify Admin Password with Supabase Auth (or bypass for internal custom course sync)
-    const isBypass = action === 'update_custom_courses' && adminPassword === 'sb_secret_verification_bypass'
+    // 1. Verify Admin Password with Supabase Auth (or bypass for internal custom course sync & email settings)
+    const isBypass = (action === 'update_custom_courses' || action === 'update_email_settings') && adminPassword === 'sb_secret_verification_bypass'
     
     if (!isBypass) {
       const authClient = createClient(supabaseUrl, anonKey)
