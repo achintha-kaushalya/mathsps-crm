@@ -48,6 +48,12 @@ export default function ReportsPage() {
   const [year, setYear] = useState(new Date().getFullYear())
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10))
 
+  // Range-based date filters for Day-End / Period Summary & Audit Log
+  const [dateRangePreset, setDateRangePreset] = useState<'today' | 'yesterday' | 'last7' | 'this_month' | 'last_month' | 'custom'>('today')
+  const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10))
+  const [endDate, setEndDate] = useState(new Date().toISOString().slice(0, 10))
+  const [bankFilter, setBankFilter] = useState('')
+
   const [loading, setLoading] = useState(true)
 
   // 0. Day-End Registrations State
@@ -59,7 +65,7 @@ export default function ReportsPage() {
   // 0.6. Multi-Month Business Trend Line Chart Analytics State
   const [trendYear, setTrendYear] = useState(new Date().getFullYear())
   const [trendMetric, setTrendMetric] = useState<'students' | 'revenue' | 'registrations'>('students')
-  const [selectedTrendMonths, setSelectedTrendMonths] = useState<number[]>([1, 2, 3, 4, 5, 6, 7, 8])
+  const [selectedTrendMonths, setSelectedTrendMonths] = useState<number[]>([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
   const [activeTrendGrades, setActiveTrendGrades] = useState<number[]>([0, 5, 6, 7, 8, 9, 10, 11]) // 0 is Total
   const [trendPaymentsYear, setTrendPaymentsYear] = useState<any[]>([])
   const [trendStudentsYear, setTrendStudentsYear] = useState<any[]>([])
@@ -96,6 +102,44 @@ export default function ReportsPage() {
   const [tutorFilter, setTutorFilter] = useState<'ps' | 'sm' | 'all'>('ps')
   const [mounted, setMounted] = useState(false)
 
+  // Helper to apply quick date range presets
+  function applyDateRangePreset(preset: 'today' | 'yesterday' | 'last7' | 'this_month' | 'last_month' | 'custom') {
+    setDateRangePreset(preset)
+    const now = new Date()
+    const todayStr = now.toISOString().slice(0, 10)
+
+    if (preset === 'today') {
+      setStartDate(todayStr)
+      setEndDate(todayStr)
+      setSelectedDate(todayStr)
+    } else if (preset === 'yesterday') {
+      const y = new Date()
+      y.setDate(y.getDate() - 1)
+      const yStr = y.toISOString().slice(0, 10)
+      setStartDate(yStr)
+      setEndDate(yStr)
+      setSelectedDate(yStr)
+    } else if (preset === 'last7') {
+      const l7 = new Date()
+      l7.setDate(l7.getDate() - 6)
+      const l7Str = l7.toISOString().slice(0, 10)
+      setStartDate(l7Str)
+      setEndDate(todayStr)
+      setSelectedDate(todayStr)
+    } else if (preset === 'this_month') {
+      const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10)
+      setStartDate(firstDay)
+      setEndDate(todayStr)
+      setSelectedDate(todayStr)
+    } else if (preset === 'last_month') {
+      const firstDayLast = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().slice(0, 10)
+      const lastDayLast = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().slice(0, 10)
+      setStartDate(firstDayLast)
+      setEndDate(lastDayLast)
+      setSelectedDate(lastDayLast)
+    }
+  }
+
   useEffect(() => {
     setMounted(true)
     if (typeof window !== 'undefined') {
@@ -106,7 +150,7 @@ export default function ReportsPage() {
 
   useEffect(() => {
     loadAllReportData()
-  }, [month, year, trendYear, selectedDate, dateFilterType, tutorFilter])
+  }, [month, year, trendYear, startDate, endDate, dateFilterType, tutorFilter])
 
   async function loadAllReportData() {
     setLoading(true)
@@ -121,11 +165,11 @@ export default function ReportsPage() {
       const startOfTrendYear = new Date(trendYear, 0, 1).toISOString()
       const endOfTrendYear = new Date(trendYear, 11, 31, 23, 59, 59, 999).toISOString()
 
-      // Calculate start and end bounds for the selected day in UTC/ISO
-      const startOfDay = `${selectedDate}T00:00:00.000Z`
-      const endOfDay = `${selectedDate}T23:59:59.999Z`
+      // Calculate start and end bounds for the selected date range in UTC/ISO
+      const startOfRangeIso = `${startDate}T00:00:00.000Z`
+      const endOfRangeIso = `${endDate}T23:59:59.999Z`
 
-      // 1. Fetch daily audit payments with pagination to support large volume
+      // 1. Fetch daily/range audit payments with pagination to support large volume
       let dailyList: any[] = []
       let dailyFrom = 0
       let hasMoreDaily = true
@@ -139,9 +183,9 @@ export default function ReportsPage() {
           .order('created_at', { ascending: false })
 
         if (dateFilterType === 'created_at') {
-          q = q.gte('created_at', startOfDay).lte('created_at', endOfDay)
+          q = q.gte('created_at', startOfRangeIso).lte('created_at', endOfRangeIso)
         } else {
-          q = q.eq('date_paid', selectedDate)
+          q = q.gte('date_paid', startDate).lte('date_paid', endDate)
         }
 
         const { data: chunk, error: dErr } = await q
@@ -234,13 +278,13 @@ export default function ReportsPage() {
           .gte('created_at', startOfAdvanceLookback)
           .lte('created_at', endOfMonth)
           .order('created_at', { ascending: false }),
-        // Real new registered students specifically on selected date
+        // Real new registered students specifically in selected date range
         supabase
           .from('students')
           .select('*, household:households(*), enrollments(*)')
           .not('created_by', 'ilike', '%Auto-Pre-generated%')
-          .gte('created_at', startOfDay)
-          .lte('created_at', endOfDay)
+          .gte('created_at', startOfRangeIso)
+          .lte('created_at', endOfRangeIso)
           .order('created_at', { ascending: false }),
         // Outstanding debts
         supabase
@@ -426,6 +470,12 @@ export default function ReportsPage() {
   const filteredDailyPayments = dailyPayments.filter(p => {
     if (auditorFilter && (p.recorded_by || 'System User') !== auditorFilter) {
       return false
+    }
+    if (bankFilter) {
+      const pBank = p.bank_name || p.payment_type || ''
+      if (pBank !== bankFilter && p.payment_type !== bankFilter) {
+        return false
+      }
     }
     if (!searchAudit.trim()) return true
     const term = searchAudit.toLowerCase()
@@ -1127,8 +1177,12 @@ export default function ReportsPage() {
         {/* ========================================================================= */}
         {activeTab === 'day_end' && (
           <DayEndSummaryTab
-            selectedDate={selectedDate}
-            setSelectedDate={setSelectedDate}
+            dateRangePreset={dateRangePreset}
+            startDate={startDate}
+            endDate={endDate}
+            setStartDate={setStartDate}
+            setEndDate={setEndDate}
+            applyDateRangePreset={applyDateRangePreset}
             dateFilterType={dateFilterType}
             setDateFilterType={setDateFilterType}
             dayEndRegisteredStudents={dayEndRegisteredStudents}
@@ -1436,60 +1490,97 @@ export default function ReportsPage() {
             <div className="glass-card" style={{ padding: 18, marginBottom: 20 }}>
               <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 14 }}>
                 <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+                  
+                  {/* Preset Pills */}
                   <div>
                     <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Select Date
+                      Audit Period
                     </label>
-                    <input
-                      type="date"
-                      className="input-field"
-                      style={{ width: 160 }}
-                      value={selectedDate}
-                      onChange={e => setSelectedDate(e.target.value)}
-                    />
+                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                      <button
+                        type="button"
+                        onClick={() => applyDateRangePreset('today')}
+                        className={dateRangePreset === 'today' ? 'btn-primary' : 'btn-secondary'}
+                        style={{ padding: '6px 12px', fontSize: 12 }}
+                      >
+                        Today
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyDateRangePreset('yesterday')}
+                        className={dateRangePreset === 'yesterday' ? 'btn-primary' : 'btn-secondary'}
+                        style={{ padding: '6px 12px', fontSize: 12 }}
+                      >
+                        Yesterday
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyDateRangePreset('last7')}
+                        className={dateRangePreset === 'last7' ? 'btn-primary' : 'btn-secondary'}
+                        style={{ padding: '6px 12px', fontSize: 12 }}
+                      >
+                        Last 7 Days
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyDateRangePreset('this_month')}
+                        className={dateRangePreset === 'this_month' ? 'btn-primary' : 'btn-secondary'}
+                        style={{ padding: '6px 12px', fontSize: 12 }}
+                      >
+                        This Month
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyDateRangePreset('last_month')}
+                        className={dateRangePreset === 'last_month' ? 'btn-primary' : 'btn-secondary'}
+                        style={{ padding: '6px 12px', fontSize: 12 }}
+                      >
+                        Last Month
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => applyDateRangePreset('custom')}
+                        className={dateRangePreset === 'custom' ? 'btn-primary' : 'btn-secondary'}
+                        style={{ padding: '6px 12px', fontSize: 12 }}
+                      >
+                        Custom Range ▾
+                      </button>
+                    </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
-                      className={selectedDate === new Date().toISOString().slice(0, 10) ? 'btn-primary' : 'btn-secondary'}
-                      style={{ padding: '6px 12px', fontSize: 12 }}
-                    >
-                      Today
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const d = new Date()
-                        d.setDate(d.getDate() - 1)
-                        setSelectedDate(d.toISOString().slice(0, 10))
-                      }}
-                      className={(() => {
-                        const d = new Date()
-                        d.setDate(d.getDate() - 1)
-                        return selectedDate === d.toISOString().slice(0, 10)
-                      })() ? 'btn-primary' : 'btn-secondary'}
-                      style={{ padding: '6px 12px', fontSize: 12 }}
-                    >
-                      Yesterday
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const d = new Date()
-                        d.setDate(d.getDate() - 2)
-                        setSelectedDate(d.toISOString().slice(0, 10))
-                      }}
-                      className={(() => {
-                        const d = new Date()
-                        d.setDate(d.getDate() - 2)
-                        return selectedDate === d.toISOString().slice(0, 10)
-                      })() ? 'btn-primary' : 'btn-secondary'}
-                      style={{ padding: '6px 12px', fontSize: 12 }}
-                    >
-                      2 Days Ago
-                    </button>
+                  {/* Date Pickers (From / To) */}
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                        From
+                      </label>
+                      <input
+                        type="date"
+                        className="input-field"
+                        style={{ width: 145 }}
+                        value={startDate}
+                        onChange={e => {
+                          setStartDate(e.target.value)
+                          applyDateRangePreset('custom')
+                        }}
+                      />
+                    </div>
+                    <span style={{ paddingBottom: 8, color: 'var(--text-muted)', fontWeight: 700 }}>➔</span>
+                    <div>
+                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                        To
+                      </label>
+                      <input
+                        type="date"
+                        className="input-field"
+                        style={{ width: 145 }}
+                        value={endDate}
+                        onChange={e => {
+                          setEndDate(e.target.value)
+                          applyDateRangePreset('custom')
+                        }}
+                      />
+                    </div>
                   </div>
 
                   <div>
@@ -1523,12 +1614,29 @@ export default function ReportsPage() {
                       ))}
                     </select>
                   </div>
+
+                  <div>
+                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                      Bank / Method
+                    </label>
+                    <select
+                      className="input-field"
+                      style={{ width: 160 }}
+                      value={bankFilter}
+                      onChange={e => setBankFilter(e.target.value)}
+                    >
+                      <option value="">All Banks &amp; Methods</option>
+                      {Array.from(new Set(dailyPayments.map(p => p.bank_name || p.payment_type).filter(Boolean))).sort().map(b => (
+                        <option key={b} value={b}>{b}</option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
 
                 <div>
                   <button
                     onClick={() => {
-                      const headers = ['PS CODE', 'STUDENT NAME', 'CLASS', 'AMOUNT (RS)', 'PAYMENT TYPE', 'BANK', 'AUDITOR (RECORDED BY)', 'TIME', 'DELIVERY', 'NOTES']
+                      const headers = ['PS CODE', 'STUDENT NAME', 'CLASS', 'AMOUNT (RS)', 'PAYMENT TYPE', 'BANK', 'AUDITOR (RECORDED BY)', 'ENTRY DATE & TIME', 'SLIP DATE', 'DELIVERY', 'NOTES']
                       const rows = filteredDailyPayments.map(p => [
                         `"${p.students?.ps_code || ''}"`,
                         `"${(p.students?.full_name || '').replace(/"/g, '""')}"`,
@@ -1537,11 +1645,13 @@ export default function ReportsPage() {
                         `"${p.payment_type || 'BANK'}"`,
                         `"${p.bank_name || ''}"`,
                         `"${p.recorded_by || 'System'}"`,
-                        `"${new Date(p.created_at).toLocaleTimeString()}"`,
+                        `"${new Date(p.created_at).toLocaleString()}"`,
+                        `"${p.date_paid || ''}"`,
                         `"${(p.notes || '').includes('[DISPATCHED:') ? 'Dispatched' : p.tute_delivered ? 'Ready to Export' : 'No Delivery'}"`,
                         `"${(p.notes || '').replace(/"/g, '""')}"`
                       ])
-                      exportTableToCsv(`Daily_Audit_Log_${selectedDate}`, headers, rows)
+                      const fileSuffix = startDate === endDate ? startDate : `${startDate}_to_${endDate}`
+                      exportTableToCsv(`Audit_Log_${fileSuffix}`, headers, rows)
                     }}
                     className="btn-primary"
                     style={{ display: 'flex', alignItems: 'center', gap: 6 }}
@@ -1557,7 +1667,7 @@ export default function ReportsPage() {
                   type="text"
                   className="input-field"
                   style={{ paddingLeft: 36, width: '100%' }}
-                  placeholder="Search daily slips by PS Code, Student Name, Bank, Auditor..."
+                  placeholder="Search slips by PS Code, Student Name, Bank, Auditor..."
                   value={searchAudit}
                   onChange={e => setSearchAudit(e.target.value)}
                 />
@@ -1566,7 +1676,7 @@ export default function ReportsPage() {
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
               <div className="stat-card">
-                <div className="stat-card label">Total Collected ({selectedDate})</div>
+                <div className="stat-card label">Total Collected ({startDate === endDate ? startDate : `${startDate} to ${endDate}`})</div>
                 <div className="stat-card value" style={{ color: 'var(--text-primary)' }}>Rs. {totalDailyRevenue.toLocaleString()}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{dailyPayments.length} slips audited</div>
               </div>
@@ -1586,7 +1696,7 @@ export default function ReportsPage() {
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <ShieldCheck size={16} style={{ color: 'var(--accent-blue)' }} />
-                  Payments Logged on {selectedDate} ({filteredDailyPayments.length} Slips)
+                  Payments Logged ({startDate === endDate ? startDate : `${startDate} to ${endDate}`}) — {filteredDailyPayments.length} Slips
                 </div>
               </div>
 

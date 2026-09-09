@@ -12,8 +12,12 @@ import { CLASS_LABELS } from '@/lib/types'
 import { exportTableToCsv } from '@/lib/reports-analytics'
 
 interface DayEndSummaryTabProps {
-  selectedDate: string
-  setSelectedDate: (d: string) => void
+  dateRangePreset: 'today' | 'yesterday' | 'last7' | 'this_month' | 'last_month' | 'custom'
+  startDate: string
+  endDate: string
+  setStartDate: (d: string) => void
+  setEndDate: (d: string) => void
+  applyDateRangePreset: (preset: 'today' | 'yesterday' | 'last7' | 'this_month' | 'last_month' | 'custom') => void
   dateFilterType: 'created_at' | 'date_paid'
   setDateFilterType: (t: 'created_at' | 'date_paid') => void
   dayEndRegisteredStudents: any[]
@@ -27,8 +31,12 @@ interface DayEndSummaryTabProps {
 }
 
 export default function DayEndSummaryTab({
-  selectedDate,
-  setSelectedDate,
+  dateRangePreset,
+  startDate,
+  endDate,
+  setStartDate,
+  setEndDate,
+  applyDateRangePreset,
   dateFilterType,
   setDateFilterType,
   dayEndRegisteredStudents,
@@ -40,66 +48,106 @@ export default function DayEndSummaryTab({
   dayEndClassPaidMap,
   dayEndAuditorMap
 }: DayEndSummaryTabProps) {
+  const isSingleDay = startDate === endDate
+  const periodLabel = isSingleDay ? startDate : `${startDate} to ${endDate}`
+
   return (
     <div className="fade-in">
       {/* Control & Date Bar */}
       <div className="glass-card" style={{ padding: 18, marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
+            
+            {/* Quick Preset Pills */}
             <div>
               <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                Report Date
+                Period Preset
               </label>
-              <input
-                type="date"
-                className="input-field"
-                style={{ width: 160 }}
-                value={selectedDate}
-                onChange={e => setSelectedDate(e.target.value)}
-              />
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => applyDateRangePreset('today')}
+                  className={dateRangePreset === 'today' ? 'btn-primary' : 'btn-secondary'}
+                  style={{ padding: '6px 12px', fontSize: 12 }}
+                >
+                  Today
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyDateRangePreset('yesterday')}
+                  className={dateRangePreset === 'yesterday' ? 'btn-primary' : 'btn-secondary'}
+                  style={{ padding: '6px 12px', fontSize: 12 }}
+                >
+                  Yesterday
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyDateRangePreset('last7')}
+                  className={dateRangePreset === 'last7' ? 'btn-primary' : 'btn-secondary'}
+                  style={{ padding: '6px 12px', fontSize: 12 }}
+                >
+                  Last 7 Days
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyDateRangePreset('this_month')}
+                  className={dateRangePreset === 'this_month' ? 'btn-primary' : 'btn-secondary'}
+                  style={{ padding: '6px 12px', fontSize: 12 }}
+                >
+                  This Month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyDateRangePreset('last_month')}
+                  className={dateRangePreset === 'last_month' ? 'btn-primary' : 'btn-secondary'}
+                  style={{ padding: '6px 12px', fontSize: 12 }}
+                >
+                  Last Month
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyDateRangePreset('custom')}
+                  className={dateRangePreset === 'custom' ? 'btn-primary' : 'btn-secondary'}
+                  style={{ padding: '6px 12px', fontSize: 12 }}
+                >
+                  Custom Range ▾
+                </button>
+              </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                type="button"
-                onClick={() => setSelectedDate(new Date().toISOString().slice(0, 10))}
-                className={selectedDate === new Date().toISOString().slice(0, 10) ? 'btn-primary' : 'btn-secondary'}
-                style={{ padding: '6px 12px', fontSize: 12 }}
-              >
-                Today
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const d = new Date()
-                  d.setDate(d.getDate() - 1)
-                  setSelectedDate(d.toISOString().slice(0, 10))
-                }}
-                className={(() => {
-                  const d = new Date()
-                  d.setDate(d.getDate() - 1)
-                  return selectedDate === d.toISOString().slice(0, 10)
-                })() ? 'btn-primary' : 'btn-secondary'}
-                style={{ padding: '6px 12px', fontSize: 12 }}
-              >
-                Yesterday
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const d = new Date()
-                  d.setDate(d.getDate() - 2)
-                  setSelectedDate(d.toISOString().slice(0, 10))
-                }}
-                className={(() => {
-                  const d = new Date()
-                  d.setDate(d.getDate() - 2)
-                  return selectedDate === d.toISOString().slice(0, 10)
-                })() ? 'btn-primary' : 'btn-secondary'}
-                style={{ padding: '6px 12px', fontSize: 12 }}
-              >
-                2 Days Ago
-              </button>
+            {/* Custom Date Pickers (From / To) */}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  From Date
+                </label>
+                <input
+                  type="date"
+                  className="input-field"
+                  style={{ width: 145 }}
+                  value={startDate}
+                  onChange={e => {
+                    setStartDate(e.target.value)
+                    applyDateRangePreset('custom')
+                  }}
+                />
+              </div>
+              <span style={{ paddingBottom: 8, color: 'var(--text-muted)', fontWeight: 700 }}>➔</span>
+              <div>
+                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                  To Date
+                </label>
+                <input
+                  type="date"
+                  className="input-field"
+                  style={{ width: 145 }}
+                  value={endDate}
+                  onChange={e => {
+                    setEndDate(e.target.value)
+                    applyDateRangePreset('custom')
+                  }}
+                />
+              </div>
             </div>
 
             <div>
@@ -125,7 +173,7 @@ export default function DayEndSummaryTab({
               className="btn-secondary"
               style={{ display: 'flex', alignItems: 'center', gap: 6 }}
             >
-              <Printer size={16} /> Print Day-End Slip
+              <Printer size={16} /> Print Period Slip
             </button>
 
             <button
@@ -168,12 +216,12 @@ export default function DayEndSummaryTab({
                   ])
                 })
 
-                exportTableToCsv(`Day_End_Report_${selectedDate}`, headers, rows)
+                exportTableToCsv(`Summary_Report_${periodLabel.replace(/[\s\:]+/g, '_')}`, headers, rows)
               }}
               className="btn-primary"
               style={{ display: 'flex', alignItems: 'center', gap: 6 }}
             >
-              <FileSpreadsheet size={16} /> Export Day-End CSV
+              <FileSpreadsheet size={16} /> Export CSV
             </button>
           </div>
         </div>
@@ -182,12 +230,12 @@ export default function DayEndSummaryTab({
       {/* Top KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
         <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
-          <div className="stat-card label">New Registered Students Today</div>
+          <div className="stat-card label">New Registered Students ({isSingleDay ? 'Today' : 'Period'})</div>
           <div className="stat-card value" style={{ color: '#3b82f6', fontSize: 26 }}>
             {dayEndRegisteredStudents.length} Students
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            Added into CRM on {selectedDate}
+            Added into CRM during {periodLabel}
           </div>
         </div>
 
@@ -202,12 +250,12 @@ export default function DayEndSummaryTab({
         </div>
 
         <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
-          <div className="stat-card label">Total Day-End Collections</div>
+          <div className="stat-card label">Total Collections ({isSingleDay ? 'Day-End' : 'Period'})</div>
           <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 26 }}>
             Rs. {totalDailyRevenue.toLocaleString()}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            Total collected on {selectedDate}
+            Total collected across {periodLabel}
           </div>
         </div>
       </div>
@@ -216,7 +264,7 @@ export default function DayEndSummaryTab({
       <div className="glass-card" style={{ padding: 20, marginBottom: 20 }}>
         <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
           <GraduationCap size={20} style={{ color: 'var(--accent-blue)' }} />
-          1. Grade-Wise Daily Registration &amp; Payment Matrix
+          1. Grade-Wise Registration &amp; Payment Matrix ({periodLabel})
         </div>
 
         <div style={{ overflowX: 'auto' }}>
@@ -224,8 +272,8 @@ export default function DayEndSummaryTab({
             <thead>
               <tr>
                 <th style={{ width: 140 }}>Grade Level</th>
-                <th style={{ textAlign: 'center' }}>New Registrations Today</th>
-                <th style={{ textAlign: 'center' }}>Students Paid / Slips Today</th>
+                <th style={{ textAlign: 'center' }}>New Registrations</th>
+                <th style={{ textAlign: 'center' }}>Students Paid / Slips</th>
                 <th style={{ textAlign: 'right' }}>Total Collections (Rs.)</th>
                 <th style={{ textAlign: 'right' }}>% Revenue Share</th>
               </tr>
@@ -328,7 +376,7 @@ export default function DayEndSummaryTab({
 
           {Object.keys(dayEndClassPaidMap).length === 0 && (
             <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
-              No payments recorded for {selectedDate}.
+              No payments recorded for {periodLabel}.
             </div>
           )}
         </div>
@@ -337,7 +385,7 @@ export default function DayEndSummaryTab({
         <div className="glass-card" style={{ padding: 20 }}>
           <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Users size={18} style={{ color: 'var(--accent-blue)' }} />
-            3. Staff / Registrar Activity Today
+            3. Staff / Registrar Activity ({periodLabel})
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -360,20 +408,20 @@ export default function DayEndSummaryTab({
 
             {Object.keys(dayEndAuditorMap).length === 0 && (
               <div style={{ padding: 20, textAlign: 'center', color: 'var(--text-muted)' }}>
-                No staff actions logged on {selectedDate}.
+                No staff actions logged for {periodLabel}.
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {/* Section 4: Registered Students List for the Day */}
+      {/* Section 4: Registered Students List for the Period */}
       {dayEndRegisteredStudents.length > 0 && (
         <div className="glass-card" style={{ overflow: 'hidden' }}>
           <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <Users size={16} style={{ color: 'var(--accent-blue)' }} />
-              New Students Registered on {selectedDate} ({dayEndRegisteredStudents.length} Students)
+              New Students Registered ({periodLabel}) — {dayEndRegisteredStudents.length} Students
             </div>
           </div>
 
