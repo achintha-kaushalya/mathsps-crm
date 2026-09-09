@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic'
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
-    const reportType = (searchParams.get('type') as 'morning' | 'evening') || 'evening'
+    const reportTypeParam = searchParams.get('type')
 
     // Verify Vercel Cron Authorization Secret if configured
     const authHeader = request.headers.get('authorization')
@@ -57,21 +57,70 @@ export async function GET(request: Request) {
     const fromEmail = dbSettings.fromEmail || process.env.RESEND_FROM_EMAIL
     const includeCsv = dbSettings.includeCsv !== undefined ? dbSettings.includeCsv : true
 
-    const result = await dispatchReportEmail({
-      reportType,
-      provider,
-      recipients,
-      targetDate: new Date().toISOString().slice(0, 10),
-      includeCsv,
-      smtpUser,
-      smtpPass,
-      smtpHost,
-      smtpPort,
-      senderApiKey,
-      fromEmail
-    })
+    // Check if dynamic time checker mode or direct reportType
+    let typesToDispatch: ('morning' | 'evening')[] = []
 
-    return NextResponse.json(result)
+    if (reportTypeParam === 'morning' || reportTypeParam === 'evening') {
+      typesToDispatch.push(reportTypeParam)
+    } else {
+      // Dynamic runner: calculate Sri Lanka local time (UTC+5:30)
+      const now = new Date()
+      const utcMs = now.getTime() + (now.getTimezoneOffset() * 60000)
+      const slTime = new Date(utcMs + (5.5 * 3600000))
+      
+      const currentHours = String(slTime.getHours()).padStart(2, '0')
+      const currentMinutes = String(slTime.getMinutes()).padStart(2, '0')
+      const currentTimeStr = `${currentHours}:${currentMinutes}`
+
+      const morningTime = dbSettings.morningTime || '07:00'
+      const eveningTime = dbSettings.eveningTime || '21:00'
+      const morningEnabled = dbSettings.morningSchedule !== undefined ? dbSettings.morningSchedule : true
+      const eveningEnabled = dbSettings.eveningSchedule !== undefined ? dbSettings.eveningSchedule : true
+
+      // Match within 10-minute window of the scheduled time
+      function isWithinWindow(schedTime: string, currTime: string) {
+        const [sh, sm] = schedTime.split(':').map(Number)
+        const [ch, cm] = currTime.split(':').map(Number)
+        const diff = (ch * 60 + cm) - (sh * 60 + sm)
+        return diff >= 0 && diff <= 12
+      }
+
+      if (morningEnabled && isWithinWindow(morningTime, currentTimeStr)) {
+        typesToDispatch.push('morning')
+      }
+      if (eveningEnabled && isWithinWindow(eveningTime, currentTimeStr)) {
+        typesToDispatch.push('evening')
+      }
+    }
+
+    if (typesToDispatch.length === 0) {
+      return NextResponse.json({
+        message: 'No scheduled reports due at this time.',
+        serverTimeSL: new Date(new Date().getTime() + (new Date().getTimezoneOffset() * 60000) + (5.5 * 3600000)).toTimeString().slice(0, 8),
+        configuredMorning: dbSettings.morningTime || '07:00',
+        configuredEvening: dbSettings.eveningTime || '21:00'
+      })
+    }
+
+    const results = []
+    for (const rType of typesToDispatch) {
+      const res = await dispatchReportEmail({
+        reportType: rType,
+        provider,
+        recipients,
+        targetDate: new Date().toISOString().slice(0, 10),
+        includeCsv,
+        smtpUser,
+        smtpPass,
+        smtpHost,
+        smtpPort,
+        senderApiKey,
+        fromEmail
+      })
+      results.push({ type: rType, ...res })
+    }
+
+    return NextResponse.json({ success: true, results })
   } catch (err: any) {
     console.error('Vercel Cron dispatch error:', err)
     return NextResponse.json({ error: err.message || 'Internal Error' }, { status: 500 })

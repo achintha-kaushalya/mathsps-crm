@@ -1,12 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/reports/send-email?type=morning",
-      "schedule": "30 1 * * *"
-    },
-    {
-      "path": "/api/reports/send-email?type=evening",
-      "schedule": "30 15 * * *"
+      "path": "/api/reports/send-email?type=dynamic_check",
+      "schedule": "*/10 * * * *"
     }
   ]
 }
