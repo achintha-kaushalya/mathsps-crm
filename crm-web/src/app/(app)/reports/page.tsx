@@ -92,9 +92,21 @@ export default function ReportsPage() {
   const [outstandingList, setOutstandingList] = useState<any[]>([])
   const [searchDebt, setSearchDebt] = useState('')
 
+  // Active Tutor Filter: 'ps' | 'sm' | 'all'
+  const [tutorFilter, setTutorFilter] = useState<'ps' | 'sm' | 'all'>('ps')
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+    if (typeof window !== 'undefined') {
+      const active = localStorage.getItem('mathsps_active_tutor') || 'prabuddha'
+      setTutorFilter(active === 'sanduni' ? 'sm' : 'ps')
+    }
+  }, [])
+
   useEffect(() => {
     loadAllReportData()
-  }, [month, year, trendYear, selectedDate, dateFilterType])
+  }, [month, year, trendYear, selectedDate, dateFilterType, tutorFilter])
 
   async function loadAllReportData() {
     setLoading(true)
@@ -243,26 +255,37 @@ export default function ReportsPage() {
           .lte('created_at', endOfTrendYear)
       ])
 
-      // Process Multi-Month Trend Year Datasets
-      setTrendPaymentsYear(trendYearPaymentsData || [])
-      setTrendStudentsYear(trendYearStudentsData || [])
+      // Helper to check if a student or payment matches the selected tutorFilter
+      function matchesTutor(psCode: string | null | undefined): boolean {
+        if (!psCode || tutorFilter === 'all') return true
+        const clean = psCode.toUpperCase().trim()
+        if (tutorFilter === 'sm') {
+          return clean.startsWith('SM')
+        }
+        // tutorFilter === 'ps': anything starting with PS or standard digits
+        return clean.startsWith('PS') || (!clean.startsWith('SM'))
+      }
 
-      // 0. Process Day-End Registered Students (only real new registrations PS10500+ / SM101+)
-      const filteredDayEndRegistered = (dayEndRegisteredData || []).filter(s => isNewRegistrationPsCode(s.ps_code))
+      // Process Multi-Month Trend Year Datasets
+      const filteredTrendPayments = (trendYearPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
+      const filteredTrendStudents = (trendYearStudentsData || []).filter((s: any) => matchesTutor(s.ps_code))
+      setTrendPaymentsYear(filteredTrendPayments)
+      setTrendStudentsYear(filteredTrendStudents)
+
+      // 0. Process Day-End Registered Students (only real new registrations PS10500+ / SM101+ matching tutor)
+      const filteredDayEndRegistered = (dayEndRegisteredData || []).filter(s => matchesTutor(s.ps_code) && isNewRegistrationPsCode(s.ps_code))
       setDayEndRegisteredStudents(filteredDayEndRegistered)
 
       // 0.75. Process Previous Month Payments for Retention
-      setPrevMonthPayments(prevMonthPaymentsData || [])
+      const filteredPrevPayments = (prevMonthPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
+      setPrevMonthPayments(filteredPrevPayments)
 
       // 1. Process New Registered Students & Grade Breakdown
-      // Sync advance registrations: A student whose first target payment month is this month
-      // or who physically registered in this month (without prior payments) belongs to this month's cohort.
-      // MUST be a real new registration (PS10500+ or SM101+)
-      const payList = monthlyPaymentsData || []
+      const payList = (monthlyPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
       setAllPaymentsMonth(payList)
 
       const prevPaidPsCodes = new Set<string>()
-      ;(prevMonthPaymentsData || []).forEach((p: any) => {
+      filteredPrevPayments.forEach((p: any) => {
         const ps = p.students?.ps_code || p.student_id
         if (ps) prevPaidPsCodes.add(ps)
       })
@@ -274,7 +297,7 @@ export default function ReportsPage() {
       })
 
       const nextPaidPsCodes = new Set<string>()
-      ;(nextMonthPaymentsData || []).forEach((p: any) => {
+      ;(nextMonthPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id)).forEach((p: any) => {
         const ps = p.students?.ps_code || p.student_id
         if (ps) nextPaidPsCodes.add(ps)
       })
@@ -283,7 +306,7 @@ export default function ReportsPage() {
       const newStuMap = new Map<string, any>()
 
       // A. Add students directly registered in the current month bounds (strictly PS10500+ / SM101+)
-      ;(registeredData || []).forEach(s => {
+      ;(registeredData || []).filter(s => matchesTutor(s.ps_code)).forEach(s => {
         const ps = s.ps_code || s.id
         if (!isNewRegistrationPsCode(ps)) return
 
@@ -364,10 +387,11 @@ export default function ReportsPage() {
       )
 
       // 3. Process Date-Wise Daily Payment & Auditor Logs
-      setDailyPayments(dailyList)
+      const filteredDailyPaymentsList = dailyList.filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
+      setDailyPayments(filteredDailyPaymentsList)
 
       const aMap: Record<string, { count: number; total: number }> = {}
-      dailyList.forEach((p: any) => {
+      filteredDailyPaymentsList.forEach((p: any) => {
         const who = p.recorded_by || 'System User'
         const amt = Number(p.amount_paid) || 0
         if (!aMap[who]) aMap[who] = { count: 0, total: 0 }
@@ -377,7 +401,8 @@ export default function ReportsPage() {
       setAuditorStats(aMap)
 
       // 4. Debts
-      setOutstandingList(outData || [])
+      const filteredDebtsList = (outData || []).filter((d: any) => matchesTutor(d.ps_code))
+      setOutstandingList(filteredDebtsList)
 
     } catch (e) {
       console.error('Error loading report analytics:', e)
@@ -879,14 +904,87 @@ export default function ReportsPage() {
           </div>
         </div>
 
-        <a
-          href="/settings"
-          className="btn-secondary"
-          style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, textDecoration: 'none', padding: '8px 14px' }}
-        >
-          <Mail size={16} style={{ color: 'var(--accent-blue)' }} />
-          📧 Email Automation Settings
-        </a>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+          {/* Tutor Profile Scope Selector */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            padding: '4px 6px',
+            gap: 4
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', padding: '0 6px' }}>
+              Tutor:
+            </span>
+            <button
+              type="button"
+              onClick={() => setTutorFilter('ps')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 6,
+                border: 'none',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                background: tutorFilter === 'ps' ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                color: tutorFilter === 'ps' ? '#60a5fa' : 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+            >
+              <img src="/prabuddha-profile.jpg" alt="PS" style={{ width: 16, height: 16, borderRadius: '50%' }} />
+              Prabuddha (PS)
+            </button>
+            <button
+              type="button"
+              onClick={() => setTutorFilter('sm')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 6,
+                border: 'none',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                background: tutorFilter === 'sm' ? 'rgba(236, 72, 153, 0.2)' : 'transparent',
+                color: tutorFilter === 'sm' ? '#f472b6' : 'var(--text-secondary)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+            >
+              <img src="/sanduni-profile.jpg" alt="SM" style={{ width: 16, height: 16, borderRadius: '50%' }} />
+              Sanduni (SM)
+            </button>
+            <button
+              type="button"
+              onClick={() => setTutorFilter('all')}
+              style={{
+                padding: '4px 10px',
+                borderRadius: 6,
+                border: 'none',
+                fontSize: 12,
+                fontWeight: 700,
+                cursor: 'pointer',
+                background: tutorFilter === 'all' ? 'rgba(16, 185, 129, 0.2)' : 'transparent',
+                color: tutorFilter === 'all' ? '#34d399' : 'var(--text-secondary)'
+              }}
+            >
+              🌐 All Combined
+            </button>
+          </div>
+
+          <a
+            href="/settings"
+            className="btn-secondary"
+            style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, textDecoration: 'none', padding: '8px 14px' }}
+          >
+            <Mail size={16} style={{ color: 'var(--accent-blue)' }} />
+            📧 Email Automation Settings
+          </a>
+        </div>
       </div>
 
       <div className="page-content">
