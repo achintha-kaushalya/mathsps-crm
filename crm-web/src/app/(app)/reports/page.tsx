@@ -130,9 +130,11 @@ export default function ReportsPage() {
         }
       }
 
-      // Calculate previous month and year for retention comparison
+      // Calculate previous and next month/year numbers
       const prevMonthNum = month === 1 ? 12 : month - 1
       const prevYearNum = month === 1 ? year - 1 : year
+      const nextMonthNum = month === 12 ? 1 : month + 1
+      const nextYearNum = month === 12 ? year + 1 : year
 
       // Helper function to fetch all rows beyond 1,000 limit with pagination
       async function fetchAllPaginated(buildQuery: (from: number, to: number) => any) {
@@ -157,13 +159,14 @@ export default function ReportsPage() {
       const [
         monthlyPaymentsData,
         prevMonthPaymentsData,
+        nextMonthPaymentsData,
         trendYearPaymentsData,
         { data: registeredData },
         { data: dayEndRegisteredData },
         { data: outData },
         { data: trendYearStudentsData }
       ] = await Promise.all([
-        // Payments in this month (paginated) - with students info, created_at, household & enrollments
+        // Payments in THIS month (paginated) - with students info, created_at, household & enrollments
         fetchAllPaginated((from, to) =>
           supabase
             .from('payments')
@@ -179,6 +182,15 @@ export default function ReportsPage() {
             .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
             .eq('month', prevMonthNum)
             .eq('year', prevYearNum)
+            .range(from, to)
+        ),
+        // Payments in NEXT month (paginated) - to identify advance registrants belonging to next month
+        fetchAllPaginated((from, to) =>
+          supabase
+            .from('payments')
+            .select('month, year, student_id, students(ps_code)')
+            .eq('month', nextMonthNum)
+            .eq('year', nextYearNum)
             .range(from, to)
         ),
         // Multi-Month Trends: All payments for the selected trend year (paginated)
@@ -240,14 +252,33 @@ export default function ReportsPage() {
         if (ps) prevPaidPsCodes.add(ps)
       })
 
+      const thisPaidPsCodes = new Set<string>()
+      payList.forEach((p: any) => {
+        const ps = p.students?.ps_code || p.student_id
+        if (ps) thisPaidPsCodes.add(ps)
+      })
+
+      const nextPaidPsCodes = new Set<string>()
+      ;(nextMonthPaymentsData || []).forEach((p: any) => {
+        const ps = p.students?.ps_code || p.student_id
+        if (ps) nextPaidPsCodes.add(ps)
+      })
+
       // Collect unique new registered students for this month
       const newStuMap = new Map<string, any>()
 
       // A. Add students directly registered in the current month bounds
+      // BUT if they paid for NEXT month (and NOT for this month), they are advance registrants for next month!
       ;(registeredData || []).forEach(s => {
+        const ps = s.ps_code || s.id
         const sCreatedAt = s.created_at ? new Date(s.created_at).toISOString() : ''
         if (sCreatedAt >= startOfMonth && sCreatedAt <= endOfMonth) {
-          newStuMap.set(s.ps_code || s.id, s)
+          // If this student has paid for next month (e.g. September) and didn't pay for this month (e.g. August),
+          // they belong to September, so do not include them in August!
+          if (nextPaidPsCodes.has(ps) && !thisPaidPsCodes.has(ps)) {
+            return
+          }
+          newStuMap.set(ps, s)
         }
       })
 
