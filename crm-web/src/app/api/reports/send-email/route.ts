@@ -240,6 +240,9 @@ async function dispatchReportEmail(params: {
   const startOfPriorWeek = `${fourteenDaysAgo}T00:00:00.000Z`
   const endOfPriorWeek = `${eightDaysAgo}T23:59:59.999Z`
 
+  // Advance lookback date for month registrations (e.g. 45 days prior to month start)
+  const startOfAdvanceLookback = new Date(targetYear, targetMonth - 2, 1).toISOString()
+
   // Helper to fetch all rows beyond 1,000 limit with pagination
   async function fetchAllPaginated(buildQuery: (from: number, to: number) => any) {
     let results: any[] = []
@@ -269,12 +272,13 @@ async function dispatchReportEmail(params: {
     priorWeekPayments,
     { data: dailyRegistrations },
     { data: weeklyRegistrations },
+    { data: monthRegistrations },
     { data: debtsData }
   ] = await Promise.all([
     fetchAllPaginated((from, to) =>
       supabase
         .from('payments')
-        .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+        .select('*, students(ps_code, full_name, grade, created_at, household:households(parent_name, parent_phone, address))')
         .or(`created_at.gte.${startOfDay},date_paid.eq.${targetDate}`)
         .lte('created_at', endOfDay)
         .range(from, to)
@@ -282,7 +286,7 @@ async function dispatchReportEmail(params: {
     fetchAllPaginated((from, to) =>
       supabase
         .from('payments')
-        .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+        .select('*, students(ps_code, full_name, grade, created_at, household:households(parent_name, parent_phone, address))')
         .eq('month', targetMonth)
         .eq('year', targetYear)
         .range(from, to)
@@ -290,7 +294,7 @@ async function dispatchReportEmail(params: {
     fetchAllPaginated((from, to) =>
       supabase
         .from('payments')
-        .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+        .select('*, students(ps_code, full_name, grade, created_at, household:households(parent_name, parent_phone, address))')
         .eq('month', prevMonthNum)
         .eq('year', prevYearNum)
         .range(from, to)
@@ -298,14 +302,14 @@ async function dispatchReportEmail(params: {
     fetchAllPaginated((from, to) =>
       supabase
         .from('payments')
-        .select('month, year, amount_paid, class_type, payment_type, bank_name, recorded_by, created_at, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+        .select('month, year, amount_paid, class_type, payment_type, bank_name, recorded_by, created_at, students(ps_code, full_name, grade, created_at, household:households(parent_name, parent_phone, address))')
         .eq('year', targetYear)
         .range(from, to)
     ),
     fetchAllPaginated((from, to) =>
       supabase
         .from('payments')
-        .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+        .select('*, students(ps_code, full_name, grade, created_at, household:households(parent_name, parent_phone, address))')
         .gte('created_at', startOfWeek)
         .lte('created_at', endOfDay)
         .range(from, to)
@@ -313,7 +317,7 @@ async function dispatchReportEmail(params: {
     fetchAllPaginated((from, to) =>
       supabase
         .from('payments')
-        .select('*, students(ps_code, full_name, grade)')
+        .select('*, students(ps_code, full_name, grade, created_at)')
         .gte('created_at', startOfPriorWeek)
         .lte('created_at', endOfPriorWeek)
         .range(from, to)
@@ -329,6 +333,12 @@ async function dispatchReportEmail(params: {
       .select('*, household:households(*), enrollments(*)')
       .not('created_by', 'ilike', '%Auto-Pre-generated%')
       .gte('created_at', startOfWeek)
+      .lte('created_at', endOfDay),
+    supabase
+      .from('students')
+      .select('*, household:households(*), enrollments(*)')
+      .not('created_by', 'ilike', '%Auto-Pre-generated%')
+      .gte('created_at', startOfAdvanceLookback)
       .lte('created_at', endOfDay),
     supabase
       .from('students_outstanding')
@@ -523,6 +533,220 @@ async function dispatchReportEmail(params: {
     </svg>
   `
 
+  // =========================================================================
+  // GRADE-WISE CUMULATIVE PROGRESSION MATRICES (Current Month up to Target Date)
+  // =========================================================================
+  const matrixTargetGrades = [5, 6, 7, 8, 9, 10, 11]
+  const daysInTargetMonth = new Date(targetYear, targetMonth, 0).getDate()
+  const targetDayNum = Math.min(parseInt(targetDate.split('-')[2], 10), daysInTargetMonth)
+
+  // 1. Matrix 1: New Registrations
+  // Collect all new registered students for this month (including advance registrations)
+  const monthNewStuMap = new Map<string, any>()
+  const monthStartIso = `${targetYear}-${String(targetMonth).padStart(2, '0')}-01`
+  const monthEndIso = `${targetYear}-${String(targetMonth).padStart(2, '0')}-${String(daysInTargetMonth).padStart(2, '0')}T23:59:59.999Z`
+
+  ;(monthRegistrations || []).forEach(s => {
+    const ps = s.ps_code || s.id
+    if (!isNewRegistration(ps)) return
+    const sCreatedAt = s.created_at ? new Date(s.created_at).toISOString() : ''
+    if (sCreatedAt >= monthStartIso && sCreatedAt <= endOfDay) {
+      monthNewStuMap.set(ps, s)
+    }
+  })
+
+  currPayList.forEach((p: any) => {
+    const s = p.students
+    if (!s) return
+    const ps = s.ps_code || p.student_id
+    if (!ps || !isNewRegistration(ps) || prevPaidStudentsMap.has(ps)) return
+    const sCreatedAt = s.created_at ? new Date(s.created_at).toISOString() : ''
+    if (sCreatedAt && sCreatedAt <= endOfDay) {
+      if (!monthNewStuMap.has(ps)) {
+        monthNewStuMap.set(ps, {
+          id: s.id || p.student_id,
+          ps_code: s.ps_code || ps,
+          full_name: s.full_name || '—',
+          grade: s.grade || 0,
+          created_at: s.created_at
+        })
+      }
+    }
+  })
+
+  const rawDailyRegCounts: Record<number, Record<number, number>> = {}
+  for (let d = 1; d <= daysInTargetMonth; d++) {
+    rawDailyRegCounts[d] = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
+  }
+
+  monthNewStuMap.forEach(s => {
+    let d = 1
+    if (s.created_at) {
+      const sCreatedAt = new Date(s.created_at).toISOString()
+      if (sCreatedAt < monthStartIso) {
+        d = 1
+      } else {
+        d = new Date(s.created_at).getDate()
+      }
+    }
+    if (d < 1) d = 1
+    if (d > daysInTargetMonth) d = daysInTargetMonth
+    const g = s.grade || 0
+    if (rawDailyRegCounts[d] && rawDailyRegCounts[d][g] !== undefined) {
+      rawDailyRegCounts[d][g] += 1
+    }
+  })
+
+  // Cumulative calculation for New Registrations
+  const runningRegGradeTotals: Record<number, number> = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
+  const cumulativeRegMatrixRows: {
+    day: number
+    dateStr: string
+    counts: Record<number, number>
+    cumulativeTotal: number
+    isWeekend: boolean
+  }[] = []
+
+  for (let d = 1; d <= targetDayNum; d++) {
+    const dayDate = new Date(targetYear, targetMonth - 1, d)
+    const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6
+    const dateFormatted = `${String(d).padStart(2, '0')}/${String(targetMonth).padStart(2, '0')}/${targetYear}`
+
+    matrixTargetGrades.forEach(g => {
+      runningRegGradeTotals[g] += (rawDailyRegCounts[d][g] || 0)
+    })
+
+    const cumTotal = Object.values(runningRegGradeTotals).reduce((a, b) => a + b, 0)
+    cumulativeRegMatrixRows.push({
+      day: d,
+      dateStr: dateFormatted,
+      counts: { ...runningRegGradeTotals },
+      cumulativeTotal: cumTotal,
+      isWeekend
+    })
+  }
+
+  // 2. Matrix 2: Paid Students / Slips
+  const rawDailyPayCounts: Record<number, Record<number, number>> = {}
+  for (let d = 1; d <= daysInTargetMonth; d++) {
+    rawDailyPayCounts[d] = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
+  }
+
+  const seenStudentDay = new Set<string>()
+  currPayList.forEach(p => {
+    const psCode = p.students?.ps_code || p.student_id || p.id
+    const g = p.students?.grade || 0
+    if (!matrixTargetGrades.includes(g)) return
+
+    const paidDateStr = p.date_paid || (p.created_at ? p.created_at.slice(0, 10) : '')
+    let targetDay = 1
+    if (paidDateStr) {
+      if (paidDateStr < monthStartIso) {
+        targetDay = 1
+      } else {
+        const parts = paidDateStr.split('-')
+        if (parts.length >= 3 && parseInt(parts[0], 10) === targetYear && parseInt(parts[1], 10) === targetMonth) {
+          targetDay = parseInt(parts[2], 10)
+        } else {
+          targetDay = 1
+        }
+      }
+    }
+
+    if (targetDay < 1) targetDay = 1
+    if (targetDay > daysInTargetMonth) targetDay = daysInTargetMonth
+
+    const dedupeKey = `${psCode}_G${g}`
+    if (!seenStudentDay.has(dedupeKey)) {
+      seenStudentDay.add(dedupeKey)
+      if (rawDailyPayCounts[targetDay] && rawDailyPayCounts[targetDay][g] !== undefined) {
+        rawDailyPayCounts[targetDay][g] += 1
+      }
+    }
+  })
+
+  // Cumulative calculation for Paid Students
+  const runningPayGradeTotals: Record<number, number> = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
+  const cumulativePayMatrixRows: {
+    day: number
+    dateStr: string
+    counts: Record<number, number>
+    cumulativeTotal: number
+    isWeekend: boolean
+  }[] = []
+
+  for (let d = 1; d <= targetDayNum; d++) {
+    const dayDate = new Date(targetYear, targetMonth - 1, d)
+    const isWeekend = dayDate.getDay() === 0 || dayDate.getDay() === 6
+    const dateFormatted = `${String(d).padStart(2, '0')}/${String(targetMonth).padStart(2, '0')}/${targetYear}`
+
+    matrixTargetGrades.forEach(g => {
+      runningPayGradeTotals[g] += (rawDailyPayCounts[d][g] || 0)
+    })
+
+    const cumTotal = Object.values(runningPayGradeTotals).reduce((a, b) => a + b, 0)
+    cumulativePayMatrixRows.push({
+      day: d,
+      dateStr: dateFormatted,
+      counts: { ...runningPayGradeTotals },
+      cumulativeTotal: cumTotal,
+      isWeekend
+    })
+  }
+
+  // Helper to render HTML table for a Cumulative Progression Matrix
+  function renderProgressionMatrixHtml(
+    title: string,
+    subtitle: string,
+    monthTotal: number,
+    rows: { day: number; dateStr: string; counts: Record<number, number>; cumulativeTotal: number; isWeekend: boolean }[],
+    headerGrad: string
+  ) {
+    const monthName = MONTH_NAMES[targetMonth - 1]
+    return `
+      <div style="margin-top: 24px; margin-bottom: 24px; border: 1px solid #cbd5e1; border-radius: 10px; overflow: hidden; background: #ffffff;">
+        <div style="background: ${headerGrad}; color: #ffffff; padding: 14px 18px; display: table; width: 100%; box-sizing: border-box;">
+          <div style="display: table-cell; vertical-align: middle;">
+            <div style="font-size: 15px; font-weight: 800; letter-spacing: 0.3px;">${title}</div>
+            <div style="font-size: 11px; opacity: 0.9; margin-top: 2px;">${subtitle}</div>
+          </div>
+          <div style="display: table-cell; vertical-align: middle; text-align: right;">
+            <span style="background: rgba(255,255,255,0.22); padding: 4px 10px; border-radius: 14px; font-size: 11px; font-weight: 700; white-space: nowrap;">
+              ${monthName} Total: ${monthTotal}
+            </span>
+          </div>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: center;">
+          <thead>
+            <tr style="background: #15803d; color: #ffffff; font-weight: 800;">
+              <th rowspan="2" style="padding: 8px 10px; border: 1px solid #166534; width: 95px;">Date</th>
+              <th colspan="7" style="padding: 6px 8px; border: 1px solid #166534; font-size: 12px; letter-spacing: 0.5px;">${monthName} (Grades)</th>
+              <th rowspan="2" style="padding: 8px 10px; border: 1px solid #166534; width: 65px; background: #14532d;">Total</th>
+            </tr>
+            <tr style="background: #16a34a; color: #ffffff; font-weight: 700;">
+              ${matrixTargetGrades.map(g => `<th style="padding: 6px 4px; border: 1px solid #166534; min-width: 38px;">${g}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map((r, idx) => {
+              const bg = r.isWeekend ? '#fef2f2' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc')
+              return `
+                <tr style="background: ${bg}; border-bottom: 1px solid #e2e8f0;">
+                  <td style="padding: 6px 8px; font-weight: 600; color: #334155; border-right: 1px solid #e2e8f0;">${r.dateStr}</td>
+                  ${matrixTargetGrades.map(g => {
+                    const count = r.counts[g] || 0
+                    return `<td style="padding: 6px 4px; border-right: 1px solid #e2e8f0; color: ${count > 0 ? '#0f172a' : '#94a3b8'}; font-weight: ${count > 0 ? '600' : '400'};">${count}</td>`
+                  }).join('')}
+                  <td style="padding: 6px 8px; font-weight: 800; color: #047857; background: ${r.isWeekend ? '#fee2e2' : '#f0fdf4'};">${r.cumulativeTotal}</td>
+                </tr>
+              `
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `
+  }
+
   // Base CSS styles
   const baseEmailCss = `
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #1e293b; }
@@ -548,6 +772,7 @@ async function dispatchReportEmail(params: {
   let emailHtml = ''
   let csvFilename = `Report_${targetDate}.csv`
   let csvContent = ''
+  const additionalCsvFiles: { filename: string; content: string }[] = []
 
   if (reportType === 'morning') {
     // =========================================================================
@@ -1098,8 +1323,27 @@ async function dispatchReportEmail(params: {
 
   } else {
     // =========================================================================
-    // 🌅 EVENING DAY-END CASH AUDIT TEMPLATE
+    // 🌅 EVENING DAY-END CASH AUDIT & CUMULATIVE PROGRESSION REPORT
     // =========================================================================
+    const regProgressionTotal = cumulativeRegMatrixRows[cumulativeRegMatrixRows.length - 1]?.cumulativeTotal || 0
+    const payProgressionTotal = cumulativePayMatrixRows[cumulativePayMatrixRows.length - 1]?.cumulativeTotal || 0
+
+    const matrix1Html = renderProgressionMatrixHtml(
+      `📅 ${MONTH_NAMES[targetMonth - 1]} ${targetYear} — Grade-Wise Cumulative Progression Sheet`,
+      'Daily and cumulative count of new registered students across Grades 5–11',
+      regProgressionTotal,
+      cumulativeRegMatrixRows,
+      'linear-gradient(135deg, #15803d 0%, #166534 100%)'
+    )
+
+    const matrix2Html = renderProgressionMatrixHtml(
+      `💳 ${MONTH_NAMES[targetMonth - 1]} ${targetYear} — Grade-Wise Cumulative Progression Sheet`,
+      'Daily and cumulative count of students paying fees across Grades 5–11',
+      payProgressionTotal,
+      cumulativePayMatrixRows,
+      'linear-gradient(135deg, #047857 0%, #065f46 100%)'
+    )
+
     emailSubject = `🌅 MathsPS Day-End Summary — ${targetDate} (Rs. ${totalDailyRevenue.toLocaleString()})`
     emailHtml = `
       <!DOCTYPE html>
@@ -1109,7 +1353,7 @@ async function dispatchReportEmail(params: {
         <div class="container">
           <div class="header" style="background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);">
             <h1>MathsPS CRM — Executive Day-End Digest</h1>
-            <p>Audit &amp; Cash Collection Summary for <strong>${targetDate}</strong></p>
+            <p>Audit, Cash Collection &amp; Cumulative Progression for <strong>${targetDate}</strong></p>
           </div>
 
           <div class="content">
@@ -1125,7 +1369,7 @@ async function dispatchReportEmail(params: {
                 <div class="kpi-card" style="border-left: 4px solid #10b981;">
                   <div class="kpi-label">New Registered</div>
                   <div class="kpi-value" style="color: #059669;">${regList.length}</div>
-                  <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Students added</div>
+                  <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Students added today</div>
                 </div>
               </div>
               <div class="kpi-cell">
@@ -1137,7 +1381,7 @@ async function dispatchReportEmail(params: {
               </div>
             </div>
 
-            <div class="section-title">📊 Grade-Wise Performance Breakdown</div>
+            <div class="section-title">📊 Today's Grade-Wise Intake &amp; Revenue Breakdown</div>
             <table class="data">
               <thead>
                 <tr>
@@ -1169,6 +1413,12 @@ async function dispatchReportEmail(params: {
                 </tr>
               </tbody>
             </table>
+
+            <div class="section-title">👥 Progression Report 1: New Registrations (Cumulative)</div>
+            ${matrix1Html}
+
+            <div class="section-title">💳 Progression Report 2: Paid Students / Slips (Cumulative)</div>
+            ${matrix2Html}
 
             <div class="section-title">🏦 Bank &amp; Payment Method Breakdown</div>
             <table class="data">
@@ -1222,7 +1472,7 @@ async function dispatchReportEmail(params: {
 
           <div class="footer">
             Generated automatically by <strong>MathsPS CRM &amp; Admin Suite</strong>.<br>
-            Attachment: <code>Day_End_Audit_${targetDate}.csv</code>
+            Attached: <code>Day_End_Audit_${targetDate}.csv</code>, <code>Cumulative_Registrations_${targetDate}.csv</code>, <code>Cumulative_Paid_Students_${targetDate}.csv</code>
           </div>
         </div>
       </body>
@@ -1247,18 +1497,74 @@ async function dispatchReportEmail(params: {
       }).join('\n')
       csvContent = `${csvHeader}${csvRows}`
     }
+
+    // CSV Attachment for Cumulative Registrations Progression
+    const regMatrixCsvHeader = 'Date,Grade 5,Grade 6,Grade 7,Grade 8,Grade 9,Grade 10,Grade 11,Cumulative Total\n'
+    const regMatrixCsvRows = cumulativeRegMatrixRows.map(r => [
+      `"${r.dateStr}"`,
+      r.counts[5] || 0,
+      r.counts[6] || 0,
+      r.counts[7] || 0,
+      r.counts[8] || 0,
+      r.counts[9] || 0,
+      r.counts[10] || 0,
+      r.counts[11] || 0,
+      r.cumulativeTotal
+    ].join(',')).join('\n')
+    additionalCsvFiles.push({
+      filename: `Cumulative_Registrations_${targetDate}.csv`,
+      content: `${regMatrixCsvHeader}${regMatrixCsvRows}`
+    })
+
+    // CSV Attachment for Cumulative Paid Students Progression
+    const payMatrixCsvHeader = 'Date,Grade 5,Grade 6,Grade 7,Grade 8,Grade 9,Grade 10,Grade 11,Cumulative Total\n'
+    const payMatrixCsvRows = cumulativePayMatrixRows.map(r => [
+      `"${r.dateStr}"`,
+      r.counts[5] || 0,
+      r.counts[6] || 0,
+      r.counts[7] || 0,
+      r.counts[8] || 0,
+      r.counts[9] || 0,
+      r.counts[10] || 0,
+      r.counts[11] || 0,
+      r.cumulativeTotal
+    ].join(',')).join('\n')
+    additionalCsvFiles.push({
+      filename: `Cumulative_Paid_Students_${targetDate}.csv`,
+      content: `${payMatrixCsvHeader}${payMatrixCsvRows}`
+    })
   }
 
   // Attachments generation
   const attachments: any[] = []
-  let csvRawBuffer: Buffer | null = null
+  const nodemailerAttachments: any[] = []
 
-  if (includeCsv && csvContent) {
-    csvRawBuffer = Buffer.from(csvContent, 'utf-8')
-    attachments.push({
-      filename: csvFilename,
-      content: csvRawBuffer.toString('base64')
-    })
+  if (includeCsv) {
+    if (csvContent) {
+      const buf = Buffer.from(csvContent, 'utf-8')
+      attachments.push({
+        filename: csvFilename,
+        content: buf.toString('base64')
+      })
+      nodemailerAttachments.push({
+        filename: csvFilename,
+        content: buf
+      })
+    }
+
+    for (const addCsv of additionalCsvFiles) {
+      if (addCsv.content) {
+        const buf = Buffer.from(addCsv.content, 'utf-8')
+        attachments.push({
+          filename: addCsv.filename,
+          content: buf.toString('base64')
+        })
+        nodemailerAttachments.push({
+          filename: addCsv.filename,
+          content: buf
+        })
+      }
+    }
   }
 
   let emailId = ''
@@ -1279,12 +1585,7 @@ async function dispatchReportEmail(params: {
       to: recipients.join(', '),
       subject: emailSubject,
       html: emailHtml,
-      attachments: csvRawBuffer ? [
-        {
-          filename: csvFilename,
-          content: csvRawBuffer
-        }
-      ] : undefined
+      attachments: nodemailerAttachments.length > 0 ? nodemailerAttachments : undefined
     })
 
     emailId = info.messageId || 'smtp-ok'
