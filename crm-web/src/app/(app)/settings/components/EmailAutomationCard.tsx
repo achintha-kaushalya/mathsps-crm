@@ -34,15 +34,31 @@ export default function EmailAutomationCard() {
   const [recipients, setRecipients] = useState<string[]>([])
   const [recipientInput, setRecipientInput] = useState('')
   
-  // Dual Schedules (Morning Strategy vs Evening Day-End)
+  // Dual Schedules (Morning Strategy vs Evening Day-End) + Weekly + Monthly + Yearly
   const [morningSchedule, setMorningSchedule] = useState(true)
   const [morningTime, setMorningTime] = useState('07:00') // 7:00 AM
   const [eveningSchedule, setEveningSchedule] = useState(true)
   const [eveningTime, setEveningTime] = useState('21:00') // 9:00 PM
 
+  // Weekly Schedule
+  const [weeklySchedule, setWeeklySchedule] = useState(true)
+  const [weeklyDay, setWeeklyDay] = useState(0) // 0 = Sunday
+  const [weeklyTime, setWeeklyTime] = useState('21:30') // 9:30 PM
+
+  // Monthly Schedule
+  const [monthlySchedule, setMonthlySchedule] = useState(true)
+  const [monthlyDate, setMonthlyDate] = useState(1) // 1st of month
+  const [monthlyTime, setMonthlyTime] = useState('08:00') // 8:00 AM
+
+  // Yearly Schedule
+  const [yearlySchedule, setYearlySchedule] = useState(true)
+  const [yearlyMonth, setYearlyMonth] = useState(12) // December
+  const [yearlyDate, setYearlyDate] = useState(31) // 31st
+  const [yearlyTime, setYearlyTime] = useState('22:00') // 10:00 PM
+
   const [includeCsv, setIncludeCsv] = useState(true)
   
-  const [testingType, setTestingType] = useState<'morning' | 'evening' | null>(null)
+  const [testingType, setTestingType] = useState<'morning' | 'evening' | 'weekly' | 'monthly' | 'yearly' | null>(null)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [savedSuccess, setSavedSuccess] = useState(false)
 
@@ -77,6 +93,20 @@ export default function EmailAutomationCard() {
           if (dbSettings.morningTime) setMorningTime(dbSettings.morningTime)
           if (dbSettings.eveningSchedule !== undefined) setEveningSchedule(dbSettings.eveningSchedule)
           if (dbSettings.eveningTime) setEveningTime(dbSettings.eveningTime)
+
+          if (dbSettings.weeklySchedule !== undefined) setWeeklySchedule(dbSettings.weeklySchedule)
+          if (dbSettings.weeklyDay !== undefined) setWeeklyDay(Number(dbSettings.weeklyDay))
+          if (dbSettings.weeklyTime) setWeeklyTime(dbSettings.weeklyTime)
+
+          if (dbSettings.monthlySchedule !== undefined) setMonthlySchedule(dbSettings.monthlySchedule)
+          if (dbSettings.monthlyDate !== undefined) setMonthlyDate(Number(dbSettings.monthlyDate))
+          if (dbSettings.monthlyTime) setMonthlyTime(dbSettings.monthlyTime)
+
+          if (dbSettings.yearlySchedule !== undefined) setYearlySchedule(dbSettings.yearlySchedule)
+          if (dbSettings.yearlyMonth !== undefined) setYearlyMonth(Number(dbSettings.yearlyMonth))
+          if (dbSettings.yearlyDate !== undefined) setYearlyDate(Number(dbSettings.yearlyDate))
+          if (dbSettings.yearlyTime) setYearlyTime(dbSettings.yearlyTime)
+
           if (dbSettings.includeCsv !== undefined) setIncludeCsv(dbSettings.includeCsv)
           return
         }
@@ -135,6 +165,16 @@ export default function EmailAutomationCard() {
         morningTime,
         eveningSchedule,
         eveningTime,
+        weeklySchedule,
+        weeklyDay,
+        weeklyTime,
+        monthlySchedule,
+        monthlyDate,
+        monthlyTime,
+        yearlySchedule,
+        yearlyMonth,
+        yearlyDate,
+        yearlyTime,
         includeCsv
       }
 
@@ -196,7 +236,7 @@ export default function EmailAutomationCard() {
     localStorage.setItem('MATHSPS_REPORT_RECIPIENTS', JSON.stringify(updated))
   }
 
-  async function handleSendTestDigest(type: 'morning' | 'evening') {
+  async function handleSendTestDigest(type: 'morning' | 'evening' | 'weekly' | 'monthly' | 'yearly') {
     if (provider === 'smtp') {
       if (!smtpUser.trim() || !smtpPass.trim()) {
         setTestResult({
@@ -226,6 +266,14 @@ export default function EmailAutomationCard() {
     setTestingType(type)
     setTestResult(null)
 
+    const labelMap: Record<string, string> = {
+      morning: 'Morning Strategic Brief',
+      evening: 'Evening Day-End Summary',
+      weekly: 'Weekly Velocity Digest',
+      monthly: 'Monthly Financial Close',
+      yearly: 'Annual Strategic Review'
+    }
+
     try {
       const res = await fetch('/api/reports/send-email', {
         method: 'POST',
@@ -250,7 +298,7 @@ export default function EmailAutomationCard() {
 
       setTestResult({
         success: true,
-        message: `✓ ${type === 'morning' ? 'Morning Strategic Brief' : 'Evening Day-End Summary'} sent successfully via ${provider.toUpperCase()} to ${recipients.join(', ')}!`
+        message: `✓ ${labelMap[type] || type} sent successfully via ${provider.toUpperCase()} to ${recipients.join(', ')}!`
       })
     } catch (e: any) {
       setTestResult({
@@ -282,7 +330,7 @@ export default function EmailAutomationCard() {
               </span>
             </h2>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
-              Send automatic nightly Day-End summaries, recipient lists, and trigger on-demand executive digests
+              Automated Daily, Weekly, Monthly, and Annual executive digests with attached Excel ledgers
             </div>
           </div>
         </div>
@@ -334,9 +382,7 @@ export default function EmailAutomationCard() {
         {/* Left Column: Provider Config & Recipients */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           
-          {/* ======================================================== */}
-          {/* 1. GMAIL SMTP CONFIGURATION                              */}
-          {/* ======================================================== */}
+          {/* 1. GMAIL SMTP CONFIGURATION */}
           {provider === 'smtp' && (
             <div style={{ padding: 16, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, color: '#10b981' }}>
@@ -385,9 +431,7 @@ export default function EmailAutomationCard() {
             </div>
           )}
 
-          {/* ======================================================== */}
-          {/* 2. RESEND API CONFIGURATION                              */}
-          {/* ======================================================== */}
+          {/* 2. RESEND API CONFIGURATION */}
           {provider === 'resend' && (
             <div style={{ padding: 16, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: 12 }}>
               <div style={{ fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent-blue)' }}>
@@ -489,10 +533,10 @@ export default function EmailAutomationCard() {
             </div>
           </div>
 
-          {/* Dual Dispatch Schedules & Features */}
+          {/* Automated Schedules: Daily, Weekly, Monthly, Yearly */}
           <div style={{ padding: 16, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 13, fontWeight: 700, marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Clock size={15} style={{ color: 'var(--accent-blue)' }} /> Automated Dispatch Schedules (Daily 2-in-1 Rhythm)
+              <Clock size={15} style={{ color: 'var(--accent-blue)' }} /> Automated Dispatch Schedules (SL Time UTC+5:30)
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
@@ -504,7 +548,7 @@ export default function EmailAutomationCard() {
                     checked={morningSchedule}
                     onChange={e => setMorningSchedule(e.target.checked)}
                   />
-                  <span>☀️ Morning Strategic Brief &amp; Action Items</span>
+                  <span>☀️ Daily Morning Strategic Brief &amp; Action Items</span>
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24 }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Send Time:</span>
@@ -515,7 +559,7 @@ export default function EmailAutomationCard() {
                     value={morningTime}
                     onChange={e => setMorningTime(e.target.value)}
                   />
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Includes Retention Alerts + SVG Trend Chart + Follow-up CSV</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Retention + Chart + Follow-up CSV</span>
                 </div>
               </div>
 
@@ -527,7 +571,7 @@ export default function EmailAutomationCard() {
                     checked={eveningSchedule}
                     onChange={e => setEveningSchedule(e.target.checked)}
                   />
-                  <span>🌅 Evening Day-End Cash &amp; Auditor Audit</span>
+                  <span>🌅 Daily Evening Cash &amp; Auditor Audit</span>
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24 }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Send Time:</span>
@@ -538,7 +582,100 @@ export default function EmailAutomationCard() {
                     value={eveningTime}
                     onChange={e => setEveningTime(e.target.value)}
                   />
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Includes Auditor Totals + Grade Cash Slips + Day Audit CSV</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Auditor Slips + Day Audit CSV</span>
+                </div>
+              </div>
+
+              {/* 3. Weekly Velocity & Intake Schedule */}
+              <div style={{ padding: 12, background: 'rgba(99,102,241,0.06)', borderRadius: 6, border: '1px solid rgba(99,102,241,0.15)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={weeklySchedule}
+                    onChange={e => setWeeklySchedule(e.target.checked)}
+                  />
+                  <span>📅 Weekly Velocity &amp; Intake Digest</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Every:</span>
+                  <select
+                    className="input-field"
+                    style={{ width: 110, padding: '3px 8px', fontSize: 12 }}
+                    value={weeklyDay}
+                    onChange={e => setWeeklyDay(Number(e.target.value))}
+                  >
+                    <option value={0}>Sunday</option>
+                    <option value={1}>Monday</option>
+                    <option value={5}>Friday</option>
+                    <option value={6}>Saturday</option>
+                  </select>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>@</span>
+                  <input
+                    type="time"
+                    className="input-field"
+                    style={{ width: 110, padding: '3px 8px', fontSize: 12 }}
+                    value={weeklyTime}
+                    onChange={e => setWeeklyTime(e.target.value)}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>7-day revenue velocity + weekly roster CSV</span>
+                </div>
+              </div>
+
+              {/* 4. Monthly Financial Close Schedule */}
+              <div style={{ padding: 12, background: 'rgba(5,150,105,0.06)', borderRadius: 6, border: '1px solid rgba(5,150,105,0.15)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={monthlySchedule}
+                    onChange={e => setMonthlySchedule(e.target.checked)}
+                  />
+                  <span>📊 Monthly Executive Business Close</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Day:</span>
+                  <select
+                    className="input-field"
+                    style={{ width: 80, padding: '3px 8px', fontSize: 12 }}
+                    value={monthlyDate}
+                    onChange={e => setMonthlyDate(Number(e.target.value))}
+                  >
+                    <option value={1}>1st</option>
+                    <option value={15}>15th</option>
+                    <option value={28}>28th</option>
+                    <option value={30}>30th</option>
+                  </select>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>@</span>
+                  <input
+                    type="time"
+                    className="input-field"
+                    style={{ width: 110, padding: '3px 8px', fontSize: 12 }}
+                    value={monthlyTime}
+                    onChange={e => setMonthlyTime(e.target.value)}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Full month ledger + retention % + CSV</span>
+                </div>
+              </div>
+
+              {/* 5. Annual Strategic Review */}
+              <div style={{ padding: 12, background: 'rgba(217,119,6,0.06)', borderRadius: 6, border: '1px solid rgba(217,119,6,0.15)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={yearlySchedule}
+                    onChange={e => setYearlySchedule(e.target.checked)}
+                  />
+                  <span>🏆 Annual Strategic Financial &amp; Growth Review</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Every Dec 31 @</span>
+                  <input
+                    type="time"
+                    className="input-field"
+                    style={{ width: 110, padding: '3px 8px', fontSize: 12 }}
+                    value={yearlyTime}
+                    onChange={e => setYearlyTime(e.target.value)}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>12-month trajectory curve + annual summary CSV</span>
                 </div>
               </div>
 
@@ -550,7 +687,7 @@ export default function EmailAutomationCard() {
                 />
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                   <FileSpreadsheet size={14} style={{ color: '#10b981' }} />
-                  Attach complete Excel/CSV data sheets to reports
+                  Attach complete Excel/CSV data sheets to all email reports
                 </span>
               </label>
             </div>
@@ -573,7 +710,7 @@ export default function EmailAutomationCard() {
           </div>
         </div>
 
-        {/* Right Column: Live Testing & Preview */}
+        {/* Right Column: Live Testing & Previews */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{
             background: 'linear-gradient(180deg, rgba(59,130,246,0.05) 0%, rgba(59,130,246,0.01) 100%)',
@@ -583,10 +720,10 @@ export default function EmailAutomationCard() {
           }}>
             <div style={{ fontSize: 14, fontWeight: 700, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 8 }}>
               <Sparkles size={16} style={{ color: 'var(--accent-blue)' }} />
-              Live Email Dispatch Test
+              Live Report Dispatch Testing
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 14 }}>
-              Trigger an instant test email for either report type to verify recipient delivery and preview template layout.
+              Click any button below to immediately generate and dispatch that report with real live database figures to your recipient emails.
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -598,23 +735,23 @@ export default function EmailAutomationCard() {
                 className="btn-primary"
                 style={{
                   width: '100%',
-                  padding: '10px 14px',
-                  fontSize: 13,
+                  padding: '9px 14px',
+                  fontSize: 12,
                   fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 8,
-                  background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)'
+                  background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #3b82f6 100%)'
                 }}
               >
                 {testingType === 'morning' ? (
                   <>
-                    <RefreshCw size={15} className="spin" /> Dispatching Morning Strategic Brief...
+                    <RefreshCw size={14} className="spin" /> Dispatching Morning Strategic Brief...
                   </>
                 ) : (
                   <>
-                    <Send size={15} /> ☀️ Test Morning Strategic Brief (Trends + Retention)
+                    <Send size={14} /> ☀️ Test Morning Strategic Brief (Trends + Retention)
                   </>
                 )}
               </button>
@@ -627,23 +764,110 @@ export default function EmailAutomationCard() {
                 className="btn-primary"
                 style={{
                   width: '100%',
-                  padding: '10px 14px',
-                  fontSize: 13,
+                  padding: '9px 14px',
+                  fontSize: 12,
                   fontWeight: 700,
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: 8,
-                  background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)'
+                  background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)'
                 }}
               >
                 {testingType === 'evening' ? (
                   <>
-                    <RefreshCw size={15} className="spin" /> Dispatching Evening Summary...
+                    <RefreshCw size={14} className="spin" /> Dispatching Evening Summary...
                   </>
                 ) : (
                   <>
-                    <Send size={15} /> 🌅 Test Evening Day-End Summary (Audit Slips)
+                    <Send size={14} /> 🌅 Test Evening Day-End Summary (Audit Slips)
+                  </>
+                )}
+              </button>
+
+              {/* Weekly Test Button */}
+              <button
+                type="button"
+                onClick={() => handleSendTestDigest('weekly')}
+                disabled={testingType !== null}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '9px 14px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  background: 'linear-gradient(135deg, #3730a3 0%, #4f46e5 100%)'
+                }}
+              >
+                {testingType === 'weekly' ? (
+                  <>
+                    <RefreshCw size={14} className="spin" /> Dispatching Weekly Digest...
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} /> 📅 Test Weekly Velocity Digest (7-Day Rolling)
+                  </>
+                )}
+              </button>
+
+              {/* Monthly Test Button */}
+              <button
+                type="button"
+                onClick={() => handleSendTestDigest('monthly')}
+                disabled={testingType !== null}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '9px 14px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  background: 'linear-gradient(135deg, #064e3b 0%, #059669 100%)'
+                }}
+              >
+                {testingType === 'monthly' ? (
+                  <>
+                    <RefreshCw size={14} className="spin" /> Dispatching Monthly Close...
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} /> 📊 Test Monthly Financial Close (Ledger &amp; Retention)
+                  </>
+                )}
+              </button>
+
+              {/* Yearly Test Button */}
+              <button
+                type="button"
+                onClick={() => handleSendTestDigest('yearly')}
+                disabled={testingType !== null}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '9px 14px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  background: 'linear-gradient(135deg, #78350f 0%, #d97706 100%)'
+                }}
+              >
+                {testingType === 'yearly' ? (
+                  <>
+                    <RefreshCw size={14} className="spin" /> Dispatching Annual Review...
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} /> 🏆 Test Annual Strategic Review (Full Year)
                   </>
                 )}
               </button>
@@ -670,14 +894,23 @@ export default function EmailAutomationCard() {
 
           <div style={{ padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
             <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-              What&apos;s Included in Each Report
+              Executive Report Catalog
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
               <div>
-                <strong style={{ color: 'var(--accent-blue)' }}>☀️ Morning Report:</strong> MoM momentum, retention &amp; churn alert table, embedded SVG trend curve graph, and attached unpaid student follow-up CSV.
+                <strong style={{ color: 'var(--accent-blue)' }}>☀️ Daily Morning:</strong> Retention rate, at-risk student roster, SVG revenue curve, actionable team tasks.
               </div>
               <div>
-                <strong style={{ color: '#10b981' }}>🌅 Evening Report:</strong> Daily collections, slip count, grade cash breakdown, auditor productivity, and attached day audit CSV.
+                <strong style={{ color: '#10b981' }}>🌅 Daily Evening:</strong> Day collections, auditor slip count, bank distributions, daily transaction CSV.
+              </div>
+              <div>
+                <strong style={{ color: '#6366f1' }}>📅 Weekly Velocity:</strong> 7-day total revenue vs prior week (▲/▼ %), grade intake, auditor summary, 7-day CSV.
+              </div>
+              <div>
+                <strong style={{ color: '#059669' }}>📊 Monthly Close:</strong> Full month gross revenue, student retention %, bank portfolios, master monthly CSV.
+              </div>
+              <div>
+                <strong style={{ color: '#d97706' }}>🏆 Annual Review:</strong> 12-month trajectory curve, total paying students, grade annual contributions, annual CSV.
               </div>
             </div>
           </div>
