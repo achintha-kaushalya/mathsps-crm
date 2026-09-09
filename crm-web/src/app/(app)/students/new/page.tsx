@@ -184,10 +184,19 @@ export default function NewStudentPage() {
           .from('households')
           .select('*, students:students(*)')
           .or(`parent_phone.ilike.%${clean9Digits}%,parent_phone.ilike.%${normalized}%`)
-          .limit(1)
 
         if (hhList && hhList.length > 0) {
-          setExistingHousehold(hhList[0])
+          // Only show duplicate alert if there is actually at least 1 student linked to this household
+          const hhWithStudent = hhList.find((h: any) => h.students && h.students.length > 0)
+          if (hhWithStudent) {
+            setExistingHousehold(hhWithStudent)
+            if (!parentName.trim() && hhWithStudent.parent_name) {
+              setParentName(hhWithStudent.parent_name)
+            }
+            if (!address.trim() && hhWithStudent.address) {
+              setAddress(hhWithStudent.address)
+            }
+          }
         }
         setCheckingPhone(false)
       }, 400)
