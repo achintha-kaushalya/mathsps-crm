@@ -121,40 +121,71 @@ async function dispatchReportEmail(params: {
     const startOfTrendYear = new Date(targetYear, 0, 1).toISOString()
     const endOfTrendYear = new Date(targetYear, 11, 31, 23, 59, 59, 999).toISOString()
 
+    // Helper to fetch all rows beyond 1,000 limit with pagination
+    async function fetchAllPaginated(buildQuery: (from: number, to: number) => any) {
+      let results: any[] = []
+      let from = 0
+      let hasMore = true
+      const CHUNK = 1000
+      while (hasMore) {
+        const { data, error } = await buildQuery(from, from + CHUNK - 1)
+        if (error) throw error
+        results = results.concat(data || [])
+        if (!data || data.length < CHUNK) {
+          hasMore = false
+        } else {
+          from += CHUNK
+        }
+      }
+      return results
+    }
+
     // Query Comprehensive Datasets
     const [
-      { data: dailyPayments },
+      dailyPayments,
+      currentMonthPayments,
+      prevMonthPayments,
+      yearPayments,
       { data: dailyRegistrations },
-      { data: currentMonthPayments },
-      { data: prevMonthPayments },
-      { data: yearPayments },
       { data: debtsData }
     ] = await Promise.all([
-      supabase
-        .from('payments')
-        .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
-        .or(`created_at.gte.${startOfDay},date_paid.eq.${targetDate}`)
-        .lte('created_at', endOfDay),
+      fetchAllPaginated((from, to) =>
+        supabase
+          .from('payments')
+          .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+          .or(`created_at.gte.${startOfDay},date_paid.eq.${targetDate}`)
+          .lte('created_at', endOfDay)
+          .range(from, to)
+      ),
+      fetchAllPaginated((from, to) =>
+        supabase
+          .from('payments')
+          .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+          .eq('month', targetMonth)
+          .eq('year', targetYear)
+          .range(from, to)
+      ),
+      fetchAllPaginated((from, to) =>
+        supabase
+          .from('payments')
+          .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+          .eq('month', prevMonthNum)
+          .eq('year', prevYearNum)
+          .range(from, to)
+      ),
+      fetchAllPaginated((from, to) =>
+        supabase
+          .from('payments')
+          .select('month, year, amount_paid, class_type, students(ps_code, full_name, grade)')
+          .eq('year', targetYear)
+          .range(from, to)
+      ),
       supabase
         .from('students')
         .select('*, household:households(*), enrollments(*)')
         .not('created_by', 'ilike', '%Auto-Pre-generated%')
         .gte('created_at', startOfDay)
         .lte('created_at', endOfDay),
-      supabase
-        .from('payments')
-        .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
-        .eq('month', targetMonth)
-        .eq('year', targetYear),
-      supabase
-        .from('payments')
-        .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
-        .eq('month', prevMonthNum)
-        .eq('year', prevYearNum),
-      supabase
-        .from('payments')
-        .select('month, year, amount_paid, class_type, students(ps_code, full_name, grade)')
-        .eq('year', targetYear),
       supabase
         .from('students_outstanding')
         .select('*')

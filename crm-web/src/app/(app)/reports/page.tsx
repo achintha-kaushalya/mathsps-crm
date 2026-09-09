@@ -132,16 +132,61 @@ export default function ReportsPage() {
       const prevMonthNum = month === 1 ? 12 : month - 1
       const prevYearNum = month === 1 ? year - 1 : year
 
-      // 2. Fetch monthly data, day-end registrations, prev month payments, debts & trend year data in parallel
+      // Helper function to fetch all rows beyond 1,000 limit with pagination
+      async function fetchAllPaginated(buildQuery: (from: number, to: number) => any) {
+        let results: any[] = []
+        let from = 0
+        let hasMore = true
+        const CHUNK = 1000
+        while (hasMore) {
+          const { data, error } = await buildQuery(from, from + CHUNK - 1)
+          if (error) throw error
+          results = results.concat(data || [])
+          if (!data || data.length < CHUNK) {
+            hasMore = false
+          } else {
+            from += CHUNK
+          }
+        }
+        return results
+      }
+
+      // Fetch paginated payments in parallel
       const [
+        monthlyPaymentsData,
+        prevMonthPaymentsData,
+        trendYearPaymentsData,
         { data: registeredData },
         { data: dayEndRegisteredData },
-        { data: monthlyPaymentsData },
-        { data: prevMonthPaymentsData },
         { data: outData },
-        { data: trendYearPaymentsData },
         { data: trendYearStudentsData }
       ] = await Promise.all([
+        // Payments in this month (paginated)
+        fetchAllPaginated((from, to) =>
+          supabase
+            .from('payments')
+            .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+            .eq('month', month)
+            .eq('year', year)
+            .range(from, to)
+        ),
+        // Payments in PREVIOUS month (paginated)
+        fetchAllPaginated((from, to) =>
+          supabase
+            .from('payments')
+            .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+            .eq('month', prevMonthNum)
+            .eq('year', prevYearNum)
+            .range(from, to)
+        ),
+        // Multi-Month Trends: All payments for the selected trend year (paginated)
+        fetchAllPaginated((from, to) =>
+          supabase
+            .from('payments')
+            .select('month, year, amount_paid, class_type, students(ps_code, full_name, grade)')
+            .eq('year', trendYear)
+            .range(from, to)
+        ),
         // Real new registered students in this month
         supabase
           .from('students')
@@ -150,7 +195,6 @@ export default function ReportsPage() {
           .gte('created_at', startOfMonth)
           .lte('created_at', endOfMonth)
           .order('created_at', { ascending: false }),
-
         // Real new registered students specifically on selected date
         supabase
           .from('students')
@@ -159,32 +203,10 @@ export default function ReportsPage() {
           .gte('created_at', startOfDay)
           .lte('created_at', endOfDay)
           .order('created_at', { ascending: false }),
-
-        // Payments in this month (for Bank & Method revenue and retention comparison)
-        supabase
-          .from('payments')
-          .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
-          .eq('month', month)
-          .eq('year', year),
-
-        // Payments in PREVIOUS month (for retention & churn comparison)
-        supabase
-          .from('payments')
-          .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
-          .eq('month', prevMonthNum)
-          .eq('year', prevYearNum),
-
         // Outstanding debts
         supabase
           .from('students_outstanding')
           .select('*'),
-
-        // Multi-Month Trends: All payments for the selected trend year
-        supabase
-          .from('payments')
-          .select('month, year, amount_paid, class_type, students(ps_code, full_name, grade)')
-          .eq('year', trendYear),
-
         // Multi-Month Trends: All new students registered in the selected trend year
         supabase
           .from('students')
