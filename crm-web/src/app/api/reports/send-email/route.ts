@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 import { Resend } from 'resend'
 import nodemailer from 'nodemailer'
 import { MONTH_NAMES } from '@/lib/types'
+import { getGradeFromPayment } from '@/lib/reports-analytics'
 
 export const dynamic = 'force-dynamic'
 
@@ -635,7 +636,7 @@ async function dispatchReportEmail(params: {
   const seenStudentDay = new Set<string>()
   currPayList.forEach(p => {
     const psCode = p.students?.ps_code || p.student_id || p.id
-    const g = p.students?.grade || 0
+    const g = getGradeFromPayment(p)
     if (!matrixTargetGrades.includes(g)) return
 
     const paidDateStr = p.date_paid || (p.created_at ? p.created_at.slice(0, 10) : '')
@@ -943,7 +944,7 @@ async function dispatchReportEmail(params: {
               </thead>
               <tbody>
                 ${targetGrades.map(g => {
-                  const pList = weekPays.filter(p => p.students?.grade === g)
+                  const pList = weekPays.filter(p => getGradeFromPayment(p) === g)
                   const rList = weekRegList.filter(s => s.grade === g)
                   const rev = pList.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
                   const share = totalWeekRevenue > 0 ? ((rev / totalWeekRevenue) * 100).toFixed(1) : '0.0'
@@ -1107,7 +1108,7 @@ async function dispatchReportEmail(params: {
               </thead>
               <tbody>
                 ${targetGrades.map(g => {
-                  const pList = currPayList.filter(p => p.students?.grade === g)
+                  const pList = currPayList.filter(p => getGradeFromPayment(p) === g)
                   const st = gradeStatsMap[g] || { prev: 0, curr: 0, retained: 0, dropped: 0 }
                   const rRate = st.prev > 0 ? ((st.retained / st.prev) * 100).toFixed(1) : '100.0'
                   const rev = pList.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
@@ -1172,7 +1173,7 @@ async function dispatchReportEmail(params: {
       const csvRows = currPayList.map(p => {
         const ps = `"${p.students?.ps_code || ''}"`
         const name = `"${(p.students?.full_name || '').replace(/"/g, '""')}"`
-        const grade = `"${p.students?.grade || ''}"`
+        const grade = `"${getGradeFromPayment(p) || p.students?.grade || ''}"`
         const parent = `"${(p.students?.household?.parent_name || '').replace(/"/g, '""')}"`
         const phone = `"${(p.students?.household?.parent_phone || '').replace(/"/g, '""')}"`
         const cls = `"${p.class_type || ''}"`
@@ -1275,10 +1276,7 @@ async function dispatchReportEmail(params: {
               </thead>
               <tbody>
                 ${targetGrades.map(g => {
-                  const pList = yearPayList.filter((p: any) => {
-                    const stGrade = Array.isArray(p.students) ? p.students[0]?.grade : p.students?.grade
-                    return stGrade === g
-                  })
+                  const pList = yearPayList.filter((p: any) => getGradeFromPayment(p) === g)
                   const rev = pList.reduce((sum: number, p: any) => sum + (Number(p.amount_paid) || 0), 0)
                   const share = totalYearRevenue > 0 ? ((rev / totalYearRevenue) * 100).toFixed(1) : '0.0'
                   return `
@@ -1393,7 +1391,7 @@ async function dispatchReportEmail(params: {
               </thead>
               <tbody>
                 ${targetGrades.map(g => {
-                  const pays = paymentsList.filter(p => p.students?.grade === g)
+                  const pays = paymentsList.filter(p => getGradeFromPayment(p) === g)
                   const regs = regList.filter(s => s.grade === g)
                   const rev = pays.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
                   return `

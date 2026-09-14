@@ -53,3 +53,22 @@ export function exportTableToCsv(filename: string, headers: string[], rows: stri
 export function formatDateDMY(d: number, m: number, y: number): string {
   return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`
 }
+
+/**
+ * Extract grade (5-11) from payment class_type, with fallback to student profile grade.
+ * e.g., 'GR6_THEORY' -> 6, 'GR11_BOTH' -> 11, 'GR5_FOUNDATION' -> 5
+ */
+export function getGradeFromPayment(payment: any): number {
+  const cls = (payment?.class_type || '').toUpperCase().trim()
+  if (cls.includes('GR5') || cls.includes('GRADE 5') || cls.includes('G5')) return 5
+  if (cls.includes('GR6') || cls.includes('GRADE 6') || cls.includes('G6')) return 6
+  if (cls.includes('GR7') || cls.includes('GRADE 7') || cls.includes('G7')) return 7
+  if (cls.includes('GR8') || cls.includes('GRADE 8') || cls.includes('G8')) return 8
+  if (cls.includes('GR9') || cls.includes('GRADE 9') || cls.includes('G9')) return 9
+  if (cls.includes('GR10') || cls.includes('GRADE 10') || cls.includes('G10')) return 10
+  if (cls.includes('GR11') || cls.includes('GRADE 11') || cls.includes('G11')) return 11
+
+  // Fallback to student profile grade if class_type is not specific (e.g. RECORDING or custom)
+  const stGrade = Array.isArray(payment?.students) ? payment?.students[0]?.grade : payment?.students?.grade
+  return Number(stGrade) || 0
+}

@@ -18,7 +18,7 @@ import {
   Mail
 } from 'lucide-react'
 import { MONTH_NAMES, CLASS_LABELS } from '@/lib/types'
-import { exportTableToCsv, TARGET_GRADES } from '@/lib/reports-analytics'
+import { exportTableToCsv, TARGET_GRADES, getGradeFromPayment } from '@/lib/reports-analytics'
 import DayEndSummaryTab from './components/DayEndSummaryTab'
 import MonthlyMatrixTab from './components/MonthlyMatrixTab'
 import MultiMonthTrendsTab from './components/MultiMonthTrendsTab'
@@ -523,7 +523,7 @@ export default function ReportsPage() {
   })
 
   dailyPayments.forEach(p => {
-    const gr = p.students?.grade || 0
+    const gr = getGradeFromPayment(p)
     const amt = Number(p.amount_paid) || 0
     const cls = p.class_type || 'UNKNOWN'
     const who = p.recorded_by || 'System User'
@@ -578,6 +578,7 @@ export default function ReportsPage() {
     })
   } else {
     // Unique students paid for this month:
+    // Uses getGradeFromPayment(p) to map payment class_type (e.g. GR6_THEORY) to its respective grade column.
     // If paid before day 1 of the selected month (e.g. advance payment in August for September month),
     // it counts on Day 1 (01/MM).
     // If paid on or after day 1 of the selected month, it counts on its respective day.
@@ -588,8 +589,8 @@ export default function ReportsPage() {
 
     allPaymentsMonth.forEach(p => {
       const psCode = p.students?.ps_code || p.student_id || p.id
-      const g = p.students?.grade || 0
-      if (!matrixTargetGrades.includes(g)) return
+      const g = getGradeFromPayment(p)
+      if (!matrixTargetGrades.includes(g as any)) return
 
       const paidDateStr = p.date_paid || (p.created_at ? p.created_at.slice(0, 10) : '')
       
@@ -822,7 +823,7 @@ export default function ReportsPage() {
 
     mPayments.forEach((p: any) => {
       const ps = p.students?.ps_code || p.student_id || 'unknown'
-      const gr = p.students?.grade || 0
+      const gr = getGradeFromPayment(p)
       const amt = Number(p.amount_paid) || 0
 
       allPayingStudentsSet.add(ps)
