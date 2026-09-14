@@ -278,11 +278,46 @@ export default function StudentDetailPage() {
 
       if (student) {
         await recalculateBalanceLedger(student.id, payment.class_type)
+
+        // Check if there are any other payments left for this class
+        const { data: remaining } = await supabase
+          .from('payments')
+          .select('id')
+          .eq('student_id', student.id)
+          .eq('class_type', payment.class_type)
+
+        if (!remaining || remaining.length === 0) {
+          // If no payments remain, ask to clean up the enrollment
+          await supabase
+            .from('enrollments')
+            .delete()
+            .eq('student_id', student.id)
+            .eq('class_type', payment.class_type)
+        }
       }
 
       await load()
     } catch (err: any) {
       alert('Failed to delete payment: ' + err.message)
+    }
+  }
+
+  async function handleRemoveEnrollment(classType: string) {
+    if (!student) return
+    const cLabel = CLASS_LABELS[classType] || classType
+    if (!confirm(`Are you sure you want to remove ${cLabel} enrollment for ${student.full_name || student.ps_code}?`)) return
+
+    try {
+      const { error } = await supabase
+        .from('enrollments')
+        .delete()
+        .eq('student_id', student.id)
+        .eq('class_type', classType)
+
+      if (error) throw error
+      await load()
+    } catch (err: any) {
+      alert('Failed to remove class enrollment: ' + err.message)
     }
   }
 
@@ -590,15 +625,37 @@ export default function StudentDetailPage() {
                               : 'Past Class Record (Not currently enrolled)'}
                           </div>
                         </div>
-                        {balance && (
-                          <div style={{ textAlign: 'right' }}>
-                            <div className={balance.current_balance < 0 ? 'balance-negative' : balance.current_balance > 0 ? 'balance-positive' : 'balance-zero'}
-                              style={{ fontWeight: 700, fontSize: 16 }}>
-                              {balance.current_balance >= 0 ? '+' : ''}Rs.{balance.current_balance.toLocaleString()}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                          {balance && (
+                            <div style={{ textAlign: 'right' }}>
+                              <div className={balance.current_balance < 0 ? 'balance-negative' : balance.current_balance > 0 ? 'balance-positive' : 'balance-zero'}
+                                style={{ fontWeight: 700, fontSize: 16 }}>
+                                {balance.current_balance >= 0 ? '+' : ''}Rs.{balance.current_balance.toLocaleString()}
+                              </div>
+                              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>current balance</div>
                             </div>
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>current balance</div>
-                          </div>
-                        )}
+                          )}
+
+                          {isAdmin && enrol && enrolPayments.length === 0 && (
+                            <button
+                              onClick={() => handleRemoveEnrollment(cType)}
+                              className="btn-secondary"
+                              style={{
+                                padding: '4px 8px',
+                                fontSize: 11,
+                                color: '#ef4444',
+                                borderColor: 'rgba(239, 68, 68, 0.3)',
+                                background: 'rgba(239, 68, 68, 0.05)',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 4,
+                              }}
+                              title="Remove class enrollment (no payments recorded)"
+                            >
+                              <Trash2 size={12} /> Remove Class
+                            </button>
+                          )}
+                        </div>
                       </div>
                       <table className="data-table">
                         <thead>
