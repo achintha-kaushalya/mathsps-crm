@@ -43,12 +43,12 @@ export default function Sidebar() {
   const isPaymentsOnly = mounted && role === 'payments'
 
   const navGroups = [
-    ...(isAdmin ? [{
+    {
       group: 'Overview',
       items: [
         { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
       ]
-    }] : []),
+    },
     ...(!isPaymentsOnly ? [{
       group: 'CRM — Leads',
       items: [

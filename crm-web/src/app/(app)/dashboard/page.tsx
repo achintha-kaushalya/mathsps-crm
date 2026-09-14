@@ -5,8 +5,9 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Users, Phone, TrendingUp, Activity, BarChart2,
   RefreshCw, CheckCircle, CreditCard, Calendar,
-  CheckCircle2, FileSpreadsheet
+  CheckCircle2, FileSpreadsheet, Target, Award, Clock, ArrowRight
 } from 'lucide-react'
+import Link from 'next/link'
 
 // ──────────────────────────────────────────────────────────────
 // Clean & Unified Pro Color Theme (No Rainbow clutter)
@@ -33,6 +34,13 @@ interface LeadRow {
 
 export default function AnalyticsDashboard() {
   const supabase = createClient()
+
+  // User Authentication & Workstation State
+  const [currentMemberName, setCurrentMemberName] = useState<string>('')
+  const [userRole, setUserRole] = useState<string>('member')
+  const [userSubRole, setUserSubRole] = useState<string>('')
+  const [allowedMembers, setAllowedMembers] = useState<string[]>([])
+  const [canViewAll, setCanViewAll] = useState<boolean>(false)
 
   // Primary Tab Switcher
   const [activeTab, setActiveTab] = useState<'overview' | 'daily_member_tracking' | 'master_paid_report'>('overview')
@@ -151,7 +159,47 @@ export default function AnalyticsDashboard() {
     }
   }
 
+  const isAdmin = Boolean(userRole === 'admin' || userRole === 'owner' || (currentMemberName && currentMemberName.toLowerCase().includes('admin')))
   const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  useEffect(() => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (user) {
+        const uName = user.user_metadata?.full_name || user.email?.split('@')[0] || ''
+        let uRole = user.user_metadata?.role || (user.email?.toLowerCase().includes('admin') ? 'admin' : 'member')
+        let uSubRole = ''
+
+        if (user.email) {
+          const { data: dbMem } = await supabase.from('members').select('name, role, notes').eq('email', user.email).single()
+          if (dbMem) {
+            if (dbMem.name) setCurrentMemberName(dbMem.name)
+            else setCurrentMemberName(uName)
+
+            if (dbMem.role) uRole = dbMem.role
+            try {
+              if (dbMem.notes) {
+                const perms = JSON.parse(dbMem.notes)
+                if (perms.allowed_members) setAllowedMembers(perms.allowed_members)
+                if (perms.can_view_all !== undefined) setCanViewAll(perms.can_view_all)
+                if (perms.sub_role) uSubRole = perms.sub_role
+              }
+            } catch {}
+          } else {
+            setCurrentMemberName(uName)
+          }
+        } else {
+          setCurrentMemberName(uName)
+        }
+
+        if (user.email?.toLowerCase().includes('admin')) {
+          uRole = 'admin'
+        }
+
+        setUserRole(uRole)
+        setUserSubRole(uSubRole)
+      }
+    })
+  }, [])
 
   useEffect(() => {
     loadData()
@@ -370,6 +418,62 @@ export default function AnalyticsDashboard() {
   const totalPaidConversions = paidLeads.length
   const totalPaidClassesCount = Object.values(paidGradeTotals).reduce((sum, c) => sum + c, 0)
 
+  // =========================================================================
+  // 3. PERSONALIZED AGENT WORKSTATION COMPUTATIONS (FOR NON-ADMIN USERS)
+  // =========================================================================
+  const myLeads = useMemo(() => {
+    if (!currentMemberName) return []
+    return filtered.filter(l => {
+      const assigned = (l.assigned_member || '').trim().toLowerCase()
+      const curr = currentMemberName.trim().toLowerCase()
+      return assigned === curr || (allowedMembers.length > 0 && allowedMembers.map(m => m.toLowerCase()).includes(assigned))
+    })
+  }, [filtered, currentMemberName, allowedMembers])
+
+  const myConvertedLeads = useMemo(() => {
+    return myLeads.filter(l => l.status === 'Converted')
+  }, [myLeads])
+
+  const myPaidLeads = useMemo(() => {
+    return myLeads.filter(l => Boolean(l.paid))
+  }, [myLeads])
+
+  const myConversionRate = myLeads.length > 0 
+    ? ((myConvertedLeads.length / myLeads.length) * 100).toFixed(1)
+    : '0.0'
+
+  const myGradeBreakdown = useMemo(() => {
+    const t: Record<string, { total: number; converted: number; paid: number }> = {}
+    GRADES.forEach(g => { t[g] = { total: 0, converted: 0, paid: 0 } })
+    t['Other'] = { total: 0, converted: 0, paid: 0 }
+
+    myLeads.forEach(l => {
+      const gradesInLead = extractGrades(l.grade)
+      const isConv = l.status === 'Converted'
+      const isPaid = Boolean(l.paid)
+
+      if (gradesInLead.length > 0) {
+        gradesInLead.forEach(g => {
+          if (!t[g]) t[g] = { total: 0, converted: 0, paid: 0 }
+          t[g].total += 1
+          if (isConv) t[g].converted += 1
+          if (isPaid) t[g].paid += 1
+        })
+      } else {
+        t['Other'].total += 1
+        if (isConv) t['Other'].converted += 1
+        if (isPaid) t['Other'].paid += 1
+      }
+    })
+    return t
+  }, [myLeads])
+
+  const myStatusCounts = useMemo(() => {
+    const c: Record<string, number> = {}
+    myLeads.forEach(l => { c[l.status] = (c[l.status] || 0) + 1 })
+    return c
+  }, [myLeads])
+
   // Export CSV Helper
   function exportCsv(filename: string, headers: string[], rows: string[][]) {
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n')
@@ -425,10 +529,12 @@ export default function AnalyticsDashboard() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
             <div>
               <h1 style={{ fontSize: 26, fontWeight: 800, margin: '0 0 6px', color: '#ffffff', display: 'flex', alignItems: 'center', gap: 10 }}>
-                Welcome back, Prabuddha! 👋
+                Welcome back, {currentMemberName || (isAdmin ? 'Admin' : 'Team Member')}! 👋
               </h1>
               <p style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.85)', margin: 0 }}>
-                Ready to continue institutional operations and lead management today?
+                {isAdmin
+                  ? 'Ready to continue institutional operations and lead management today?'
+                  : 'Here is your personalized lead pipeline and active conversion progress.'}
               </p>
             </div>
 
@@ -445,8 +551,12 @@ export default function AnalyticsDashboard() {
                 alignItems: 'center',
                 gap: 10
               }}>
-                <span style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.8)', fontWeight: 700, textTransform: 'uppercase' }}>Total Leads</span>
-                <strong style={{ fontSize: 16, color: '#ffffff' }}>{totalFiltered.toLocaleString()}</strong>
+                <span style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.8)', fontWeight: 700, textTransform: 'uppercase' }}>
+                  {isAdmin ? 'Total Leads' : 'My Leads'}
+                </span>
+                <strong style={{ fontSize: 16, color: '#ffffff' }}>
+                  {(isAdmin ? totalFiltered : myLeads.length).toLocaleString()}
+                </strong>
               </div>
 
               <div style={{
@@ -461,7 +571,9 @@ export default function AnalyticsDashboard() {
                 gap: 10
               }}>
                 <span style={{ fontSize: 11, color: '#a7f3d0', fontWeight: 700, textTransform: 'uppercase' }}>Converted</span>
-                <strong style={{ fontSize: 16, color: '#ffffff' }}>{convertedCount.toLocaleString()}</strong>
+                <strong style={{ fontSize: 16, color: '#ffffff' }}>
+                  {(isAdmin ? convertedCount : myConvertedLeads.length).toLocaleString()}
+                </strong>
               </div>
 
               <div style={{
@@ -514,10 +626,12 @@ export default function AnalyticsDashboard() {
           </div>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-primary)' }}>
-              Today&apos;s Lead Growth &amp; Telephony Target
+              {isAdmin ? "Today's Institutional Lead Target" : "Your Daily Target & Call Performance"}
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
-              Keep follow-ups warm and update payment status for all confirmed students!
+              {isAdmin
+                ? "Keep follow-ups warm and review payment status for all confirmed students!"
+                : "Follow up with pending students today and lock in admissions for this term!"}
             </div>
           </div>
         </div>
@@ -543,44 +657,48 @@ export default function AnalyticsDashboard() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <BarChart2 size={16} />
-            Overview
+            {isAdmin ? 'Overview' : 'My Workstation'}
           </button>
 
-          <button
-            onClick={() => setActiveTab('daily_member_tracking')}
-            className={activeTab === 'daily_member_tracking' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
-          >
-            <Calendar size={16} />
-            Daily Tracking
-            <span style={{
-              background: activeTab === 'daily_member_tracking' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
-              color: activeTab === 'daily_member_tracking' ? '#fff' : 'var(--accent-blue)',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
-            }}>
-              {dayLeads.length} today
-            </span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('daily_member_tracking')}
+              className={activeTab === 'daily_member_tracking' ? 'btn-primary' : 'btn-secondary'}
+              style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            >
+              <Calendar size={16} />
+              Daily Tracking
+              <span style={{
+                background: activeTab === 'daily_member_tracking' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
+                color: activeTab === 'daily_member_tracking' ? '#fff' : 'var(--accent-blue)',
+                padding: '2px 8px', borderRadius: 12, fontSize: 11
+              }}>
+                {dayLeads.length} today
+              </span>
+            </button>
+          )}
 
-          <button
-            onClick={() => setActiveTab('master_paid_report')}
-            className={activeTab === 'master_paid_report' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
-          >
-            <CheckCircle2 size={16} />
-            Paid Report
-            <span style={{
-              background: activeTab === 'master_paid_report' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
-              color: activeTab === 'master_paid_report' ? '#fff' : 'var(--accent-blue)',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
-            }}>
-              {totalPaidConversions} paid leads
-            </span>
-          </button>
+          {isAdmin && (
+            <button
+              onClick={() => setActiveTab('master_paid_report')}
+              className={activeTab === 'master_paid_report' ? 'btn-primary' : 'btn-secondary'}
+              style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            >
+              <CheckCircle2 size={16} />
+              Paid Report
+              <span style={{
+                background: activeTab === 'master_paid_report' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
+                color: activeTab === 'master_paid_report' ? '#fff' : 'var(--accent-blue)',
+                padding: '2px 8px', borderRadius: 12, fontSize: 11
+              }}>
+                {totalPaidConversions} paid leads
+              </span>
+            </button>
+          )}
         </div>
 
         {/* ========================================================================= */}
-        {/* TAB 1: OVERALL CRM ANALYTICS                                              */}
+        {/* TAB 1: OVERALL CRM ANALYTICS (ADMIN) / MY WORKSTATION (STAFF)             */}
         {/* ========================================================================= */}
         {activeTab === 'overview' && (
           <div className="fade-in">
@@ -598,61 +716,104 @@ export default function AnalyticsDashboard() {
               )}
             </div>
 
-            {/* Clean Rich KPI Cards (Exact LMS Reference Style) */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginBottom: 22 }}>
-              <KpiCard
-                icon={<Phone size={18} />}
-                iconBg="#e0f2fe"
-                iconColor="#0284c7"
-                borderColor="#38bdf8"
-                label="Total Leads"
-                value={totalFiltered.toLocaleString()}
-              />
-              <KpiCard
-                icon={<TrendingUp size={18} />}
-                iconBg="#dcfce7"
-                iconColor="#16a34a"
-                borderColor="#4ade80"
-                label="Converted"
-                value={convertedCount.toLocaleString()}
-                sub={`${conversionRate}% rate`}
-              />
-              <KpiCard
-                icon={<Users size={18} />}
-                iconBg="#e0e7ff"
-                iconColor="#4f46e5"
-                borderColor="#818cf8"
-                label="Total Students"
-                value={totalStudents.toLocaleString()}
-              />
-              <KpiCard
-                icon={<CheckCircle size={18} />}
-                iconBg="#ccfbf1"
-                iconColor="#0d9488"
-                borderColor="#2dd4bf"
-                label="Paid Leads (Ticks)"
-                value={paidLeads.length.toLocaleString()}
-              />
-              <KpiCard
-                icon={<CreditCard size={18} />}
-                iconBg="#fef3c7"
-                iconColor="#d97706"
-                borderColor="#fcd34d"
-                label="Monthly Revenue"
-                value={`Rs. ${revenueThisMonth.toLocaleString()}`}
-              />
-            </div>
+            {isAdmin ? (
+              /* ── ADMIN EXECUTIVE KPI CARDS ── */
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginBottom: 22 }}>
+                <KpiCard
+                  icon={<Phone size={18} />}
+                  iconBg="#e0f2fe"
+                  iconColor="#0284c7"
+                  borderColor="#38bdf8"
+                  label="Total Leads"
+                  value={totalFiltered.toLocaleString()}
+                />
+                <KpiCard
+                  icon={<TrendingUp size={18} />}
+                  iconBg="#dcfce7"
+                  iconColor="#16a34a"
+                  borderColor="#4ade80"
+                  label="Converted"
+                  value={convertedCount.toLocaleString()}
+                  sub={`${conversionRate}% rate`}
+                />
+                <KpiCard
+                  icon={<Users size={18} />}
+                  iconBg="#e0e7ff"
+                  iconColor="#4f46e5"
+                  borderColor="#818cf8"
+                  label="Total Students"
+                  value={totalStudents.toLocaleString()}
+                />
+                <KpiCard
+                  icon={<CheckCircle size={18} />}
+                  iconBg="#ccfbf1"
+                  iconColor="#0d9488"
+                  borderColor="#2dd4bf"
+                  label="Paid Leads (Ticks)"
+                  value={paidLeads.length.toLocaleString()}
+                />
+                <KpiCard
+                  icon={<CreditCard size={18} />}
+                  iconBg="#fef3c7"
+                  iconColor="#d97706"
+                  borderColor="#fcd34d"
+                  label="Monthly Revenue"
+                  value={`Rs. ${revenueThisMonth.toLocaleString()}`}
+                />
+              </div>
+            ) : (
+              /* ── PERSONAL AGENT WORKSTATION KPI CARDS ── */
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginBottom: 22 }}>
+                <KpiCard
+                  icon={<Phone size={18} />}
+                  iconBg="#e0f2fe"
+                  iconColor="#0284c7"
+                  borderColor="#38bdf8"
+                  label="My Assigned Leads"
+                  value={myLeads.length.toLocaleString()}
+                />
+                <KpiCard
+                  icon={<TrendingUp size={18} />}
+                  iconBg="#dcfce7"
+                  iconColor="#16a34a"
+                  borderColor="#4ade80"
+                  label="My Conversions"
+                  value={myConvertedLeads.length.toLocaleString()}
+                  sub={`${myConversionRate}% conversion`}
+                />
+                <KpiCard
+                  icon={<CheckCircle size={18} />}
+                  iconBg="#ccfbf1"
+                  iconColor="#0d9488"
+                  borderColor="#2dd4bf"
+                  label="My Paid Leads"
+                  value={myPaidLeads.length.toLocaleString()}
+                />
+                <KpiCard
+                  icon={<Award size={18} />}
+                  iconBg="#fef3c7"
+                  iconColor="#d97706"
+                  borderColor="#fcd34d"
+                  label="Conversion Rate"
+                  value={`${myConversionRate}%`}
+                  sub="Target: >20%"
+                />
+              </div>
+            )}
 
             {/* Clean Status Group Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 22 }}>
               {Object.entries(STATUS_GROUPS).map(([key, grp]) => {
-                const count = grp.statuses.reduce((s, st) => s + (statusCounts[st] || 0), 0)
-                const pct = totalFiltered > 0 ? ((count / totalFiltered) * 100).toFixed(1) : '0.0'
+                const count = grp.statuses.reduce((s, st) => s + ((isAdmin ? statusCounts[st] : myStatusCounts[st]) || 0), 0)
+                const denom = isAdmin ? totalFiltered : myLeads.length
+                const pct = denom > 0 ? ((count / denom) * 100).toFixed(1) : '0.0'
                 return (
                   <div key={key} className="glass-card" style={{ padding: '14px 18px' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>{grp.label}</div>
+                    <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+                      {isAdmin ? grp.label : `My ${grp.label}`}
+                    </div>
                     <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)' }}>{count.toLocaleString()}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{pct}% of all leads</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{pct}% of {isAdmin ? 'all' : 'my'} leads</div>
                     <div style={{ height: 3, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
                       <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent-blue)', borderRadius: 99, transition: 'width 0.6s ease' }} />
                     </div>
@@ -661,104 +822,205 @@ export default function AnalyticsDashboard() {
               })}
             </div>
 
-            {/* TABLE 1: Clean Member × Grade Matrix */}
-            <div className="glass-card" style={{ marginBottom: 22, overflow: 'hidden' }}>
-              <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div>
-                  <div style={{ fontWeight: 700, fontSize: 14 }}>📊 Leads by Member &amp; Grade</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Lead distribution across members and grade levels</div>
+            {isAdmin ? (
+              /* ── TABLE 1: ADMIN - Member × Grade Matrix ── */
+              <div className="glass-card" style={{ marginBottom: 22, overflow: 'hidden' }}>
+                <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>📊 Leads by Member &amp; Grade</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Lead distribution across members and grade levels</div>
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '4px 10px', borderRadius: 6 }}>
+                    {members.length} members · {totalFiltered.toLocaleString()} leads
+                  </div>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '4px 10px', borderRadius: 6 }}>
-                  {members.length} members · {totalFiltered.toLocaleString()} leads
-                </div>
-              </div>
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table" style={{ tableLayout: 'fixed' }}>
-                  <thead>
-                    <tr>
-                      <th style={{ width: 150, textAlign: 'left' }}>Member</th>
-                      {GRADES.map((g) => (
-                        <th key={g} style={{ textAlign: 'center' }}>Grade {g}</th>
-                      ))}
-                      <th style={{ textAlign: 'center', fontWeight: 700 }}>Total Leads</th>
-                      <th style={{ textAlign: 'center', fontWeight: 700 }}>Share %</th>
-                      <th style={{ textAlign: 'right' }}>Conversion</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {members.map((m) => {
-                      const row = memberGradeMatrix[m.name] || {}
-                      const share = totalFiltered > 0 ? ((m.total / totalFiltered) * 100).toFixed(1) : '0.0'
-                      const memberLeads = filtered.filter(l => (l.assigned_member || 'Unassigned') === m.name)
-                      const memberConverted = memberLeads.filter(l => l.status === 'Converted').length
-                      const mConvRate = m.total > 0 ? ((memberConverted / m.total) * 100).toFixed(1) : '0.0'
+                <div style={{ overflowX: 'auto' }}>
+                  <table className="data-table" style={{ tableLayout: 'fixed' }}>
+                    <thead>
+                      <tr>
+                        <th style={{ width: 150, textAlign: 'left' }}>Member</th>
+                        {GRADES.map((g) => (
+                          <th key={g} style={{ textAlign: 'center' }}>Grade {g}</th>
+                        ))}
+                        <th style={{ textAlign: 'center', fontWeight: 700 }}>Total Leads</th>
+                        <th style={{ textAlign: 'center', fontWeight: 700 }}>Share %</th>
+                        <th style={{ textAlign: 'right' }}>Conversion</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {members.map((m) => {
+                        const row = memberGradeMatrix[m.name] || {}
+                        const share = totalFiltered > 0 ? ((m.total / totalFiltered) * 100).toFixed(1) : '0.0'
+                        const memberLeads = filtered.filter(l => (l.assigned_member || 'Unassigned') === m.name)
+                        const memberConverted = memberLeads.filter(l => l.status === 'Converted').length
+                        const mConvRate = m.total > 0 ? ((memberConverted / m.total) * 100).toFixed(1) : '0.0'
 
-                      return (
-                        <tr key={m.name}>
-                          <td>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <div style={{
-                                width: 26, height: 26, borderRadius: '50%',
-                                background: 'rgba(59,130,246,0.12)', color: 'var(--accent-blue)',
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                fontSize: 11, fontWeight: 700, flexShrink: 0
-                              }}>{m.name[0]?.toUpperCase()}</div>
-                              <span style={{ fontWeight: 500, fontSize: 13, color: 'var(--text-primary)' }}>{m.name}</span>
-                            </div>
-                          </td>
-                          {GRADES.map((g) => {
-                            const count = row[g] || 0
-                            return (
-                              <td key={g} style={{ textAlign: 'center', fontSize: 13 }}>
-                                {count > 0 ? (
-                                  <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
-                                    {count.toLocaleString()}
-                                  </span>
-                                ) : <span style={{ color: 'var(--text-muted)', opacity: 0.3 }}>—</span>}
-                              </td>
-                            )
-                          })}
-                          <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)', fontSize: 14 }}>
-                            {m.total.toLocaleString()}
-                          </td>
-                          <td style={{ textAlign: 'center' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
-                              <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{share}%</span>
-                              <div style={{ width: 60, height: 3, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
-                                <div style={{ width: `${share}%`, height: '100%', background: 'var(--accent-blue)', borderRadius: 99 }} />
+                        return (
+                          <tr key={m.name}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{
+                                  width: 26, height: 26, borderRadius: '50%',
+                                  background: 'rgba(59,130,246,0.12)', color: 'var(--accent-blue)',
+                                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                  fontSize: 11, fontWeight: 700, flexShrink: 0
+                                }}>{m.name[0]?.toUpperCase()}</div>
+                                <span style={{ fontWeight: 500, fontSize: 13, color: 'var(--text-primary)' }}>{m.name}</span>
                               </div>
-                            </div>
+                            </td>
+                            {GRADES.map((g) => {
+                              const count = row[g] || 0
+                              return (
+                                <td key={g} style={{ textAlign: 'center', fontSize: 13 }}>
+                                  {count > 0 ? (
+                                    <span style={{ color: 'var(--text-primary)', fontWeight: 500 }}>
+                                      {count.toLocaleString()}
+                                    </span>
+                                  ) : <span style={{ color: 'var(--text-muted)', opacity: 0.3 }}>—</span>}
+                                </td>
+                              )
+                            })}
+                            <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)', fontSize: 14 }}>
+                              {m.total.toLocaleString()}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3 }}>
+                                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{share}%</span>
+                                <div style={{ width: 60, height: 3, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
+                                  <div style={{ width: `${share}%`, height: '100%', background: 'var(--accent-blue)', borderRadius: 99 }} />
+                                </div>
+                              </div>
+                            </td>
+                            <td style={{ textAlign: 'right' }}>
+                              <span style={{
+                                fontSize: 11, fontWeight: 600,
+                                color: parseFloat(mConvRate) > 0 ? 'var(--accent-blue)' : 'var(--text-muted)',
+                                background: parseFloat(mConvRate) > 0 ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)',
+                                padding: '2px 8px', borderRadius: 4,
+                              }}>{mConvRate}%</span>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                    <tfoot>
+                      <tr style={{ fontWeight: 800, borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
+                        <td style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.05em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>TOTAL</td>
+                        {GRADES.map((g) => (
+                          <td key={g} style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)' }}>
+                            {(gradeTotals[g] || 0).toLocaleString()}
                           </td>
-                          <td style={{ textAlign: 'right' }}>
-                            <span style={{
-                              fontSize: 11, fontWeight: 600,
-                              color: parseFloat(mConvRate) > 0 ? 'var(--accent-blue)' : 'var(--text-muted)',
-                              background: parseFloat(mConvRate) > 0 ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)',
-                              padding: '2px 8px', borderRadius: 4,
-                            }}>{mConvRate}%</span>
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                  <tfoot>
-                    <tr style={{ fontWeight: 800, borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                      <td style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.05em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>TOTAL</td>
-                      {GRADES.map((g) => (
-                        <td key={g} style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-primary)' }}>
-                          {(gradeTotals[g] || 0).toLocaleString()}
+                        ))}
+                        <td style={{ textAlign: 'center', fontWeight: 900, color: 'var(--text-primary)', fontSize: 15 }}>
+                          {totalFiltered.toLocaleString()}
                         </td>
-                      ))}
-                      <td style={{ textAlign: 'center', fontWeight: 900, color: 'var(--text-primary)', fontSize: 15 }}>
-                        {totalFiltered.toLocaleString()}
-                      </td>
-                      <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-secondary)' }}>100.0%</td>
-                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-blue)' }}>{conversionRate}%</td>
-                    </tr>
-                  </tfoot>
-                </table>
+                        <td style={{ textAlign: 'center', fontWeight: 700, color: 'var(--text-secondary)' }}>100.0%</td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--accent-blue)' }}>{conversionRate}%</td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
-            </div>
+            ) : (
+              /* ── TABLE 1: NON-ADMIN STAFF - My Grade-Wise Pipeline & Quick Actions ── */
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16, marginBottom: 22 }}>
+                {/* My Grade-Wise Lead Breakdown */}
+                <div className="glass-card" style={{ overflow: 'hidden' }}>
+                  <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14 }}>🎯 My Pipeline by Grade</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '4px 10px', borderRadius: 6 }}>
+                      {myLeads.length} leads assigned
+                    </div>
+                  </div>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="data-table">
+                      <thead>
+                        <tr>
+                          <th>Grade</th>
+                          <th style={{ textAlign: 'center' }}>Total Leads</th>
+                          <th style={{ textAlign: 'center' }}>Converted</th>
+                          <th style={{ textAlign: 'center' }}>Paid</th>
+                          <th style={{ textAlign: 'right' }}>Conversion Rate</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {GRADES.map(g => {
+                          const item = myGradeBreakdown[g] || { total: 0, converted: 0, paid: 0 }
+                          const rate = item.total > 0 ? ((item.converted / item.total) * 100).toFixed(1) : '0.0'
+                          return (
+                            <tr key={g}>
+                              <td style={{ fontWeight: 600 }}>Grade {g}</td>
+                              <td style={{ textAlign: 'center', fontWeight: 700 }}>{item.total}</td>
+                              <td style={{ textAlign: 'center', color: '#16a34a', fontWeight: 600 }}>{item.converted}</td>
+                              <td style={{ textAlign: 'center', color: '#0d9488', fontWeight: 600 }}>{item.paid}</td>
+                              <td style={{ textAlign: 'right' }}>
+                                <span style={{
+                                  fontSize: 11, fontWeight: 700,
+                                  color: parseFloat(rate) > 0 ? 'var(--accent-blue)' : 'var(--text-muted)',
+                                  background: parseFloat(rate) > 0 ? 'rgba(59,130,246,0.1)' : 'rgba(255,255,255,0.04)',
+                                  padding: '2px 8px', borderRadius: 4,
+                                }}>{rate}%</span>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                      <tfoot>
+                        <tr style={{ fontWeight: 800, borderTop: '2px solid var(--border)' }}>
+                          <td>TOTAL</td>
+                          <td style={{ textAlign: 'center' }}>{myLeads.length}</td>
+                          <td style={{ textAlign: 'center', color: '#16a34a' }}>{myConvertedLeads.length}</td>
+                          <td style={{ textAlign: 'center', color: '#0d9488' }}>{myPaidLeads.length}</td>
+                          <td style={{ textAlign: 'right', color: 'var(--accent-blue)' }}>{myConversionRate}%</td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Quick Action Navigation Card for Agents */}
+                <div className="glass-card" style={{ padding: 20, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Activity size={18} style={{ color: 'var(--accent-blue)' }} /> Quick Work Queue
+                    </div>
+                    <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 16 }}>
+                      Jump directly to your active leads, start dialing, and update records seamlessly in real-time.
+                    </p>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      <Link
+                        href="/leads"
+                        className="btn-primary"
+                        style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none', borderRadius: 12 }}
+                      >
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>
+                          <Phone size={16} /> Open Leads CRM Sheet
+                        </span>
+                        <ArrowRight size={16} />
+                      </Link>
+
+                      {userSubRole === 'payments' && (
+                        <Link
+                          href="/payments/add"
+                          className="btn-secondary"
+                          style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', textDecoration: 'none', borderRadius: 12 }}
+                        >
+                          <span style={{ display: 'flex', alignItems: 'center', gap: 10, fontWeight: 700 }}>
+                            <CreditCard size={16} /> Record Student Payment
+                          </span>
+                          <ArrowRight size={16} />
+                        </Link>
+                      )}
+                    </div>
+                  </div>
+
+                  <div style={{ marginTop: 20, padding: 12, background: 'var(--bg-hover)', borderRadius: 10, fontSize: 12, color: 'var(--text-muted)' }}>
+                    💡 <b>Pro-Tip:</b> Use the bottom floating dock to quickly jump between Leads and Dashboard anytime.
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

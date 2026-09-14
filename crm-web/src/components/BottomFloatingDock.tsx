@@ -113,7 +113,7 @@ export default function BottomFloatingDock() {
   const isPaymentsOnly = mounted && role === 'payments'
 
   const dockItems = [
-    ...(isAdmin ? [{ label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, color: '#38bdf8' }] : []),
+    { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, color: '#38bdf8' },
     ...(!isPaymentsOnly ? [{ label: 'Leads', href: '/leads', icon: Phone, color: '#10b981' }] : []),
     ...(!isCallCenterOnly ? [
       { label: 'Students', href: '/students', icon: Building2, color: '#38bdf8' },
