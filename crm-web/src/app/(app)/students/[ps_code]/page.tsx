@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, Plus, Printer, ExternalLink, Trash2, Edit2, Shield, Home, Phone, MapPin, UserCheck } from 'lucide-react'
 import { Student, Payment, Enrollment, CLASS_LABELS, MONTH_NAMES } from '@/lib/types'
+import { logAuditEvent } from '@/lib/audit-logger'
 
 const MONTH_NUM_TO_NAME = (m: number) => MONTH_NAMES[m - 1] || '?'
 
@@ -258,6 +259,28 @@ export default function StudentDetailPage() {
 
       if (student) {
         await recalculateBalanceLedger(student.id, editingPayment.class_type)
+
+        // Log enterprise audit event
+        logAuditEvent({
+          action: 'PAYMENT_EDIT',
+          entityType: 'payment',
+          entityId: editingPayment.id,
+          userName: currentUserName,
+          oldData: {
+            amount_paid: editingPayment.amount_paid,
+            payment_type: editingPayment.payment_type,
+            bank_name: editingPayment.bank_name,
+            date_paid: editingPayment.date_paid,
+            ps_code: student.ps_code
+          },
+          newData: {
+            amount_paid: paid,
+            payment_type: editPaymentType,
+            bank_name: editPaymentType === 'BANK' ? editBankName : null,
+            date_paid: editPaymentType !== 'FREE' ? editDatePaid : null,
+            ps_code: student.ps_code
+          }
+        })
       }
 
       setEditingPayment(null)
@@ -294,6 +317,23 @@ export default function StudentDetailPage() {
             .eq('student_id', student.id)
             .eq('class_type', payment.class_type)
         }
+
+        // Log enterprise audit event
+        logAuditEvent({
+          action: 'PAYMENT_DELETE',
+          entityType: 'payment',
+          entityId: payment.id,
+          userName: currentUserName,
+          oldData: {
+            ps_code: student.ps_code,
+            student_name: student.full_name,
+            amount_paid: payment.amount_paid,
+            month: payment.month,
+            year: payment.year,
+            class_type: payment.class_type,
+            date_paid: payment.date_paid
+          }
+        })
       }
 
       await load()
@@ -315,6 +355,19 @@ export default function StudentDetailPage() {
         .eq('class_type', classType)
 
       if (error) throw error
+
+      logAuditEvent({
+        action: 'CLASS_UNENROLL',
+        entityType: 'enrollment',
+        entityId: student.ps_code,
+        userName: currentUserName,
+        oldData: {
+          ps_code: student.ps_code,
+          student_name: student.full_name,
+          class_type: classType
+        }
+      })
+
       await load()
     } catch (err: any) {
       alert('Failed to remove class enrollment: ' + err.message)
