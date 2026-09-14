@@ -248,9 +248,9 @@ export default function MultiMonthTrendsTab({
           })
 
           return (
-            <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid #38bdf8', boxShadow: '0 4px 20px -4px rgba(56, 189, 248, 0.25)' }}>
               <div className="stat-card label">Highest Performing Month</div>
-              <div className="stat-card value" style={{ color: '#3b82f6', fontSize: 22 }}>
+              <div className="stat-card value" style={{ color: '#38bdf8', fontSize: 22 }}>
                 {peakItem?.monthName || '—'} {trendYear}
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -266,9 +266,9 @@ export default function MultiMonthTrendsTab({
         {(() => {
           const latest = trendMonthlySeries[trendMonthlySeries.length - 1]
           return (
-            <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid #4ade80', boxShadow: '0 4px 20px -4px rgba(74, 222, 128, 0.25)' }}>
               <div className="stat-card label">Latest Selected Month ({latest?.monthName || '—'})</div>
-              <div className="stat-card value" style={{ color: '#10b981', fontSize: 22 }}>
+              <div className="stat-card value" style={{ color: '#4ade80', fontSize: 22 }}>
                 {trendMetric === 'students' && `${latest?.studentCountsByGrade[0] || 0} Students`}
                 {trendMetric === 'revenue' && `Rs. ${(latest?.revenueByGrade[0] || 0).toLocaleString()}`}
                 {trendMetric === 'registrations' && `${latest?.regByGrade[0] || 0} New Registrations`}
@@ -290,7 +290,7 @@ export default function MultiMonthTrendsTab({
           const avg = trendMonthlySeries.length > 0 ? Math.round(total / trendMonthlySeries.length) : 0
 
           return (
-            <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid #fcd34d', boxShadow: '0 4px 20px -4px rgba(245, 158, 11, 0.25)' }}>
               <div className="stat-card label">Selected Average / Month</div>
               <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 22 }}>
                 {trendMetric === 'revenue' ? `Rs. ${avg.toLocaleString()}` : `${avg.toLocaleString()} / Mo`}
@@ -308,9 +308,9 @@ export default function MultiMonthTrendsTab({
           const totalReg = trendMonthlySeries.reduce((sum, item) => sum + item.regByGrade[0], 0)
 
           return (
-            <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6' }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid #818cf8', boxShadow: '0 4px 20px -4px rgba(129, 140, 248, 0.25)' }}>
               <div className="stat-card label">Total Cumulative in Range</div>
-              <div className="stat-card value" style={{ color: '#8b5cf6', fontSize: 22 }}>
+              <div className="stat-card value" style={{ color: '#818cf8', fontSize: 22 }}>
                 {trendMetric === 'revenue'
                   ? `Rs. ${totalRev.toLocaleString()}`
                   : trendMetric === 'registrations'

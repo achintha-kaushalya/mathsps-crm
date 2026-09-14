@@ -437,79 +437,79 @@ export default function MasterLeadsSpreadsheet() {
       </div>
 
       {/* Filters */}
-      <div style={{ padding: '12px 28px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 360 }}>
-          <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+      <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
+          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
           <input
             className="search-bar"
-            style={{ paddingLeft: 36 }}
+            style={{ paddingLeft: 32, height: 32, fontSize: 12.5 }}
             placeholder="Search phone, F-code, campaign, comments..."
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <select className="input-field" style={{ width: 150 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+        <select className="input-field" style={{ width: 130, height: 32, fontSize: 12, padding: '4px 8px' }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="">All Statuses</option>
           {LEAD_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select className="input-field" style={{ width: 160 }} value={memberFilter} onChange={e => setMemberFilter(e.target.value)}>
+        <select className="input-field" style={{ width: 140, height: 32, fontSize: 12, padding: '4px 8px' }} value={memberFilter} onChange={e => setMemberFilter(e.target.value)}>
           <option value="">{isAdmin || canViewAll ? 'All Members' : 'My Visible Team'}</option>
           {members
             .filter(m => isAdmin || canViewAll || [currentMemberName, ...allowedMembers].includes(m))
             .map(m => <option key={m} value={m}>{m}</option>)}
         </select>
-        <div style={{ fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
           Page {page + 1} of {Math.ceil(total / PAGE_SIZE)} ({total.toLocaleString()} total)
         </div>
       </div>
 
       {/* Data Grid */}
-      <div style={{ flex: 1, overflowY: 'auto' }}>
-        <table className="data-table" style={{ fontSize: 12 }}>
+      <div style={{ flex: 1, overflowX: 'auto', overflowY: 'auto' }}>
+        <table className="data-table" style={{ fontSize: 11.5, width: '100%', minWidth: '100%' }}>
           <thead>
-            <tr>
-              <th style={{ width: 36, textAlign: 'center' }}>🔒</th>
-              <th style={{ width: 85 }}>F-Code</th>
-              <th style={{ width: 110 }}>Phone</th>
-              <th style={{ width: 110 }}>Assigned</th>
-              <th style={{ width: 85 }}>Date Added</th>
-              <th style={{ width: 130 }}>Status</th>
-              <th style={{ width: 55 }}>Grade</th>
-              <th style={{ width: 100 }}>Campaign</th>
-              <th>Comments / Call Notes</th>
-              <th style={{ width: 140 }}>Duplicate Check</th>
-              <th style={{ width: 70 }}>Repeat?</th>
-              <th style={{ width: 60 }}>2nd Call</th>
-              <th style={{ width: 160 }}>2nd Call Note</th>
-              <th style={{ width: 50 }}>Paid</th>
-              <th style={{ width: 110 }}>Paid Grade/s</th>
-              <th style={{ width: 45, textAlign: 'center' }}>Action</th>
+            <tr style={{ background: '#f8fafc' }}>
+              <th style={{ width: 28, textAlign: 'center', whiteSpace: 'nowrap' }}>🔒</th>
+              <th style={{ width: 68, whiteSpace: 'nowrap' }}>Code</th>
+              <th style={{ width: 88, whiteSpace: 'nowrap' }}>Phone</th>
+              <th style={{ width: 78, whiteSpace: 'nowrap' }}>Assigned</th>
+              <th style={{ width: 68, whiteSpace: 'nowrap' }}>Date</th>
+              <th style={{ width: 84, whiteSpace: 'nowrap' }}>Status</th>
+              <th style={{ width: 38, textAlign: 'center', whiteSpace: 'nowrap' }}>Grade</th>
+              <th style={{ width: 55, whiteSpace: 'nowrap' }}>Campaign</th>
+              <th style={{ minWidth: 100, whiteSpace: 'nowrap' }}>Notes</th>
+              <th style={{ width: 65, whiteSpace: 'nowrap' }}>Duplicate</th>
+              <th style={{ width: 48, textAlign: 'center', whiteSpace: 'nowrap' }}>Repeat</th>
+              <th style={{ width: 48, textAlign: 'center', whiteSpace: 'nowrap' }}>2nd Call</th>
+              <th style={{ width: 85, whiteSpace: 'nowrap' }}>2nd Note</th>
+              <th style={{ width: 38, textAlign: 'center', whiteSpace: 'nowrap' }}>Paid</th>
+              <th style={{ width: 72, whiteSpace: 'nowrap' }}>Paid Grades</th>
+              <th style={{ width: 34, textAlign: 'center', whiteSpace: 'nowrap' }}>Action</th>
             </tr>
           </thead>
           <tbody>
             {/* QUICK ADD ROW AT TOP */}
-            <tr style={{ background: 'rgba(59,130,246,0.08)', borderBottom: '2px solid var(--accent-blue)' }}>
-              <td style={{ textAlign: 'center', color: 'var(--accent-blue)' }}><Plus size={16} /></td>
-              <td style={{ color: 'var(--text-muted)', fontSize: 10, fontWeight: 700 }}>AUTO F-CODE</td>
+            <tr style={{ background: 'rgba(59,130,246,0.06)', borderBottom: '2px solid var(--accent-blue)' }}>
+              <td style={{ textAlign: 'center', color: 'var(--accent-blue)' }}><Plus size={14} /></td>
+              <td style={{ color: 'var(--text-muted)', fontSize: 9.5, fontWeight: 700, whiteSpace: 'nowrap' }}>AUTO F-CODE</td>
               <td>
                 <input
                   className="input-field"
-                  style={{ padding: '4px 6px', fontSize: 12 }}
-                  placeholder="Raw Phone..."
+                  style={{ padding: '2px 4px', fontSize: 11, height: 24 }}
+                  placeholder="Raw Phone.."
                   value={newPhone}
                   onChange={e => setNewPhone(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && handleAddNewRow(e)}
                 />
               </td>
-              <td style={{ fontSize: 12, color: 'var(--accent-blue)', fontWeight: 600 }}>
+              <td style={{ fontSize: 11, color: 'var(--accent-blue)', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: 78 }}>
                 {currentMemberName || 'You'}
               </td>
-              <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>Auto Date</td>
-              <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>New</td>
+              <td style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Auto Date</td>
+              <td style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>New</td>
               <td>
                 <input
                   className="input-field"
-                  style={{ padding: '4px 6px', fontSize: 12 }}
+                  style={{ padding: '2px 4px', fontSize: 11, height: 24, textAlign: 'center' }}
                   placeholder="Gr"
                   value={newGrade}
                   onChange={e => setNewGrade(e.target.value)}
@@ -518,7 +518,7 @@ export default function MasterLeadsSpreadsheet() {
               <td>
                 <input
                   className="input-field"
-                  style={{ padding: '4px 6px', fontSize: 12 }}
+                  style={{ padding: '2px 4px', fontSize: 11, height: 24 }}
                   placeholder="S26"
                   value={newCampaign}
                   onChange={e => setNewCampaign(e.target.value)}
@@ -528,7 +528,7 @@ export default function MasterLeadsSpreadsheet() {
               <td>
                 <input
                   className="input-field"
-                  style={{ padding: '4px 6px', fontSize: 12, width: '100%' }}
+                  style={{ padding: '2px 4px', fontSize: 11, height: 24, width: '100%' }}
                   placeholder="Comments / Call notes..."
                   value={newComment}
                   onChange={e => setNewComment(e.target.value)}
@@ -536,16 +536,16 @@ export default function MasterLeadsSpreadsheet() {
                 />
               </td>
               {/* Duplicate Check */}
-              <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>Auto Checked</td>
+              <td style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Auto Checked</td>
               {/* Repeat */}
-              <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
+              <td style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>—</td>
               {/* 2nd Call */}
-              <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
+              <td style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>—</td>
               {/* 2nd Call Note */}
               <td>
                 <input
                   className="input-field"
-                  style={{ padding: '4px 6px', fontSize: 12, width: '100%' }}
+                  style={{ padding: '2px 4px', fontSize: 11, height: 24, width: '100%' }}
                   placeholder="2nd call note..."
                   value={newSecondCallNotes}
                   onChange={e => setNewSecondCallNotes(e.target.value)}
@@ -553,18 +553,18 @@ export default function MasterLeadsSpreadsheet() {
                 />
               </td>
               {/* Paid */}
-              <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
+              <td style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>—</td>
               {/* Paid Grade/s */}
-              <td style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-muted)' }}>—</td>
+              <td style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>—</td>
               {/* Action Column Add Button */}
               <td style={{ textAlign: 'center' }}>
                 <button
                   className="btn-primary"
-                  style={{ padding: '4px 10px', fontSize: 11, whiteSpace: 'nowrap' }}
+                  style={{ padding: '2px 6px', fontSize: 10.5, whiteSpace: 'nowrap', height: 24 }}
                   onClick={handleAddNewRow}
                   disabled={addingRow || !newPhone.trim()}
                 >
-                  {addingRow ? 'Adding...' : '+ Add Row'}
+                  {addingRow ? '...' : '+ Add'}
                 </button>
               </td>
             </tr>
@@ -591,8 +591,8 @@ export default function MasterLeadsSpreadsheet() {
                 <tr
                   key={lead.id}
                   style={{
-                    background: isTrueDuplicate ? 'rgba(245, 158, 11, 0.22)' : presence ? `${presence.color}15` : undefined,
-                    borderLeft: presence ? `4px solid ${presence.color}` : isTrueDuplicate ? '4px solid #f59e0b' : undefined,
+                    background: isTrueDuplicate ? 'rgba(245, 158, 11, 0.15)' : presence ? `${presence.color}15` : undefined,
+                    borderLeft: presence ? `3px solid ${presence.color}` : isTrueDuplicate ? '3px solid #f59e0b' : undefined,
                     transition: 'background 0.2s',
                   }}
                 >
@@ -627,7 +627,7 @@ export default function MasterLeadsSpreadsheet() {
                   </td>
 
                   {/* Assigned Member */}
-                  <td>
+                  <td style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {isAdmin ? (
                       <GridSelect
                         editable={true}
@@ -636,14 +636,14 @@ export default function MasterLeadsSpreadsheet() {
                         onSave={v => saveCell(lead.id, 'assigned_member', v, lead)}
                       />
                     ) : (
-                      <span style={{ fontSize: 12, color: lead.assigned_member === currentMemberName ? 'var(--accent-blue)' : 'var(--text-secondary)' }}>
-                        {lead.assigned_member || 'Unassigned'}
+                      <span style={{ fontSize: 11.5, color: lead.assigned_member === currentMemberName ? 'var(--accent-blue)' : 'var(--text-secondary)' }}>
+                        {lead.assigned_member || '—'}
                       </span>
                     )}
                   </td>
 
                   {/* Date Added */}
-                  <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  <td style={{ fontSize: 10.5, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                     {lead.date_added?.slice(0, 10) || '—'}
                   </td>
 
@@ -659,7 +659,7 @@ export default function MasterLeadsSpreadsheet() {
                   </td>
 
                   {/* Grade */}
-                  <td>
+                  <td style={{ textAlign: 'center' }}>
                     <GridCell
                       editable={canEditFullRow}
                       value={lead.grade || '—'}
@@ -679,14 +679,14 @@ export default function MasterLeadsSpreadsheet() {
                   </td>
 
                   {/* Comments + Multiplayer Working Badge */}
-                  <td style={{ position: 'relative' }}>
+                  <td style={{ position: 'relative', maxWidth: 140, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {presence && (
                       <div style={{
-                        position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                        background: presence.color, color: '#fff', fontSize: 10, padding: '2px 6px',
-                        borderRadius: 10, fontWeight: 700, pointerEvents: 'none'
+                        position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)',
+                        background: presence.color, color: '#fff', fontSize: 9.5, padding: '1px 5px',
+                        borderRadius: 8, fontWeight: 700, pointerEvents: 'none'
                       }}>
-                        👤 {presence.user_name} is editing...
+                        👤 {presence.user_name}
                       </div>
                     )}
                     <GridCell
@@ -697,25 +697,25 @@ export default function MasterLeadsSpreadsheet() {
                     />
                   </td>
 
-                  {/* DUPLICATE WARNING CHECK BAR (Yellow Highlighted on SAME CAMPAIGN match) */}
-                  <td>
+                  {/* DUPLICATE WARNING CHECK BAR */}
+                  <td style={{ whiteSpace: 'nowrap' }}>
                     {isTrueDuplicate ? (
-                      <span style={{ color: '#fbbf24', fontWeight: 700, fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <AlertTriangle size={13} /> DUPLICATE ({sameCampDupMatch?.fcode})
+                      <span style={{ color: '#d97706', fontWeight: 700, fontSize: 10, display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <AlertTriangle size={11} /> DUP ({sameCampDupMatch?.fcode})
                       </span>
                     ) : (
-                      <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>Clean</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 10.5 }}>Clean</span>
                     )}
                   </td>
 
                   {/* Repeat Student */}
-                  <td style={{ textAlign: 'center' }}>
+                  <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                     {lead.repeat_student ? (
-                      <span style={{ color: '#34d399', fontSize: 11, fontWeight: 600 }} title={`Previous Fcode: ${lead.prev_fcode || ''}`}>
+                      <span style={{ color: '#059669', fontSize: 10.5, fontWeight: 600 }} title={`Previous Fcode: ${lead.prev_fcode || ''}`}>
                         ⟲ Yes ({lead.prev_fcode || ''})
                       </span>
                     ) : (
-                      <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>No</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: 10.5 }}>No</span>
                     )}
                   </td>
 
@@ -729,7 +729,7 @@ export default function MasterLeadsSpreadsheet() {
                   </td>
 
                   {/* 2nd Call Note */}
-                  <td>
+                  <td style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     <GridCell
                       editable={editable}
                       value={lead.second_call_notes || '—'}
@@ -748,7 +748,7 @@ export default function MasterLeadsSpreadsheet() {
                   </td>
 
                   {/* Paid Grade/s (Admin Only Edit) */}
-                  <td>
+                  <td style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     <GridCell
                       editable={isAdmin}
                       value={lead.paid_grades || '—'}
@@ -847,14 +847,14 @@ function GridCell({ editable, value, onSave, onFocus }: { editable: boolean; val
   useEffect(() => { setVal(value) }, [value])
 
   if (!editable) {
-    return <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{value}</span>
+    return <span style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>{value}</span>
   }
 
   if (editing) {
     return (
       <input
         className="input-field"
-        style={{ padding: '2px 6px', fontSize: 12 }}
+        style={{ padding: '1px 4px', fontSize: 11.5, height: 22 }}
         value={val}
         onChange={e => setVal(e.target.value)}
         onFocus={onFocus}
@@ -871,23 +871,23 @@ function GridCell({ editable, value, onSave, onFocus }: { editable: boolean; val
   return (
     <div
       onClick={() => { setEditing(true); if (onFocus) onFocus() }}
-      style={{ cursor: 'pointer', padding: '2px 4px', borderRadius: 4, minHeight: 20 }}
+      style={{ cursor: 'pointer', padding: '1px 3px', borderRadius: 4, minHeight: 18, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
       title="Click to edit cell"
     >
-      <span style={{ fontSize: 12 }}>{val}</span>
+      <span style={{ fontSize: 11.5 }}>{val}</span>
     </div>
   )
 }
 
 function GridSelect({ editable, value, options, badgeClass, onSave }: { editable: boolean; value: string; options: string[]; badgeClass?: string; onSave: (v: string) => void }) {
   if (!editable) {
-    return <span className={`badge ${badgeClass || 'status-default'}`}>{value}</span>
+    return <span className={`badge ${badgeClass || 'status-default'}`} style={{ fontSize: 10.5, padding: '2px 6px' }}>{value}</span>
   }
 
   return (
     <select
       className="input-field"
-      style={{ padding: '2px 6px', fontSize: 11, height: 26, background: 'transparent' }}
+      style={{ padding: '1px 4px', fontSize: 11, height: 22, background: 'transparent' }}
       value={value}
       onChange={e => onSave(e.target.value)}
     >
@@ -903,7 +903,7 @@ function GridCheckbox({ editable, checked, onSave }: { editable: boolean; checke
       disabled={!editable}
       checked={!!checked}
       onChange={e => onSave(e.target.checked)}
-      style={{ width: 14, height: 14, cursor: editable ? 'pointer' : 'not-allowed' }}
+      style={{ width: 13, height: 13, cursor: editable ? 'pointer' : 'not-allowed' }}
     />
   )
 }

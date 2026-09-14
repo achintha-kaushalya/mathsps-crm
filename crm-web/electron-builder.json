@@ -1,0 +1,25 @@
+{
+  "appId": "com.mathsps.crm",
+  "productName": "MathsPS Virtual HQ 2.0",
+  "copyright": "Copyright © 2026 MathsPS Institute",
+  "directories": {
+    "output": "dist"
+  },
+  "files": [
+    "electron/**/*",
+    "public/**/*",
+    "package.json"
+  ],
+  "win": {
+    "target": "nsis",
+    "icon": "public/icon.ico",
+    "artifactName": "MathsPS.CRM_2.0.0_x64.Setup.${ext}"
+  },
+  "nsis": {
+    "oneClick": false,
+    "allowToChangeInstallationDirectory": true,
+    "createDesktopShortcut": true,
+    "createStartMenuShortcut": true,
+    "shortcutName": "MathsPS Virtual HQ 2.0"
+  }
+}

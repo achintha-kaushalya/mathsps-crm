@@ -2,7 +2,24 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { BookOpen, Plus, Trash2, Edit2, Shield, Sparkles, CheckCircle2, ArrowRight } from 'lucide-react'
+import {
+  BookOpen,
+  Plus,
+  Trash2,
+  Edit2,
+  Shield,
+  Sparkles,
+  CheckCircle2,
+  ArrowRight,
+  GraduationCap,
+  Layers,
+  DollarSign,
+  Radio,
+  FileText,
+  BookmarkCheck,
+  UserCheck,
+  CreditCard
+} from 'lucide-react'
 import { DEFAULT_GRADE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
 
 export default function CoursesManagerPage() {
@@ -121,7 +138,7 @@ export default function CoursesManagerPage() {
         }
       }
       setToastMsg('✓ Changes saved & synced across CRM in real time!')
-      setTimeout(() => setToastMsg(''), 3000)
+      setTimeout(() => setToastMsg(''), 3500)
     } catch (err: any) {
       alert('Error updating courses: ' + err.message)
     } finally {
@@ -193,55 +210,179 @@ export default function CoursesManagerPage() {
 
   // Total courses count across all grades
   const totalCoursesCount = Object.values(gradeCourses).reduce((sum, list) => sum + list.length, 0)
+  const configuredGradesCount = Object.keys(gradeCourses).filter(k => (gradeCourses[Number(k)] || []).length > 0).length
 
   if (loading) {
-    return <div style={{ padding: 40, color: 'var(--text-muted)' }}>Loading courses manager...</div>
+    return (
+      <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
+        <div style={{ width: 36, height: 36, border: '3px solid rgba(59,130,246,0.2)', borderTopColor: 'var(--accent-blue)', borderRadius: '50%', margin: '0 auto 16px', animation: 'spin 1s linear infinite' }} />
+        <div style={{ fontWeight: 600, fontSize: 15 }}>Loading course curriculum...</div>
+      </div>
+    )
   }
 
   return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100vh', overflowY: 'auto' }}>
-      {/* Header */}
-      <div className="page-header">
+    <div className="fade-in" style={{ paddingBottom: 60 }}>
+      {/* Page Header */}
+      <div className="page-header" style={{ marginBottom: 20 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <BookOpen size={22} style={{ color: 'var(--accent-blue)' }} />
-            Courses & Grades Manager
-          </h1>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-            Manage curriculum courses, default fee rates, and alignment for student registrations & payments
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 10,
+              background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', boxShadow: '0 4px 12px rgba(37,99,235,0.25)'
+            }}>
+              <BookOpen size={22} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>
+                Courses & Grades Curriculum
+              </h1>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                Configure grade-aligned courses, default monthly fee rates, and registration subjects
+              </div>
+            </div>
           </div>
         </div>
 
-        {isAdmin ? (
-          <button
-            onClick={() => handleOpenAdd(selectedGradeTab)}
-            className="btn-primary"
-            style={{ padding: '8px 16px', display: 'flex', alignItems: 'center', gap: 6 }}
-          >
-            <Plus size={16} /> + Add Course to Grade {selectedGradeTab}
-          </button>
-        ) : (
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'rgba(255,255,255,0.03)', padding: '6px 12px', borderRadius: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Shield size={14} /> View Only (Admin Managed)
-          </div>
-        )}
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+          {isAdmin ? (
+            <button
+              onClick={() => handleOpenAdd(selectedGradeTab)}
+              className="btn-primary"
+              style={{
+                background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
+                padding: '9px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                fontWeight: 600,
+                boxShadow: '0 4px 12px rgba(37,99,235,0.25)'
+              }}
+            >
+              <Plus size={16} /> Add Course to Grade {selectedGradeTab}
+            </button>
+          ) : (
+            <div style={{
+              fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-base)',
+              padding: '6px 12px', borderRadius: 8, border: '1px solid var(--border)',
+              display: 'flex', alignItems: 'center', gap: 6, fontWeight: 500
+            }}>
+              <Shield size={14} style={{ color: 'var(--accent-blue)' }} /> View Only (Admin Protected)
+            </div>
+          )}
+        </div>
       </div>
 
-      <div className="page-content" style={{ maxWidth: 900 }}>
+      <div className="page-content" style={{ width: '100%', maxWidth: '100%' }}>
+        {/* Success / Realtime Toast */}
         {toastMsg && (
           <div style={{
-            padding: '12px 18px', background: 'rgba(16,185,129,0.12)', border: '1px solid #10b981',
-            borderRadius: 8, color: '#34d399', fontWeight: 600, fontSize: 13, marginBottom: 18,
-            display: 'flex', alignItems: 'center', gap: 8
+            padding: '14px 18px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)',
+            borderRadius: 10, color: '#059669', fontWeight: 600, fontSize: 13, marginBottom: 20,
+            display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 2px 8px rgba(16,185,129,0.08)'
           }}>
-            <CheckCircle2 size={16} /> {toastMsg}
+            <CheckCircle2 size={18} /> {toastMsg}
           </div>
         )}
 
-        {/* Grade Tabs */}
+        {/* Top KPI Summary Metrics */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 22 }}>
+          {/* Total Active Courses */}
+          <div className="stat-card" style={{
+            padding: '16px 20px',
+            borderRadius: 16,
+            borderLeft: '4px solid #38bdf8',
+            boxShadow: '0 4px 20px -4px rgba(56, 189, 248, 0.16)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Total Active Courses
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>
+                {totalCoursesCount} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>streams</span>
+              </div>
+            </div>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <Layers size={20} />
+            </div>
+          </div>
+
+          {/* Configured Grades */}
+          <div className="stat-card" style={{
+            padding: '16px 20px',
+            borderRadius: 16,
+            borderLeft: '4px solid #4ade80',
+            boxShadow: '0 4px 20px -4px rgba(74, 222, 128, 0.16)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Configured Grades
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>
+                {configuredGradesCount} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>of {grades.length} grades</span>
+              </div>
+            </div>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'rgba(16, 185, 129, 0.15)', color: '#10b981',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <GraduationCap size={20} />
+            </div>
+          </div>
+
+          {/* Realtime Status */}
+          <div className="stat-card" style={{
+            padding: '16px 20px',
+            borderRadius: 16,
+            borderLeft: '4px solid #f97316',
+            boxShadow: '0 4px 20px -4px rgba(249, 115, 22, 0.16)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                CRM Integration
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span style={{ width: 8, height: 8, borderRadius: 4, background: '#10b981', display: 'inline-block' }} />
+                Real-Time Synced
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>Auto-applied to new student forms</div>
+            </div>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'rgba(249, 115, 22, 0.15)', color: '#ea580c',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <Radio size={19} />
+            </div>
+          </div>
+        </div>
+
+        {/* Grade Tabs Navigation */}
         <div style={{
-          display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 6, marginBottom: 20,
-          borderBottom: '1px solid var(--border)'
+          display: 'flex',
+          gap: 6,
+          overflowX: 'auto',
+          padding: '6px 8px',
+          marginBottom: 20,
+          background: 'var(--bg-card)',
+          borderRadius: 12,
+          border: '1px solid var(--border)'
         }}>
           {grades.map(g => {
             const count = (gradeCourses[g] || []).length
@@ -252,13 +393,11 @@ export default function CoursesManagerPage() {
                 key={g}
                 onClick={() => setSelectedGradeTab(g)}
                 style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px 8px 0 0',
-                  border: '1px solid',
-                  borderColor: isSelected ? 'var(--accent-blue)' : 'transparent',
-                  borderBottom: isSelected ? '2px solid var(--accent-blue)' : 'none',
-                  background: isSelected ? 'rgba(59,130,246,0.14)' : 'transparent',
-                  color: isSelected ? 'var(--text-primary)' : 'var(--text-muted)',
+                  padding: '9px 18px',
+                  borderRadius: 8,
+                  border: isSelected ? '1px solid var(--accent-blue)' : '1px solid transparent',
+                  background: isSelected ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                  color: isSelected ? 'var(--accent-blue)' : 'var(--text-secondary)',
                   fontWeight: isSelected ? 700 : 500,
                   fontSize: 13,
                   cursor: 'pointer',
@@ -266,16 +405,17 @@ export default function CoursesManagerPage() {
                   alignItems: 'center',
                   gap: 8,
                   whiteSpace: 'nowrap',
-                  transition: 'all 0.15s'
+                  transition: 'all 0.15s ease'
                 }}
               >
                 <span>Grade {g}</span>
                 <span style={{
                   fontSize: 11,
-                  padding: '1px 6px',
+                  padding: '2px 7px',
                   borderRadius: 10,
-                  background: isSelected ? 'var(--accent-blue)' : 'rgba(255,255,255,0.06)',
+                  background: isSelected ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
                   color: isSelected ? '#fff' : 'var(--text-muted)',
+                  border: isSelected ? 'none' : '1px solid var(--border)',
                   fontWeight: 700
                 }}>
                   {count}
@@ -285,15 +425,25 @@ export default function CoursesManagerPage() {
           })}
         </div>
 
-        {/* Grade Courses Cards */}
-        <div className="glass-card" style={{ padding: 24, marginBottom: 24 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
+        {/* Grade Courses Cards Section */}
+        <div style={{
+          padding: 24,
+          background: 'var(--bg-card)',
+          borderRadius: 12,
+          border: '1px solid var(--border)',
+          marginBottom: 24,
+          boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
             <div>
-              <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
-                Grade {selectedGradeTab} Courses
+              <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>Grade {selectedGradeTab} Courses & Streams</span>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-card-hover)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                  {currentTabCourses.length} {currentTabCourses.length === 1 ? 'course' : 'courses'}
+                </span>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                Students registering for Grade {selectedGradeTab} will see these aligned courses
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
+                Students registering under Grade {selectedGradeTab} will be presented with these exact curriculum streams
               </div>
             </div>
 
@@ -301,128 +451,212 @@ export default function CoursesManagerPage() {
               <button
                 onClick={() => handleOpenAdd(selectedGradeTab)}
                 className="btn-secondary"
-                style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+                style={{ padding: '7px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
               >
-                <Plus size={14} /> + New Course
+                <Plus size={14} /> Add Course
               </button>
             )}
           </div>
 
           {currentTabCourses.length === 0 ? (
-            <div style={{ padding: 36, textAlign: 'center', background: 'rgba(255,255,255,0.02)', borderRadius: 10, border: '1px dashed var(--border)' }}>
-              <div style={{ fontSize: 32, marginBottom: 8 }}>📚</div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+            <div style={{ padding: 48, textAlign: 'center', background: 'var(--bg-base)', borderRadius: 10, border: '1px dashed var(--border)' }}>
+              <div style={{
+                width: 52, height: 52, borderRadius: 26, background: 'rgba(59,130,246,0.1)',
+                color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                margin: '0 auto 14px'
+              }}>
+                <BookmarkCheck size={26} />
+              </div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
                 No courses configured for Grade {selectedGradeTab}
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16 }}>
-                Click below to add Theory, Paper, Revision, or custom subjects for this grade.
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 18, maxWidth: 420, margin: '4px auto 18px' }}>
+                Add Theory, Paper, Revision, or custom bundle courses to enable registrations for this grade.
               </div>
               {isAdmin && (
-                <button onClick={() => handleOpenAdd(selectedGradeTab)} className="btn-primary" style={{ padding: '6px 14px' }}>
-                  <Plus size={14} /> Add First Course
+                <button
+                  onClick={() => handleOpenAdd(selectedGradeTab)}
+                  className="btn-primary"
+                  style={{ padding: '8px 18px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                >
+                  <Plus size={15} /> Add First Course
                 </button>
               )}
             </div>
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 14 }}>
-              {currentTabCourses.map(c => (
-                <div
-                  key={c.code}
-                  style={{
-                    padding: 16,
-                    borderRadius: 10,
-                    border: '1px solid var(--border)',
-                    background: 'var(--bg-base)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
-                  }}
-                >
-                  <div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8 }}>
-                      <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>
-                        {c.name}
-                      </div>
-                      <span style={{ fontSize: 10, color: 'var(--accent-blue)', background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: 4, fontWeight: 700 }}>
-                        {c.code}
-                      </span>
-                    </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 16 }}>
+              {currentTabCourses.map(c => {
+                const isCombo = c.name.toLowerCase().includes('both') || c.name.toLowerCase().includes('full package') || c.name.toLowerCase().includes('+')
+                const isPaper = c.name.toLowerCase().includes('paper') && !isCombo
+                const isRevision = c.name.toLowerCase().includes('revision') && !isCombo
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10 }}>
-                      <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Default Fee:</span>
-                      <span style={{ fontSize: 14, fontWeight: 800, color: 'var(--accent-green)' }}>
-                        Rs. {c.defaultFee.toLocaleString()}
-                      </span>
-                    </div>
-                  </div>
+                const cardBorderColor = isCombo ? '#fcd34d' : isPaper ? '#818cf8' : isRevision ? '#c084fc' : '#38bdf8'
+                const cardShadowColor = isCombo ? 'rgba(252, 211, 77, 0.20)' : isPaper ? 'rgba(129, 140, 248, 0.16)' : isRevision ? 'rgba(192, 132, 252, 0.16)' : 'rgba(56, 189, 248, 0.16)'
 
-                  {isAdmin && (
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 6, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 10 }}>
-                      <button
-                        type="button"
-                        onClick={() => handleOpenEdit(c)}
-                        className="btn-secondary"
-                        style={{ padding: '4px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
-                      >
-                        <Edit2 size={12} /> Edit
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => handleDeleteCourse(c)}
-                        style={{
-                          background: 'rgba(239,68,68,0.1)',
-                          border: '1px solid rgba(239,68,68,0.2)',
-                          color: '#ef4444',
+                return (
+                  <div
+                    key={c.code}
+                    className="stat-card"
+                    style={{
+                      padding: 18,
+                      borderRadius: 16,
+                      border: '1px solid var(--border)',
+                      borderLeft: `4px solid ${cardBorderColor}`,
+                      background: 'var(--bg-card)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      gap: 14,
+                      boxShadow: `0 4px 18px -4px ${cardShadowColor}`,
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <div>
+                      {/* Top Header: Name + Code */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                          {c.name}
+                        </div>
+                        <span style={{
+                          fontSize: 10,
+                          color: 'var(--accent-blue)',
+                          background: 'rgba(56, 189, 248, 0.15)',
+                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          padding: '2px 7px',
                           borderRadius: 6,
-                          padding: '4px 10px',
-                          fontSize: 11,
-                          cursor: 'pointer',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 4
-                        }}
-                      >
-                        <Trash2 size={12} /> Delete
-                      </button>
+                          fontWeight: 700,
+                          whiteSpace: 'nowrap'
+                        }}>
+                          {c.code}
+                        </span>
+                      </div>
+
+                      {/* Course Type Tag */}
+                      <div style={{ marginBottom: 12 }}>
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          background: isCombo ? 'rgba(245, 158, 11, 0.15)' : isPaper ? 'rgba(99, 102, 241, 0.15)' : isRevision ? 'rgba(192, 132, 252, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                          color: isCombo ? '#f59e0b' : isPaper ? '#818cf8' : isRevision ? '#c084fc' : '#10b981',
+                          border: `1px solid ${isCombo ? 'rgba(245, 158, 11, 0.3)' : isPaper ? 'rgba(99, 102, 241, 0.3)' : isRevision ? 'rgba(192, 132, 252, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
+                        }}>
+                          {isCombo ? '⚡ COMBO BUNDLE' : isPaper ? '📝 PAPER CLASS' : isRevision ? '🎯 REVISION' : '📖 THEORY'}
+                        </span>
+                      </div>
+
+                      {/* Default Fee */}
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        background: 'var(--bg-card-hover)',
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        border: '1px solid var(--border)'
+                      }}>
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Monthly Tuition:</span>
+                        <span style={{ fontSize: 16, fontWeight: 800, color: '#10b981' }}>
+                          Rs. {c.defaultFee.toLocaleString()}
+                        </span>
+                      </div>
                     </div>
-                  )}
-                </div>
-              ))}
+
+                    {isAdmin && (
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'flex-end',
+                        gap: 8,
+                        borderTop: '1px solid var(--border)',
+                        paddingTop: 12
+                      }}>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenEdit(c)}
+                          className="btn-secondary"
+                          style={{ padding: '5px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 5, fontWeight: 500 }}
+                        >
+                          <Edit2 size={13} /> Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteCourse(c)}
+                          style={{
+                            background: 'rgba(239,68,68,0.12)',
+                            border: '1px solid rgba(239,68,68,0.25)',
+                            color: '#ef4444',
+                            borderRadius: 6,
+                            padding: '5px 12px',
+                            fontSize: 12,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            fontWeight: 500
+                          }}
+                        >
+                          <Trash2 size={13} /> Delete
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
         </div>
 
-        {/* Global Summary & Quick Navigation */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-          <div className="glass-card" style={{ padding: 18 }}>
-            <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 6 }}>
-              TOTAL SYSTEM COURSES
+        {/* Global Summary & Quick Access */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+          <div style={{
+            padding: 20,
+            background: 'var(--bg-card)',
+            borderRadius: 12,
+            border: '1px solid var(--border)'
+          }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
+              CURRICULUM ARCHITECTURE
             </div>
-            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent-blue)' }}>
-              {totalCoursesCount} Active Courses
+            <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>
+              {totalCoursesCount} Active Course Streams
             </div>
-            <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-              Configured across Grades 6 through 13
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
+              Configured across Grades 5 through 13. Fee structure auto-populates in student admissions and payment receipts.
             </div>
           </div>
 
-          <div className="glass-card" style={{ padding: 18, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+          <div style={{
+            padding: 20,
+            background: 'var(--bg-card)',
+            borderRadius: 12,
+            border: '1px solid var(--border)',
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between'
+          }}>
             <div>
-              <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)', marginBottom: 4 }}>
-                QUICK ACCESS
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 4 }}>
+                QUICK NAVIGATION
               </div>
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                Test student registration or payment recording with updated courses.
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                Test student registration or record student fee payments with configured subjects:
               </div>
             </div>
-            <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
-              <a href="/students/new" className="btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }}>
-                Register Student →
+            <div style={{ display: 'flex', gap: 10, marginTop: 14, flexWrap: 'wrap' }}>
+              <a
+                href="/students/new"
+                className="btn-secondary"
+                style={{ fontSize: 12, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none', fontWeight: 600 }}
+              >
+                <UserCheck size={14} /> Register Student →
               </a>
-              <a href="/payments/add" className="btn-secondary" style={{ fontSize: 11, padding: '4px 10px' }}>
-                Add Payment →
+              <a
+                href="/payments/add"
+                className="btn-secondary"
+                style={{ fontSize: 12, padding: '7px 14px', display: 'flex', alignItems: 'center', gap: 6, textDecoration: 'none', fontWeight: 600 }}
+              >
+                <CreditCard size={14} /> Record Payment →
               </a>
             </div>
           </div>
@@ -432,18 +666,34 @@ export default function CoursesManagerPage() {
       {/* Add / Edit Course Modal */}
       {showModal && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20,
+          backdropFilter: 'blur(4px)'
         }}>
-          <div className="glass-card" style={{ maxWidth: 460, width: '100%', padding: 24 }}>
-            <h3 style={{ fontSize: 16, fontWeight: 700, margin: '0 0 16px', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Sparkles size={18} style={{ color: 'var(--accent-blue)' }} />
-              {editingCode ? 'Edit Course' : `+ Add New Course to Grade ${formGrade}`}
-            </h3>
+          <div style={{
+            maxWidth: 480, width: '100%', padding: 26, background: 'var(--bg-card)',
+            borderRadius: 16, border: '1px solid var(--border)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
+              <div style={{
+                width: 38, height: 38, borderRadius: 10, background: 'rgba(59,130,246,0.12)',
+                color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <Sparkles size={20} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>
+                  {editingCode ? 'Edit Course Stream' : `Add New Course to Grade ${formGrade}`}
+                </h3>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Set subject title, unique identifier, and default monthly tuition fee
+                </div>
+              </div>
+            </div>
 
             <form onSubmit={handleSaveForm}>
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
                   Target Grade
                 </label>
                 <select
@@ -451,6 +701,7 @@ export default function CoursesManagerPage() {
                   value={formGrade}
                   onChange={e => setFormGrade(parseInt(e.target.value))}
                   disabled={!!editingCode}
+                  style={{ width: '100%', fontWeight: 600 }}
                 >
                   {grades.map(g => (
                     <option key={g} value={g}>Grade {g}</option>
@@ -458,12 +709,13 @@ export default function CoursesManagerPage() {
                 </select>
               </div>
 
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
                   Course Name / Title <span style={{ color: 'var(--accent-red)' }}>*</span>
                 </label>
                 <input
                   className="input-field"
+                  style={{ width: '100%' }}
                   placeholder="e.g. Grade 10 — Theory"
                   value={formName}
                   onChange={e => setFormName(e.target.value)}
@@ -472,53 +724,73 @@ export default function CoursesManagerPage() {
                 />
               </div>
 
-              <div style={{ marginBottom: 12 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
                   Default Monthly Fee (Rs.) <span style={{ color: 'var(--accent-red)' }}>*</span>
                 </label>
                 <input
                   type="number"
                   className="input-field"
+                  style={{ width: '100%', fontWeight: 700, fontSize: 15 }}
                   placeholder="1800"
                   value={formFee}
                   onChange={e => setFormFee(e.target.value)}
                   required
                 />
+                {/* Fee Quick Presets */}
+                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
+                  {['1500', '1800', '2000', '2500', '3000', '3500'].map(f => (
+                    <button
+                      key={f}
+                      type="button"
+                      onClick={() => setFormFee(f)}
+                      style={{
+                        padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
+                        background: formFee === f ? 'var(--accent-blue)' : 'var(--bg-base)',
+                        color: formFee === f ? '#fff' : 'var(--text-secondary)',
+                        border: '1px solid var(--border)', cursor: 'pointer'
+                      }}
+                    >
+                      Rs. {f}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {!editingCode && (
-                <div style={{ marginBottom: 16 }}>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                <div style={{ marginBottom: 18 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
                     Custom Course Code (Optional)
                   </label>
                   <input
                     className="input-field"
+                    style={{ width: '100%' }}
                     placeholder={`e.g. GR${formGrade}_THEORY`}
                     value={formCode}
                     onChange={e => setFormCode(e.target.value)}
                   />
-                  <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Leave blank to auto-generate unique course identifier.
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                    Leave blank to automatically generate unique code.
                   </div>
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 20 }}>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 22, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
                   className="btn-secondary"
-                  style={{ padding: '8px 16px' }}
+                  style={{ padding: '8px 16px', fontWeight: 600 }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   className="btn-primary"
-                  style={{ padding: '8px 18px', fontWeight: 700 }}
+                  style={{ padding: '8px 20px', fontWeight: 700, background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)' }}
                   disabled={saving}
                 >
-                  {saving ? 'Saving...' : editingCode ? 'Save' : '+ Create'}
+                  {saving ? 'Saving...' : editingCode ? 'Save Changes' : '+ Create Course'}
                 </button>
               </div>
             </form>

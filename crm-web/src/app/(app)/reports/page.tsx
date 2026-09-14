@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   BarChart2,
@@ -40,8 +40,13 @@ export function isNewRegistrationPsCode(psCode: string | null | undefined): bool
 export default function ReportsPage() {
   const supabase = createClient()
 
-  // Primary Tab selection
-  const [activeTab, setActiveTab] = useState<'day_end' | 'matrix_report' | 'trend_analytics' | 'retention' | 'daily_audit' | 'registrations' | 'bank_revenue' | 'debts'>('day_end')
+  // Primary 4 Categorized Tab selection
+  const [activeTab, setActiveTab] = useState<'daily_operations' | 'monthly_financials' | 'growth_retention' | 'debts'>('daily_operations')
+
+  // Sub-view Tab Selections
+  const [dailySubTab, setDailySubTab] = useState<'matrix' | 'ledger' | 'staff'>('matrix')
+  const [monthlySubTab, setMonthlySubTab] = useState<'matrix' | 'bank' | 'registrations'>('matrix')
+  const [growthSubTab, setGrowthSubTab] = useState<'trends' | 'retention'>('trends')
 
   // Date filters
   const [month, setMonth] = useState(new Date().getMonth() + 1)
@@ -456,52 +461,54 @@ export default function ReportsPage() {
   }
 
   // Filtered lists for simple tabs
-  const filteredNewStudents = newStudents.filter(s => {
-    if (!searchStu.trim()) return true
+  const filteredNewStudents = useMemo(() => {
+    if (!searchStu.trim()) return newStudents
     const term = searchStu.toLowerCase()
-    return (
+    return newStudents.filter(s =>
       s.ps_code?.toLowerCase().includes(term) ||
       s.full_name?.toLowerCase().includes(term) ||
       s.household?.parent_name?.toLowerCase().includes(term) ||
       s.household?.parent_phone?.toLowerCase().includes(term)
     )
-  })
+  }, [newStudents, searchStu])
 
-  const filteredDailyPayments = dailyPayments.filter(p => {
-    if (auditorFilter && (p.recorded_by || 'System User') !== auditorFilter) {
-      return false
-    }
-    if (bankFilter) {
-      const pBank = p.bank_name || p.payment_type || ''
-      if (pBank !== bankFilter && p.payment_type !== bankFilter) {
+  const filteredDailyPayments = useMemo(() => {
+    return dailyPayments.filter(p => {
+      if (auditorFilter && (p.recorded_by || 'System User') !== auditorFilter) {
         return false
       }
-    }
-    if (!searchAudit.trim()) return true
-    const term = searchAudit.toLowerCase()
-    return (
-      p.students?.ps_code?.toLowerCase().includes(term) ||
-      p.students?.full_name?.toLowerCase().includes(term) ||
-      p.payment_type?.toLowerCase().includes(term) ||
-      p.bank_name?.toLowerCase().includes(term) ||
-      p.recorded_by?.toLowerCase().includes(term) ||
-      p.notes?.toLowerCase().includes(term)
-    )
-  })
+      if (bankFilter) {
+        const pBank = p.bank_name || p.payment_type || ''
+        if (pBank !== bankFilter && p.payment_type !== bankFilter) {
+          return false
+        }
+      }
+      if (!searchAudit.trim()) return true
+      const term = searchAudit.toLowerCase()
+      return (
+        p.students?.ps_code?.toLowerCase().includes(term) ||
+        p.students?.full_name?.toLowerCase().includes(term) ||
+        p.payment_type?.toLowerCase().includes(term) ||
+        p.bank_name?.toLowerCase().includes(term) ||
+        p.recorded_by?.toLowerCase().includes(term) ||
+        p.notes?.toLowerCase().includes(term)
+      )
+    })
+  }, [dailyPayments, auditorFilter, bankFilter, searchAudit])
 
-  const filteredDebts = outstandingList.filter(d => {
-    if (!searchDebt.trim()) return true
+  const filteredDebts = useMemo(() => {
+    if (!searchDebt.trim()) return outstandingList
     const term = searchDebt.toLowerCase()
-    return (
+    return outstandingList.filter(d =>
       d.ps_code?.toLowerCase().includes(term) ||
       d.full_name?.toLowerCase().includes(term) ||
       d.address?.toLowerCase().includes(term)
     )
-  })
+  }, [outstandingList, searchDebt])
 
-  const totalMonthlyRevenue = allPaymentsMonth.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
-  const totalDailyRevenue = dailyPayments.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
-  const totalDebtAmount = outstandingList.reduce((sum, d) => sum + Math.abs(d.current_balance || 0), 0)
+  const totalMonthlyRevenue = useMemo(() => allPaymentsMonth.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0), [allPaymentsMonth])
+  const totalDailyRevenue = useMemo(() => dailyPayments.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0), [dailyPayments])
+  const totalDebtAmount = useMemo(() => outstandingList.reduce((sum, d) => sum + Math.abs(d.current_balance || 0), 0), [outstandingList])
 
   // -------------------------------------------------------------------------
   // 1. DAY-END CALCULATIONS
@@ -1042,82 +1049,18 @@ export default function ReportsPage() {
       </div>
 
       <div className="page-content">
-        {/* Navigation Tabs */}
+        {/* 4 Clean Consolidated Navigation Tabs */}
         <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 12, flexWrap: 'wrap' }}>
           <button
-            onClick={() => setActiveTab('day_end')}
-            className={activeTab === 'day_end' ? 'btn-primary' : 'btn-secondary'}
+            onClick={() => setActiveTab('daily_operations')}
+            className={activeTab === 'daily_operations' ? 'btn-primary' : 'btn-secondary'}
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Sparkles size={16} />
-            🌅 Day-End Summary
+            🌅 Daily Operations &amp; Audit
             <span style={{
-              background: activeTab === 'day_end' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
-              color: activeTab === 'day_end' ? '#fff' : 'var(--accent-blue)',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
-            }}>
-              {selectedDate}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('matrix_report')}
-            className={activeTab === 'matrix_report' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
-          >
-            <Calendar size={16} />
-            📈 Monthly Date Matrix
-            <span style={{
-              background: activeTab === 'matrix_report' ? 'rgba(255,255,255,0.2)' : 'rgba(16,185,129,0.15)',
-              color: activeTab === 'matrix_report' ? '#fff' : '#10b981',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
-            }}>
-              {MONTH_NAMES[month - 1]}
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('trend_analytics')}
-            className={activeTab === 'trend_analytics' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
-          >
-            <LineChartIcon size={16} />
-            📊 Multi-Month Trends
-            <span style={{
-              background: activeTab === 'trend_analytics' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
-              color: activeTab === 'trend_analytics' ? '#fff' : 'var(--accent-blue)',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
-            }}>
-              {trendYear} ({selectedTrendMonths.length}M)
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('retention')}
-            className={activeTab === 'retention' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
-          >
-            <RefreshCw size={16} />
-            🔄 Retention &amp; Continuity
-            <span style={{
-              background: activeTab === 'retention' ? 'rgba(255,255,255,0.2)' : 'rgba(139,92,246,0.15)',
-              color: activeTab === 'retention' ? '#fff' : '#8b5cf6',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
-            }}>
-              Analysis
-            </span>
-          </button>
-
-          <button
-            onClick={() => setActiveTab('daily_audit')}
-            className={activeTab === 'daily_audit' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
-          >
-            <ShieldCheck size={16} />
-            Audit Log
-            <span style={{
-              background: activeTab === 'daily_audit' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
-              color: activeTab === 'daily_audit' ? '#fff' : 'var(--accent-blue)',
+              background: activeTab === 'daily_operations' ? 'rgba(255,255,255,0.2)' : 'rgba(56,189,248,0.15)',
+              color: activeTab === 'daily_operations' ? '#fff' : '#38bdf8',
               padding: '2px 8px', borderRadius: 12, fontSize: 11
             }}>
               {dailyPayments.length} slips
@@ -1125,34 +1068,34 @@ export default function ReportsPage() {
           </button>
 
           <button
-            onClick={() => setActiveTab('registrations')}
-            className={activeTab === 'registrations' ? 'btn-primary' : 'btn-secondary'}
+            onClick={() => setActiveTab('monthly_financials')}
+            className={activeTab === 'monthly_financials' ? 'btn-primary' : 'btn-secondary'}
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
-            <Users size={16} />
-            Monthly Registrations
+            <Calendar size={16} />
+            📅 Monthly Financials &amp; Matrix
             <span style={{
-              background: activeTab === 'registrations' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
-              color: activeTab === 'registrations' ? '#fff' : 'var(--accent-blue)',
+              background: activeTab === 'monthly_financials' ? 'rgba(255,255,255,0.2)' : 'rgba(74,222,128,0.15)',
+              color: activeTab === 'monthly_financials' ? '#fff' : '#4ade80',
               padding: '2px 8px', borderRadius: 12, fontSize: 11
             }}>
-              {newStudents.length}
+              {MONTH_NAMES[month - 1]}
             </span>
           </button>
 
           <button
-            onClick={() => setActiveTab('bank_revenue')}
-            className={activeTab === 'bank_revenue' ? 'btn-primary' : 'btn-secondary'}
+            onClick={() => setActiveTab('growth_retention')}
+            className={activeTab === 'growth_retention' ? 'btn-primary' : 'btn-secondary'}
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
-            <Building2 size={16} />
-            Bank Revenue
+            <LineChartIcon size={16} />
+            📈 Growth &amp; Retention Intelligence
             <span style={{
-              background: activeTab === 'bank_revenue' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
-              color: activeTab === 'bank_revenue' ? '#fff' : 'var(--accent-blue)',
+              background: activeTab === 'growth_retention' ? 'rgba(255,255,255,0.2)' : 'rgba(129,140,248,0.15)',
+              color: activeTab === 'growth_retention' ? '#fff' : '#818cf8',
               padding: '2px 8px', borderRadius: 12, fontSize: 11
             }}>
-              Rs. {totalMonthlyRevenue.toLocaleString()}
+              {trendYear}
             </span>
           </button>
 
@@ -1162,7 +1105,7 @@ export default function ReportsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <AlertCircle size={16} />
-            Debts
+            ⚠️ Outstanding Debts &amp; Arrears
             <span style={{
               background: activeTab === 'debts' ? 'rgba(255,255,255,0.2)' : 'rgba(239,68,68,0.15)',
               color: activeTab === 'debts' ? '#fff' : '#ef4444',
@@ -1174,9 +1117,9 @@ export default function ReportsPage() {
         </div>
 
         {/* ========================================================================= */}
-        {/* TAB 0: DAY-END CLASS & GRADE-WISE SUMMARY REPORT                          */}
+        {/* CATEGORY 1: DAILY OPERATIONS & AUDIT LOG                                  */}
         {/* ========================================================================= */}
-        {activeTab === 'day_end' && (
+        {activeTab === 'daily_operations' && (
           <DayEndSummaryTab
             dateRangePreset={dateRangePreset}
             startDate={startDate}
@@ -1186,8 +1129,18 @@ export default function ReportsPage() {
             applyDateRangePreset={applyDateRangePreset}
             dateFilterType={dateFilterType}
             setDateFilterType={setDateFilterType}
+            dailySubTab={dailySubTab}
+            setDailySubTab={setDailySubTab}
             dayEndRegisteredStudents={dayEndRegisteredStudents}
             dailyPayments={dailyPayments}
+            filteredDailyPayments={filteredDailyPayments}
+            auditorFilter={auditorFilter}
+            setAuditorFilter={setAuditorFilter}
+            auditorStats={auditorStats}
+            bankFilter={bankFilter}
+            setBankFilter={setBankFilter}
+            searchAudit={searchAudit}
+            setSearchAudit={setSearchAudit}
             totalDailyRevenue={totalDailyRevenue}
             allDistinctGrades={allDistinctGrades}
             dayEndGradeNewMap={dayEndGradeNewMap}
@@ -1198,581 +1151,141 @@ export default function ReportsPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 1: MONTH-BY-MONTH NEW REGISTRATIONS                                    */}
+        {/* CATEGORY 2: MONTHLY FINANCIALS, MATRIX & ADMISSIONS                       */}
         {/* ========================================================================= */}
-        {activeTab === 'registrations' && (
-          <div className="fade-in">
-            <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Registration Month</label>
-                  <select className="input-field" style={{ width: 140 }} value={month} onChange={e => setMonth(parseInt(e.target.value))}>
-                    {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Year</label>
-                  <select className="input-field" style={{ width: 100 }} value={year} onChange={e => setYear(parseInt(e.target.value))}>
-                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                </div>
-                <div style={{ width: 220 }}>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Search Student / PS</label>
-                  <div style={{ position: 'relative' }}>
-                    <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                    <input className="search-bar" style={{ paddingLeft: 32 }} placeholder="Search PS code or name..."
-                      value={searchStu} onChange={e => setSearchStu(e.target.value)} />
-                  </div>
-                </div>
-              </div>
+        {activeTab === 'monthly_financials' && (
+          <MonthlyMatrixTab
+            month={month}
+            setMonth={setMonth}
+            year={year}
+            setYear={setYear}
+            monthlySubTab={monthlySubTab}
+            setMonthlySubTab={setMonthlySubTab}
+            matrixMode={matrixMode}
+            setMatrixMode={setMatrixMode}
+            cumulativeMatrixRows={cumulativeMatrixRows}
+            bankRevenue={bankRevenue}
+            methodRevenue={methodRevenue}
+            totalMonthlyRevenue={totalMonthlyRevenue}
+            allPaymentsMonth={allPaymentsMonth}
+            newStudents={newStudents}
+            filteredNewStudents={filteredNewStudents}
+            gradeStats={gradeStats}
+            searchStu={searchStu}
+            setSearchStu={setSearchStu}
+          />
+        )}
 
-              <div>
+        {/* ========================================================================= */}
+        {/* CATEGORY 3: GROWTH & RETENTION INTELLIGENCE                               */}
+        {/* ========================================================================= */}
+        {activeTab === 'growth_retention' && (
+          <div className="fade-in">
+            {/* Sub-view switcher for Growth & Retention */}
+            <div className="glass-card" style={{ padding: '12px 18px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12 }}>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button
-                  onClick={() => {
-                    const headers = ['PS CODE', 'STUDENT NAME', 'GRADE', 'PARENT NAME', 'PHONE', 'ADDRESS', 'ENROLLED CLASSES', 'REGISTERED DATE', 'REGISTERED BY']
-                    const rows = filteredNewStudents.map(s => [
-                      `"${s.ps_code}"`,
-                      `"${(s.full_name || '').replace(/"/g, '""')}"`,
-                      `"Grade ${s.grade || '?'}"`,
-                      `"${(s.household?.parent_name || '').replace(/"/g, '""')}"`,
-                      `"${(s.household?.parent_phone || '').replace(/"/g, '""')}"`,
-                      `"${(s.household?.address || '').replace(/"/g, '""')}"`,
-                      `"${(s.enrollments || []).map((e: any) => CLASS_LABELS[e.class_type] || e.class_type).join('; ')}"`,
-                      `"${new Date(s.created_at).toLocaleDateString()}"`,
-                      `"${s.created_by || 'System'}"`
-                    ])
-                    exportTableToCsv(`New_Registrations_${MONTH_NAMES[month - 1]}_${year}`, headers, rows)
+                  type="button"
+                  onClick={() => setGrowthSubTab('trends')}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: growthSubTab === 'trends' ? 'var(--accent-blue)' : 'var(--bg-base)',
+                    color: growthSubTab === 'trends' ? '#fff' : 'var(--text-secondary)'
                   }}
-                  className="btn-primary"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
                 >
-                  <FileSpreadsheet size={16} /> Export Excel
+                  <LineChartIcon size={16} />
+                  📊 Multi-Month Interactive Trends ({trendYear})
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setGrowthSubTab('retention')}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: 13,
+                    fontWeight: 700,
+                    borderRadius: 8,
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    background: growthSubTab === 'retention' ? 'var(--accent-blue)' : 'var(--bg-base)',
+                    color: growthSubTab === 'retention' ? '#fff' : 'var(--text-secondary)'
+                  }}
+                >
+                  <RefreshCw size={16} />
+                  🔄 Month Retention &amp; Churn Analyzer
                 </button>
               </div>
+
+              <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Comparing year {trendYear} performance metrics
+              </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 20 }}>
-              <div className="stat-card" style={{ padding: '12px 14px' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total New</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{newStudents.length}</div>
-              </div>
-              {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
-                <div key={g} className="stat-card" style={{ padding: '12px 14px' }}>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Grade {g}</div>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: (gradeStats[g] || 0) > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                    {gradeStats[g] || 0}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="glass-card" style={{ overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Users size={16} style={{ color: 'var(--accent-blue)' }} />
-                  New Registered Students in {MONTH_NAMES[month - 1]} {year} ({filteredNewStudents.length} Records)
-                </div>
-              </div>
-
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>PS Code</th>
-                      <th>Student / Child Name</th>
-                      <th>Grade</th>
-                      <th>Enrolled Classes</th>
-                      <th>Parent Contact &amp; Delivery Address</th>
-                      <th>Registered On</th>
-                      <th>Registered By</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredNewStudents.map(s => (
-                      <tr key={s.id}>
-                        <td>
-                          <a
-                            href={`/students/${encodeURIComponent(s.ps_code)}`}
-                            style={{ color: 'var(--accent-blue)', fontWeight: 700, textDecoration: 'none', letterSpacing: 0.5 }}
-                          >
-                            {s.ps_code}
-                          </a>
-                        </td>
-                        <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {s.full_name || '—'}
-                        </td>
-                        <td>
-                          <span className="badge" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
-                            Grade {s.grade || '?'}
-                          </span>
-                        </td>
-                        <td style={{ fontSize: 12 }}>
-                          {(s.enrollments || []).length > 0 ? (
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                              {(s.enrollments || []).map((e: any) => (
-                                <span key={e.id} style={{ color: 'var(--text-secondary)' }}>
-                                • {CLASS_LABELS[e.class_type] || e.class_type}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span style={{ color: 'var(--text-muted)' }}>No active classes</span>
-                          )}
-                        </td>
-                        <td>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                            {s.household?.parent_name || '—'}
-                          </div>
-                          {s.household?.parent_phone && (
-                            <div style={{ fontSize: 11, color: 'var(--accent-blue)' }}>📞 {s.household.parent_phone}</div>
-                          )}
-                          {s.household?.address && (
-                            <div style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 220, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              📍 {s.household.address}
-                            </div>
-                          )}
-                        </td>
-                        <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                          {new Date(s.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
-                          {s.created_by || 'Admin / System'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {filteredNewStudents.length === 0 && (
-                <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-                  <Users size={32} style={{ margin: '0 auto 10px', opacity: 0.3 }} />
-                  <div>No new student registrations recorded in {MONTH_NAMES[month - 1]} {year}.</div>
-                </div>
-              )}
-            </div>
+            {growthSubTab === 'trends' ? (
+              <MultiMonthTrendsTab
+                trendYear={trendYear}
+                setTrendYear={setTrendYear}
+                trendMetric={trendMetric}
+                setTrendMetric={setTrendMetric}
+                selectedTrendMonths={selectedTrendMonths}
+                setSelectedTrendMonths={setSelectedTrendMonths}
+                activeTrendGrades={activeTrendGrades}
+                setActiveTrendGrades={setActiveTrendGrades}
+                trendHoverPoint={trendHoverPoint}
+                setTrendHoverPoint={setTrendHoverPoint}
+                trendMonthlySeries={trendMonthlySeries}
+                trendMoMTable={trendMoMTable}
+                chartMaxVal={chartMaxVal}
+                svgWidth={svgWidth}
+                svgHeight={svgHeight}
+                padLeft={padLeft}
+                padRight={padRight}
+                padTop={padTop}
+                padBottom={padBottom}
+                plotWidth={plotWidth}
+                plotHeight={plotHeight}
+              />
+            ) : (
+              <RetentionAnalyzerTab
+                month={month}
+                setMonth={setMonth}
+                year={year}
+                setYear={setYear}
+                totalPrevPaid={totalPrevPaid}
+                totalCurrPaid={totalCurrPaid}
+                totalRetained={totalRetained}
+                totalDropped={totalDropped}
+                totalNewPaying={totalNewPaying}
+                overallRetentionRate={overallRetentionRate}
+                overallChurnRate={overallChurnRate}
+                potentialLostRevenue={potentialLostRevenue}
+                gradeRetentionMatrix={gradeRetentionMatrix}
+                filteredRetentionList={filteredRetentionList}
+                allRetentionCombined={allRetentionCombined}
+                retentionGradeFilter={retentionGradeFilter}
+                setRetentionGradeFilter={setRetentionGradeFilter}
+                retentionStatusFilter={retentionStatusFilter}
+                setRetentionStatusFilter={setRetentionStatusFilter}
+                searchRetention={searchRetention}
+                setSearchRetention={setSearchRetention}
+              />
+            )}
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: BANK-WISE TOTAL REVENUE                                            */}
-        {/* ========================================================================= */}
-        {activeTab === 'bank_revenue' && (
-          <div className="fade-in">
-            <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', gap: 14, alignItems: 'center' }}>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Month</label>
-                  <select className="input-field" style={{ width: 140 }} value={month} onChange={e => setMonth(parseInt(e.target.value))}>
-                    {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Year</label>
-                  <select className="input-field" style={{ width: 100 }} value={year} onChange={e => setYear(parseInt(e.target.value))}>
-                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-                  </select>
-                </div>
-              </div>
-
-              <div>
-                <button
-                  onClick={() => {
-                    const headers = ['BANK NAME', 'TRANSACTIONS COUNT', 'TOTAL REVENUE (RS)', 'SHARE %']
-                    const rows = bankRevenue.map(b => [
-                      `"${b.bank}"`,
-                      `"${b.count}"`,
-                      `"${b.total}"`,
-                      `"${totalMonthlyRevenue > 0 ? ((b.total / totalMonthlyRevenue) * 100).toFixed(1) : 0}%"`
-                    ])
-                    exportTableToCsv(`Bank_Revenue_${MONTH_NAMES[month - 1]}_${year}`, headers, rows)
-                  }}
-                  className="btn-primary"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <FileSpreadsheet size={16} /> Export CSV
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
-              <div className="stat-card">
-                <div className="stat-card label">Total Collected ({MONTH_NAMES[month - 1]})</div>
-                <div className="stat-card value" style={{ color: 'var(--text-primary)' }}>Rs. {totalMonthlyRevenue.toLocaleString()}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Total {allPaymentsMonth.length} class payment records</div>
-              </div>
-
-              <div className="stat-card">
-                <div className="stat-card label">Top Bank Revenue</div>
-                <div className="stat-card value" style={{ color: 'var(--text-primary)', fontSize: 20 }}>
-                  {bankRevenue[0]?.bank || 'None'}: Rs. {(bankRevenue[0]?.total || 0).toLocaleString()}
-                </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{bankRevenue[0]?.count || 0} deposits</div>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
-              <div className="glass-card" style={{ padding: 20 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Building2 size={18} style={{ color: 'var(--accent-blue)' }} />
-                  Bank-Wise Revenue Breakdown
-                </div>
-
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Bank Name</th>
-                      <th style={{ textAlign: 'center' }}>Transactions</th>
-                      <th style={{ textAlign: 'right' }}>Total Revenue (Rs.)</th>
-                      <th style={{ textAlign: 'right' }}>% Share</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {bankRevenue.map(b => {
-                      const share = totalMonthlyRevenue > 0 ? ((b.total / totalMonthlyRevenue) * 100).toFixed(1) : '0.0'
-                      return (
-                        <tr key={b.bank}>
-                          <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                            🏛 {b.bank}
-                          </td>
-                          <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                            {b.count} slips
-                          </td>
-                          <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
-                            Rs. {b.total.toLocaleString()}
-                          </td>
-                          <td style={{ textAlign: 'right', fontSize: 12, color: 'var(--accent-blue)', fontWeight: 600 }}>
-                            {share}%
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="glass-card" style={{ padding: 20 }}>
-                <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Layers size={18} style={{ color: 'var(--accent-blue)' }} />
-                  Payment Channels &amp; Types
-                </div>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                  {methodRevenue.map(m => {
-                    const share = totalMonthlyRevenue > 0 ? ((m.total / totalMonthlyRevenue) * 100).toFixed(1) : '0.0'
-                    return (
-                      <div key={m.method} style={{ padding: 14, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-                          <span className="badge" style={{ fontSize: 12, fontWeight: 700, background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
-                            {m.method}
-                          </span>
-                          <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>
-                            Rs. {m.total.toLocaleString()}
-                          </span>
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--text-muted)' }}>
-                          <span>{m.count} payments processed</span>
-                          <span>{share}% of month</span>
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 3: DATE-WISE DAILY PAYMENT AUDIT REPORT                               */}
-        {/* ========================================================================= */}
-        {activeTab === 'daily_audit' && (
-          <div className="fade-in">
-            <div className="glass-card" style={{ padding: 18, marginBottom: 20 }}>
-              <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 14 }}>
-                <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', flexWrap: 'wrap' }}>
-                  
-                  {/* Preset Pills */}
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Audit Period
-                    </label>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                      <button
-                        type="button"
-                        onClick={() => applyDateRangePreset('today')}
-                        className={dateRangePreset === 'today' ? 'btn-primary' : 'btn-secondary'}
-                        style={{ padding: '6px 12px', fontSize: 12 }}
-                      >
-                        Today
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyDateRangePreset('yesterday')}
-                        className={dateRangePreset === 'yesterday' ? 'btn-primary' : 'btn-secondary'}
-                        style={{ padding: '6px 12px', fontSize: 12 }}
-                      >
-                        Yesterday
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyDateRangePreset('last7')}
-                        className={dateRangePreset === 'last7' ? 'btn-primary' : 'btn-secondary'}
-                        style={{ padding: '6px 12px', fontSize: 12 }}
-                      >
-                        Last 7 Days
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyDateRangePreset('this_month')}
-                        className={dateRangePreset === 'this_month' ? 'btn-primary' : 'btn-secondary'}
-                        style={{ padding: '6px 12px', fontSize: 12 }}
-                      >
-                        This Month
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyDateRangePreset('last_month')}
-                        className={dateRangePreset === 'last_month' ? 'btn-primary' : 'btn-secondary'}
-                        style={{ padding: '6px 12px', fontSize: 12 }}
-                      >
-                        Last Month
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => applyDateRangePreset('custom')}
-                        className={dateRangePreset === 'custom' ? 'btn-primary' : 'btn-secondary'}
-                        style={{ padding: '6px 12px', fontSize: 12 }}
-                      >
-                        Custom Range ▾
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Date Pickers (From / To) */}
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'flex-end' }}>
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                        From
-                      </label>
-                      <input
-                        type="date"
-                        className="input-field"
-                        style={{ width: 145 }}
-                        value={startDate}
-                        onChange={e => {
-                          setStartDate(e.target.value)
-                          applyDateRangePreset('custom')
-                        }}
-                      />
-                    </div>
-                    <span style={{ paddingBottom: 8, color: 'var(--text-muted)', fontWeight: 700 }}>➔</span>
-                    <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                        To
-                      </label>
-                      <input
-                        type="date"
-                        className="input-field"
-                        style={{ width: 145 }}
-                        value={endDate}
-                        onChange={e => {
-                          setEndDate(e.target.value)
-                          applyDateRangePreset('custom')
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Audit By
-                    </label>
-                    <select
-                      className="input-field"
-                      style={{ width: 170 }}
-                      value={dateFilterType}
-                      onChange={e => setDateFilterType(e.target.value as any)}
-                    >
-                      <option value="created_at">System Entry Time</option>
-                      <option value="date_paid">Slip Paid Date</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Filter Auditor
-                    </label>
-                    <select
-                      className="input-field"
-                      style={{ width: 160 }}
-                      value={auditorFilter}
-                      onChange={e => setAuditorFilter(e.target.value)}
-                    >
-                      <option value="">All Auditors ({dailyPayments.length})</option>
-                      {Object.keys(auditorStats).map(who => (
-                        <option key={who} value={who}>{who} ({auditorStats[who].count})</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                      Bank / Method
-                    </label>
-                    <select
-                      className="input-field"
-                      style={{ width: 160 }}
-                      value={bankFilter}
-                      onChange={e => setBankFilter(e.target.value)}
-                    >
-                      <option value="">All Banks &amp; Methods</option>
-                      {Array.from(new Set(dailyPayments.map(p => p.bank_name || p.payment_type).filter(Boolean))).sort().map(b => (
-                        <option key={b} value={b}>{b}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <button
-                    onClick={() => {
-                      const headers = ['PS CODE', 'STUDENT NAME', 'CLASS', 'AMOUNT (RS)', 'PAYMENT TYPE', 'BANK', 'AUDITOR (RECORDED BY)', 'ENTRY DATE & TIME', 'SLIP DATE', 'DELIVERY', 'NOTES']
-                      const rows = filteredDailyPayments.map(p => [
-                        `"${p.students?.ps_code || ''}"`,
-                        `"${(p.students?.full_name || '').replace(/"/g, '""')}"`,
-                        `"${CLASS_LABELS[p.class_type] || p.class_type}"`,
-                        `"${p.amount_paid || 0}"`,
-                        `"${p.payment_type || 'BANK'}"`,
-                        `"${p.bank_name || ''}"`,
-                        `"${p.recorded_by || 'System'}"`,
-                        `"${new Date(p.created_at).toLocaleString()}"`,
-                        `"${p.date_paid || ''}"`,
-                        `"${(p.notes || '').includes('[DISPATCHED:') ? 'Dispatched' : p.tute_delivered ? 'Ready to Export' : 'No Delivery'}"`,
-                        `"${(p.notes || '').replace(/"/g, '""')}"`
-                      ])
-                      const fileSuffix = startDate === endDate ? startDate : `${startDate}_to_${endDate}`
-                      exportTableToCsv(`Audit_Log_${fileSuffix}`, headers, rows)
-                    }}
-                    className="btn-primary"
-                    style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-                  >
-                    <FileSpreadsheet size={16} /> Export CSV
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ position: 'relative' }}>
-                <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input
-                  type="text"
-                  className="input-field"
-                  style={{ paddingLeft: 36, width: '100%' }}
-                  placeholder="Search slips by PS Code, Student Name, Bank, Auditor..."
-                  value={searchAudit}
-                  onChange={e => setSearchAudit(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
-              <div className="stat-card">
-                <div className="stat-card label">Total Collected ({startDate === endDate ? startDate : `${startDate} to ${endDate}`})</div>
-                <div className="stat-card value" style={{ color: 'var(--text-primary)' }}>Rs. {totalDailyRevenue.toLocaleString()}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{dailyPayments.length} slips audited</div>
-              </div>
-
-              {Object.entries(auditorStats).map(([who, data]) => (
-                <div key={who} className="stat-card">
-                  <div className="stat-card label">Auditor: {who}</div>
-                  <div className="stat-card value" style={{ color: 'var(--text-primary)', fontSize: 20 }}>
-                    Rs. {data.total.toLocaleString()}
-                  </div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{data.count} slips marked</div>
-                </div>
-              ))}
-            </div>
-
-            <div className="glass-card" style={{ overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <ShieldCheck size={16} style={{ color: 'var(--accent-blue)' }} />
-                  Payments Logged ({startDate === endDate ? startDate : `${startDate} to ${endDate}`}) — {filteredDailyPayments.length} Slips
-                </div>
-              </div>
-
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>PS Code</th>
-                      <th>Student Name</th>
-                      <th>Class</th>
-                      <th>Amount Paid</th>
-                      <th>Method &amp; Bank</th>
-                      <th>Auditor (Recorded By)</th>
-                      <th>Time</th>
-                      <th>Delivery / Dispatch</th>
-                      <th>Notes</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDailyPayments.map(p => (
-                      <tr key={p.id}>
-                        <td>
-                          <a href={`/students/${encodeURIComponent(p.students?.ps_code || '')}`} style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 700 }}>
-                            {p.students?.ps_code || '—'}
-                          </a>
-                        </td>
-                        <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                          {p.students?.full_name || '—'}
-                        </td>
-                        <td style={{ fontSize: 12 }}>
-                          {CLASS_LABELS[p.class_type] || p.class_type} (Gr {p.students?.grade || '?'})
-                        </td>
-                        <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
-                          Rs. {Number(p.amount_paid || 0).toLocaleString()}
-                        </td>
-                        <td>
-                          <span className="badge" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)' }}>
-                            {p.payment_type || 'BANK'} {p.bank_name ? `(${p.bank_name})` : ''}
-                          </span>
-                        </td>
-                        <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                          🔒 {p.recorded_by || 'Admin / System'}
-                        </td>
-                        <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          {new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                        </td>
-                        <td style={{ fontSize: 11 }}>
-                          {(p.notes || '').includes('[DISPATCHED:') ? (
-                            <span style={{ color: '#10b981', fontWeight: 600 }}>
-                              ✓ Dispatched ({p.notes.match(/\[DISPATCHED:\s*([^\]]+)\]/)?.[1] || 'Batch'})
-                            </span>
-                          ) : p.tute_delivered ? (
-                            <span style={{ color: '#f59e0b', fontWeight: 600 }}>
-                              📦 Ready to Export (Pending Dispatch)
-                            </span>
-                          ) : (
-                            <span style={{ color: 'var(--text-muted)' }}>
-                              — No Postal Delivery
-                            </span>
-                          )}
-                        </td>
-                        <td style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 180, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {p.notes ? p.notes.replace(/\[DISPATCHED:[^\]]+\]/g, '').trim() || '—' : '—'}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 4: OUTSTANDING DEBTS TABLE                                            */}
+        {/* CATEGORY 4: OUTSTANDING DEBTS TABLE                                       */}
         {/* ========================================================================= */}
         {activeTab === 'debts' && (
           <div className="fade-in">
@@ -1809,16 +1322,16 @@ export default function ReportsPage() {
             </div>
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
-              <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
+              <div className="stat-card" style={{ borderLeft: '4px solid #f87171', boxShadow: '0 4px 20px -4px rgba(248, 113, 113, 0.25)' }}>
                 <div className="stat-card label">Total Outstanding Portfolio Debt</div>
-                <div className="stat-card value" style={{ color: '#ef4444' }}>Rs. {totalDebtAmount.toLocaleString()}</div>
+                <div className="stat-card value" style={{ color: '#f87171' }}>Rs. {totalDebtAmount.toLocaleString()}</div>
                 <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{outstandingList.length} student ledger balances in debt</div>
               </div>
             </div>
 
             <div className="glass-card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, color: '#f87171', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <AlertCircle size={16} /> Students with Outstanding Debt ({filteredDebts.length} Records)
                 </div>
               </div>
@@ -1846,7 +1359,7 @@ export default function ReportsPage() {
                         <td style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{item.full_name || '—'}</td>
                         <td>Gr {item.grade || '—'}</td>
                         <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{CLASS_LABELS[item.class_type] || item.class_type}</td>
-                        <td style={{ color: '#ef4444', fontWeight: 800, fontSize: 14 }}>Rs. {Math.abs(item.current_balance).toLocaleString()}</td>
+                        <td style={{ color: '#f87171', fontWeight: 800, fontSize: 14 }}>Rs. {Math.abs(item.current_balance).toLocaleString()}</td>
                         <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.address || '—'}</td>
                       </tr>
                     ))}
@@ -1855,79 +1368,6 @@ export default function ReportsPage() {
               </div>
             </div>
           </div>
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 5: MONTHLY CUMULATIVE DATE-BY-DATE GRADE PROGRESSION MATRIX           */}
-        {/* ========================================================================= */}
-        {activeTab === 'matrix_report' && (
-          <MonthlyMatrixTab
-            month={month}
-            setMonth={setMonth}
-            year={year}
-            setYear={setYear}
-            matrixMode={matrixMode}
-            setMatrixMode={setMatrixMode}
-            cumulativeMatrixRows={cumulativeMatrixRows}
-          />
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 6: STUDENT PAYMENT RETENTION & CONTINUITY ANALYZER                     */}
-        {/* ========================================================================= */}
-        {activeTab === 'retention' && (
-          <RetentionAnalyzerTab
-            month={month}
-            setMonth={setMonth}
-            year={year}
-            setYear={setYear}
-            totalPrevPaid={totalPrevPaid}
-            totalCurrPaid={totalCurrPaid}
-            totalRetained={totalRetained}
-            totalDropped={totalDropped}
-            totalNewPaying={totalNewPaying}
-            overallRetentionRate={overallRetentionRate}
-            overallChurnRate={overallChurnRate}
-            potentialLostRevenue={potentialLostRevenue}
-            gradeRetentionMatrix={gradeRetentionMatrix}
-            filteredRetentionList={filteredRetentionList}
-            allRetentionCombined={allRetentionCombined}
-            retentionGradeFilter={retentionGradeFilter}
-            setRetentionGradeFilter={setRetentionGradeFilter}
-            retentionStatusFilter={retentionStatusFilter}
-            setRetentionStatusFilter={setRetentionStatusFilter}
-            searchRetention={searchRetention}
-            setSearchRetention={setSearchRetention}
-          />
-        )}
-
-        {/* ========================================================================= */}
-        {/* TAB 7: MULTI-MONTH BUSINESS TRENDS & MULTI-LINE GROWTH ANALYTICS          */}
-        {/* ========================================================================= */}
-        {activeTab === 'trend_analytics' && (
-          <MultiMonthTrendsTab
-            trendYear={trendYear}
-            setTrendYear={setTrendYear}
-            trendMetric={trendMetric}
-            setTrendMetric={setTrendMetric}
-            selectedTrendMonths={selectedTrendMonths}
-            setSelectedTrendMonths={setSelectedTrendMonths}
-            activeTrendGrades={activeTrendGrades}
-            setActiveTrendGrades={setActiveTrendGrades}
-            trendHoverPoint={trendHoverPoint}
-            setTrendHoverPoint={setTrendHoverPoint}
-            trendMonthlySeries={trendMonthlySeries}
-            trendMoMTable={trendMoMTable}
-            chartMaxVal={chartMaxVal}
-            svgWidth={svgWidth}
-            svgHeight={svgHeight}
-            padLeft={padLeft}
-            padRight={padRight}
-            padTop={padTop}
-            padBottom={padBottom}
-            plotWidth={plotWidth}
-            plotHeight={plotHeight}
-          />
         )}
       </div>
     </div>

@@ -1,5 +1,6 @@
 'use client'
 
+import { useState } from 'react'
 import {
   Printer,
   FileSpreadsheet,
@@ -7,7 +8,9 @@ import {
   TrendingUp,
   Users,
   Search,
-  Phone
+  Phone,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react'
 import { MONTH_NAMES } from '@/lib/types'
 import { exportTableToCsv, sanitizePhoneForWhatsApp, TARGET_GRADES } from '@/lib/reports-analytics'
@@ -60,6 +63,12 @@ export default function RetentionAnalyzerTab({
   setSearchRetention
 }: RetentionAnalyzerTabProps) {
   const matrixTargetGrades = TARGET_GRADES
+  const [currentPage, setCurrentPage] = useState(1)
+  const pageSize = 50
+
+  const totalPages = Math.max(1, Math.ceil(filteredRetentionList.length / pageSize))
+  const safePage = Math.min(currentPage, totalPages)
+  const paginatedList = filteredRetentionList.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   return (
     <div className="fade-in">
@@ -143,30 +152,30 @@ export default function RetentionAnalyzerTab({
 
       {/* Top 4 KPI Executive Metric Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: 14, marginBottom: 20 }}>
-        <div className="stat-card" style={{ borderLeft: '4px solid #3b82f6' }}>
+        <div className="stat-card" style={{ borderLeft: '4px solid #38bdf8', boxShadow: '0 4px 20px -4px rgba(56, 189, 248, 0.25)' }}>
           <div className="stat-card label">Paid Last Month ({MONTH_NAMES[month === 1 ? 11 : month - 2]})</div>
-          <div className="stat-card value" style={{ color: '#3b82f6', fontSize: 24 }}>
+          <div className="stat-card value" style={{ color: '#38bdf8', fontSize: 24 }}>
             {totalPrevPaid} Students
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Baseline cohort paying pool</div>
         </div>
 
-        <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+        <div className="stat-card" style={{ borderLeft: '4px solid #4ade80', boxShadow: '0 4px 20px -4px rgba(74, 222, 128, 0.25)' }}>
           <div className="stat-card label">🟢 Retained This Month</div>
-          <div className="stat-card value" style={{ color: '#10b981', fontSize: 24 }}>
+          <div className="stat-card value" style={{ color: '#4ade80', fontSize: 24 }}>
             {totalRetained} Students
-            <span style={{ fontSize: 14, fontWeight: 600, marginLeft: 8, color: '#10b981' }}>
+            <span style={{ fontSize: 14, fontWeight: 600, marginLeft: 8, color: '#4ade80' }}>
               ({overallRetentionRate}%)
             </span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Paid both last &amp; this month</div>
         </div>
 
-        <div className="stat-card" style={{ borderLeft: '4px solid #ef4444' }}>
+        <div className="stat-card" style={{ borderLeft: '4px solid #f87171', boxShadow: '0 4px 20px -4px rgba(248, 113, 113, 0.25)' }}>
           <div className="stat-card label">🔴 Dropped / Unpaid (Churn)</div>
-          <div className="stat-card value" style={{ color: '#ef4444', fontSize: 24 }}>
+          <div className="stat-card value" style={{ color: '#f87171', fontSize: 24 }}>
             {totalDropped} Students
-            <span style={{ fontSize: 14, fontWeight: 600, marginLeft: 8, color: '#ef4444' }}>
+            <span style={{ fontSize: 14, fontWeight: 600, marginLeft: 8, color: '#f87171' }}>
               ({overallChurnRate}%)
             </span>
           </div>
@@ -175,13 +184,13 @@ export default function RetentionAnalyzerTab({
           </div>
         </div>
 
-        <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+        <div className="stat-card" style={{ borderLeft: '4px solid #fcd34d', boxShadow: '0 4px 20px -4px rgba(245, 158, 11, 0.25)' }}>
           <div className="stat-card label">🔵 New Paying Students</div>
           <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 24 }}>
             +{totalNewPaying} Students
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            Net Student Change: <strong style={{ color: totalCurrPaid >= totalPrevPaid ? '#10b981' : '#ef4444' }}>
+            Net Student Change: <strong style={{ color: totalCurrPaid >= totalPrevPaid ? '#4ade80' : '#f87171' }}>
               {totalCurrPaid >= totalPrevPaid ? `+${totalCurrPaid - totalPrevPaid}` : `${totalCurrPaid - totalPrevPaid}`} Students
             </strong>
           </div>
@@ -433,7 +442,7 @@ export default function RetentionAnalyzerTab({
               </tr>
             </thead>
             <tbody>
-              {filteredRetentionList.map(s => {
+              {paginatedList.map(s => {
                 const waPhone = sanitizePhoneForWhatsApp(s.parent_phone)
 
                 return (
@@ -514,6 +523,46 @@ export default function RetentionAnalyzerTab({
             </tbody>
           </table>
         </div>
+
+        {/* Pagination Bar */}
+        {filteredRetentionList.length > pageSize && (
+          <div style={{
+            padding: '12px 20px',
+            borderTop: '1px solid var(--border)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            background: 'var(--bg-base)'
+          }}>
+            <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+              Showing {((safePage - 1) * pageSize) + 1} – {Math.min(safePage * pageSize, filteredRetentionList.length)} of {filteredRetentionList.length} students
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={safePage <= 1}
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                <ChevronLeft size={14} /> Previous
+              </button>
+              <span style={{ fontSize: 12, fontWeight: 700, padding: '0 8px', color: 'var(--text-primary)' }}>
+                Page {safePage} of {totalPages}
+              </span>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={safePage >= totalPages}
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                style={{ padding: '6px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4 }}
+              >
+                Next <ChevronRight size={14} />
+              </button>
+            </div>
+          </div>
+        )}
 
         {filteredRetentionList.length === 0 && (
           <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)' }}>

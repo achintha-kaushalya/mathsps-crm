@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   Users, Phone, TrendingUp, Activity, BarChart2,
@@ -151,13 +151,27 @@ export default function AnalyticsDashboard() {
     }
   }
 
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
+
   useEffect(() => {
     loadData()
+
+    const handleRealtimeChange = () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+      debounceTimerRef.current = setTimeout(() => {
+        loadData()
+      }, 1500)
+    }
+
     const ch = supabase.channel('analytics-rt')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, loadData)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, loadData)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, handleRealtimeChange)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'payments' }, handleRealtimeChange)
       .subscribe()
-    return () => { supabase.removeChannel(ch) }
+
+    return () => {
+      if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
+      supabase.removeChannel(ch)
+    }
   }, [])
 
   // Helper to extract grade numbers
@@ -382,28 +396,138 @@ export default function AnalyticsDashboard() {
   }
 
   return (
-    <div className="fade-in" style={{ paddingBottom: 60 }}>
-      {/* ── Page Header ─────────────────────────────────── */}
-      <div className="page-header">
-        <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <BarChart2 size={22} style={{ color: 'var(--accent-blue)' }} />
-            Admin CRM &amp; Lead Analytics Dashboard
-          </h1>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-            Lead Tracking · Day-by-Day Performance · Master Paid Conversions by Member &amp; Grade
+    <div className="fade-in" style={{ paddingBottom: 60, fontFamily: 'inherit' }}>
+      {/* ── Radiant Welcome Hero Banner (Exact Match to LMS Student/Staff Reference) ── */}
+      <div style={{
+        position: 'relative',
+        background: 'linear-gradient(135deg, #0284c7 0%, #2563eb 50%, #7c3aed 100%)',
+        borderRadius: 22,
+        padding: '28px 32px',
+        color: '#ffffff',
+        marginBottom: 24,
+        overflow: 'hidden',
+        boxShadow: '0 20px 40px -15px rgba(2, 132, 199, 0.35)'
+      }}>
+        {/* Glow orb */}
+        <div style={{
+          position: 'absolute',
+          top: -60,
+          right: 40,
+          width: 220,
+          height: 220,
+          borderRadius: '50%',
+          background: 'rgba(255, 255, 255, 0.18)',
+          filter: 'blur(40px)',
+          pointerEvents: 'none'
+        }} />
+
+        <div style={{ position: 'relative', zIndex: 2 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+            <div>
+              <h1 style={{ fontSize: 26, fontWeight: 800, margin: '0 0 6px', color: '#ffffff', display: 'flex', alignItems: 'center', gap: 10 }}>
+                Welcome back, Prabuddha! 👋
+              </h1>
+              <p style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.85)', margin: 0 }}>
+                Ready to continue institutional operations and lead management today?
+              </p>
+            </div>
+
+            {/* Live Clock & Translucent Metric Stat Pills (Matching Reference) */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.18)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                padding: '10px 18px',
+                borderRadius: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10
+              }}>
+                <span style={{ fontSize: 11, color: 'rgba(255, 255, 255, 0.8)', fontWeight: 700, textTransform: 'uppercase' }}>Total Leads</span>
+                <strong style={{ fontSize: 16, color: '#ffffff' }}>{totalFiltered.toLocaleString()}</strong>
+              </div>
+
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.18)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255, 255, 255, 0.25)',
+                padding: '10px 18px',
+                borderRadius: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10
+              }}>
+                <span style={{ fontSize: 11, color: '#a7f3d0', fontWeight: 700, textTransform: 'uppercase' }}>Converted</span>
+                <strong style={{ fontSize: 16, color: '#ffffff' }}>{convertedCount.toLocaleString()}</strong>
+              </div>
+
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.22)',
+                backdropFilter: 'blur(12px)',
+                WebkitBackdropFilter: 'blur(12px)',
+                border: '1px solid rgba(255, 255, 255, 0.35)',
+                padding: '10px 18px',
+                borderRadius: 16,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}>
+                <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#34d399', boxShadow: '0 0 8px #34d399' }} />
+                <span style={{ fontSize: 13, fontWeight: 800, color: '#ffffff', letterSpacing: '0.5px' }}>
+                  {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Learning Motivation / Daily Progress Alert Bar ── */}
+      <div className="glass-card" style={{
+        borderRadius: 16,
+        padding: '14px 20px',
+        marginBottom: 20,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        border: '1px solid rgba(245, 158, 11, 0.3)',
+        boxShadow: '0 4px 20px -5px rgba(245, 158, 11, 0.12)',
+        flexWrap: 'wrap',
+        gap: 12
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          <div style={{
+            width: 38,
+            height: 38,
+            borderRadius: 10,
+            background: 'rgba(245, 158, 11, 0.15)',
+            color: '#f59e0b',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 20
+          }}>
+            🎯
+          </div>
+          <div>
+            <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-primary)' }}>
+              Today&apos;s Lead Growth &amp; Telephony Target
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+              Keep follow-ups warm and update payment status for all confirmed students!
+            </div>
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
           <button className="btn-secondary" onClick={loadData} disabled={refreshing}
-            style={{ padding: '5px 12px', fontSize: 12, display: 'flex', gap: 6, alignItems: 'center' }}>
-            <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none' }} />
-            {refreshing ? 'Refreshing…' : 'Refresh'}
+            style={{ padding: '7px 16px', fontSize: 12, display: 'flex', gap: 6, alignItems: 'center', borderRadius: 10 }}>
+            <RefreshCw size={13} style={{ animation: refreshing ? 'spin 1s linear infinite' : 'none', color: '#f59e0b' }} />
+            {refreshing ? 'Refreshing…' : 'Sync Live'}
           </button>
-          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-            Updated {lastUpdated.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
-          </span>
         </div>
       </div>
 
@@ -474,13 +598,49 @@ export default function AnalyticsDashboard() {
               )}
             </div>
 
-            {/* Clean KPI Cards */}
+            {/* Clean Rich KPI Cards (Exact LMS Reference Style) */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: 14, marginBottom: 22 }}>
-              <KpiCard icon={<Phone size={18} />} label="Total Leads" value={totalFiltered.toLocaleString()} />
-              <KpiCard icon={<TrendingUp size={18} />} label="Converted" value={convertedCount.toLocaleString()} sub={`${conversionRate}% rate`} />
-              <KpiCard icon={<Users size={18} />} label="Total Registered Students" value={totalStudents.toLocaleString()} />
-              <KpiCard icon={<CheckCircle size={18} />} label="Paid Leads (Ticks)" value={paidLeads.length.toLocaleString()} />
-              <KpiCard icon={<CreditCard size={18} />} label="Monthly Fee Revenue" value={`Rs. ${revenueThisMonth.toLocaleString()}`} />
+              <KpiCard
+                icon={<Phone size={18} />}
+                iconBg="#e0f2fe"
+                iconColor="#0284c7"
+                borderColor="#38bdf8"
+                label="Total Leads"
+                value={totalFiltered.toLocaleString()}
+              />
+              <KpiCard
+                icon={<TrendingUp size={18} />}
+                iconBg="#dcfce7"
+                iconColor="#16a34a"
+                borderColor="#4ade80"
+                label="Converted"
+                value={convertedCount.toLocaleString()}
+                sub={`${conversionRate}% rate`}
+              />
+              <KpiCard
+                icon={<Users size={18} />}
+                iconBg="#e0e7ff"
+                iconColor="#4f46e5"
+                borderColor="#818cf8"
+                label="Total Students"
+                value={totalStudents.toLocaleString()}
+              />
+              <KpiCard
+                icon={<CheckCircle size={18} />}
+                iconBg="#ccfbf1"
+                iconColor="#0d9488"
+                borderColor="#2dd4bf"
+                label="Paid Leads (Ticks)"
+                value={paidLeads.length.toLocaleString()}
+              />
+              <KpiCard
+                icon={<CreditCard size={18} />}
+                iconBg="#fef3c7"
+                iconColor="#d97706"
+                borderColor="#fcd34d"
+                label="Monthly Revenue"
+                value={`Rs. ${revenueThisMonth.toLocaleString()}`}
+              />
             </div>
 
             {/* Clean Status Group Cards */}
@@ -904,18 +1064,59 @@ export default function AnalyticsDashboard() {
 
 // ── Sub-components ─────────────────────────────────────────────
 
-function KpiCard({ icon, label, value, sub }: {
-  icon: React.ReactNode; label: string; value: string; sub?: string
+function KpiCard({ icon, iconBg, iconColor, borderColor, label, value, sub }: {
+  icon: React.ReactNode
+  iconBg?: string
+  iconColor?: string
+  borderColor?: string
+  label: string
+  value: string
+  sub?: string
 }) {
   return (
-    <div className="stat-card" style={{ borderLeft: '3px solid var(--border)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <div className="stat-card label">{label}</div>
-          <div className="stat-card value" style={{ fontSize: 24, color: 'var(--text-primary)' }}>{value}</div>
-          {sub && <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{sub}</div>}
+    <div className="stat-card" style={{
+      borderLeft: borderColor ? `4px solid ${borderColor}` : '1px solid var(--border)',
+      borderRadius: 16,
+      padding: '16px 18px',
+      boxShadow: '0 4px 20px -4px rgba(0, 0, 0, 0.05)',
+      display: 'flex',
+      flexDirection: 'column',
+      justifyContent: 'space-between'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        <div style={{
+          fontSize: 11,
+          color: 'var(--text-secondary)',
+          textTransform: 'uppercase',
+          fontWeight: 700,
+          letterSpacing: '0.05em'
+        }}>
+          {label}
         </div>
-        <div style={{ color: 'var(--text-muted)', opacity: 0.6 }}>{icon}</div>
+        <div style={{
+          width: 32,
+          height: 32,
+          borderRadius: 8,
+          background: iconBg || 'var(--bg-card-hover)',
+          color: iconColor || 'var(--accent-blue)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0
+        }}>
+          {icon}
+        </div>
+      </div>
+
+      <div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>
+          {value}
+        </div>
+        {sub && (
+          <div style={{ fontSize: 11, fontWeight: 600, color: '#10b981', marginTop: 4 }}>
+            {sub}
+          </div>
+        )}
       </div>
     </div>
   )

@@ -651,45 +651,85 @@ function AddPaymentForm() {
   const totalAmountToPay = selectedRows.reduce((sum, r) => sum + (parseFloat(r.amountPaid) || 0), 0)
 
   return (
-    <div className="fade-in" style={{ maxWidth: 840, margin: '0 auto', paddingBottom: 60 }}>
-      {/* Back button */}
-      <div style={{ marginBottom: 16 }}>
-        <a href="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: 6, color: 'var(--text-muted)', fontSize: 13, textDecoration: 'none' }}>
-          <ArrowLeft size={16} /> Back to Dashboard
+    <div className="fade-in" style={{ width: '100%', maxWidth: 1040, margin: '0 auto', paddingBottom: 60, minHeight: '100vh' }}>
+      {/* Back to Dashboard link with proper spacing */}
+      <div style={{ marginBottom: 14 }}>
+        <a
+          href="/dashboard"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            color: 'var(--text-secondary)',
+            fontSize: 13,
+            textDecoration: 'none',
+            fontWeight: 700,
+            padding: '4px 0'
+          }}
+        >
+          <ArrowLeft size={15} /> Back to Dashboard
         </a>
       </div>
 
-      <div className="page-header">
+      {/* Page Header with clear visible typography */}
+      <div className="page-header" style={{ padding: '22px 28px', borderRadius: 16, border: '1px solid var(--border)', marginBottom: 24 }}>
         <div>
-          <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <CreditCard size={22} style={{ color: 'var(--accent-blue)' }} /> Record Batch Payment &amp; Verify Household
-          </h1>
-          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-            Search student PS code, verify &amp; update delivery details, and record class payments in 1 click
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <div style={{ width: 40, height: 40, borderRadius: 12, background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <CreditCard size={22} />
+            </div>
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>
+                  Record Payment &amp; Verify Household
+                </h1>
+                <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 14, background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                  Cashier &amp; Vault
+                </span>
+              </div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 4, fontWeight: 500 }}>
+                Search student PS code, verify &amp; update delivery details, and record class payments in 1 click
+              </div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="page-content" style={{ marginTop: 20 }}>
+      <div>
         {/* Step 1: Search Student PS Code */}
-        <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 12, color: 'var(--accent-blue)' }}>
+        <div className="glass-card" style={{ padding: '24px 26px', marginBottom: 20, borderRadius: 16, border: '1px solid var(--border)' }}>
+          <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Search size={15} />
+            </div>
             1. Search Student by PS Code
           </div>
           <div style={{ position: 'relative' }}>
             <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ position: 'relative', flex: 1 }}>
-                <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
                 <input
                   className="search-bar"
-                  style={{ width: '100%', paddingLeft: 38, fontSize: 14 }}
+                  style={{
+                    width: '100%',
+                    paddingLeft: 40,
+                    paddingRight: 14,
+                    fontSize: 14,
+                    height: 44,
+                    borderRadius: 10,
+                    fontWeight: 600
+                  }}
                   placeholder="Type PS Code or Name (e.g. PS5000, SM20, Kasun...)"
                   value={psSearch}
                   onChange={e => setPsSearch(e.target.value)}
                   onKeyDown={e => e.key === 'Enter' && searchStudent()}
                 />
               </div>
-              <button className="btn-primary" onClick={searchStudent} style={{ padding: '0 20px', fontSize: 13 }}>
+              <button
+                className="btn-primary"
+                onClick={searchStudent}
+                style={{ padding: '0 24px', fontSize: 13.5, fontWeight: 700, borderRadius: 10, height: 44 }}
+              >
                 Search
               </button>
             </div>
@@ -698,25 +738,29 @@ function AddPaymentForm() {
             {showDropdown && searchResults.length > 0 && (
               <div style={{
                 position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 50,
-                background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 8,
-                marginTop: 4, maxHeight: 240, overflowY: 'auto', boxShadow: '0 8px 24px rgba(0,0,0,0.5)'
+                background: 'var(--bg-card)', border: '1px solid var(--border)', borderRadius: 12,
+                marginTop: 6, maxHeight: 280, overflowY: 'auto', boxShadow: '0 12px 30px rgba(0,0,0,0.25)'
               }}>
                 {searchResults.map(s => (
                   <div
                     key={s.id}
                     onClick={() => selectStudent(s)}
                     style={{
-                      padding: '10px 14px', borderBottom: '1px solid rgba(255,255,255,0.04)',
-                      cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                      padding: '12px 16px', borderBottom: '1px solid var(--border)',
+                      cursor: 'pointer', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                      transition: 'background 0.15s'
                     }}
-                    className="hover-bg"
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-card-hover)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-card)'}
                   >
                     <div>
-                      <span style={{ fontWeight: 700, color: 'var(--accent-blue)', marginRight: 10 }}>{s.ps_code}</span>
-                      <span style={{ color: 'var(--text-primary)' }}>{s.full_name || 'No name'}</span>
+                      <span style={{ fontWeight: 800, color: 'var(--accent-blue)', marginRight: 10, background: 'rgba(56, 189, 248, 0.15)', padding: '2px 8px', borderRadius: 6, border: '1px solid rgba(56, 189, 248, 0.3)', fontSize: 12 }}>
+                        {s.ps_code}
+                      </span>
+                      <span style={{ color: 'var(--text-primary)', fontWeight: 700, fontSize: 13.5 }}>{s.full_name || 'Pending Name'}</span>
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                      Gr {s.grade || '?'}
+                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                      Gr {s.grade || '—'}
                     </div>
                   </div>
                 ))}
@@ -724,14 +768,19 @@ function AddPaymentForm() {
             )}
           </div>
 
-          {error && <div style={{ color: '#ef4444', fontSize: 13, marginTop: 10 }}>{error}</div>}
+          {error && (
+            <div style={{ color: '#ef4444', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '10px 14px', borderRadius: 8, fontSize: 13, marginTop: 12, fontWeight: 600 }}>
+              ⚠️ {error}
+            </div>
+          )}
 
           {/* Student Profile Card */}
           {student && (
-            <div style={{ marginTop: 16, padding: 16, background: 'rgba(59,130,246,0.06)', borderRadius: 10, border: '1px solid rgba(59,130,246,0.2)' }}>
+            <div style={{ marginTop: 18, padding: 18, background: 'rgba(56, 189, 248, 0.1)', borderRadius: 12, border: '1.5px solid rgba(56, 189, 248, 0.3)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <CheckCircle size={16} /> Selected Student PS Code: <span style={{ color: 'var(--text-primary)' }}>{student.ps_code}</span>
+                <div style={{ fontWeight: 800, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
+                  <CheckCircle size={18} style={{ color: 'var(--accent-blue)' }} />
+                  Selected Student: <span style={{ color: 'var(--text-primary)', background: 'var(--bg-card)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>{student.ps_code}</span>
                 </div>
                 {!editingStudent ? (
                   <button
@@ -742,9 +791,9 @@ function AddPaymentForm() {
                       setEditingStudent(true)
                     }}
                     className="btn-secondary"
-                    style={{ padding: '4px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                    style={{ padding: '5px 12px', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, borderRadius: 8 }}
                   >
-                    <Edit3 size={12} /> Edit Details
+                    <Edit3 size={13} /> Edit Profile
                   </button>
                 ) : (
                   <div style={{ display: 'flex', gap: 6 }}>
@@ -753,7 +802,7 @@ function AddPaymentForm() {
                       onClick={saveStudentProfile}
                       disabled={savingStudent}
                       className="btn-primary"
-                      style={{ padding: '4px 10px', fontSize: 11 }}
+                      style={{ padding: '5px 12px', fontSize: 11.5, fontWeight: 700, borderRadius: 8 }}
                     >
                       {savingStudent ? 'Saving...' : 'Save'}
                     </button>
@@ -761,7 +810,7 @@ function AddPaymentForm() {
                       type="button"
                       onClick={() => setEditingStudent(false)}
                       className="btn-secondary"
-                      style={{ padding: '4px 10px', fontSize: 11 }}
+                      style={{ padding: '5px 12px', fontSize: 11.5, fontWeight: 700, borderRadius: 8 }}
                     >
                       Cancel
                     </button>
@@ -770,28 +819,30 @@ function AddPaymentForm() {
               </div>
 
               {!editingStudent ? (
-                <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginTop: 8 }}>
-                  <span style={{ fontWeight: 600, color: student.full_name ? 'var(--text-primary)' : 'var(--text-muted)' }}>
-                    {student.full_name || '⚠ Optional Student Name not set'}
-                  </span> · <span style={{ color: 'var(--accent-blue)', fontWeight: 600 }}>Grade {student.grade || '?'}</span>
+                <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginTop: 10 }}>
+                  <span style={{ fontWeight: 700, color: student.full_name ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                    {student.full_name || '⚠ Student Name not registered'}
+                  </span> · <span style={{ color: 'var(--accent-blue)', fontWeight: 800 }}>Grade {student.grade || '—'}</span>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 12, borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 12, marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
                   <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Student Full Name (Optional)</label>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Student Full Name</label>
                     <input
                       className="input-field"
                       placeholder="e.g. Kasun Perera"
                       value={editName}
                       onChange={e => setEditName(e.target.value)}
+                      style={{ borderRadius: 8, height: 38 }}
                     />
                   </div>
                   <div>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>Primary Grade</label>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Grade</label>
                     <select
                       className="input-field"
                       value={editGrade}
                       onChange={e => setEditGrade(e.target.value ? parseInt(e.target.value) : '')}
+                      style={{ borderRadius: 8, height: 38, fontWeight: 700 }}
                     >
                       {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
                         <option key={g} value={g}>Grade {g}</option>
@@ -806,18 +857,19 @@ function AddPaymentForm() {
 
         {student && (
           <>
-            {/* ========================================================================= */}
-            {/* 2. Household & Delivery Details (Required) - Same UI as Register Student */}
-            {/* ========================================================================= */}
-            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Home size={18} /> 2. Household & Delivery Details (Required)
+            {/* Step 2: Household & Delivery Details */}
+            <div className="glass-card" style={{ padding: '24px 26px', marginBottom: 20, borderRadius: 16, border: '1.5px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Home size={16} />
+                  </div>
+                  2. Household &amp; Delivery Details
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   {householdSavedSuccess && (
-                    <span style={{ fontSize: 12, color: '#34d399', fontWeight: 600 }}>
-                      ✓ Updated!
+                    <span style={{ fontSize: 12, color: '#10b981', fontWeight: 700, background: 'rgba(16, 185, 129, 0.15)', padding: '2px 8px', borderRadius: 6 }}>
+                      ✓ Address Saved!
                     </span>
                   )}
                   <button
@@ -825,19 +877,19 @@ function AddPaymentForm() {
                     onClick={saveHouseholdDetails}
                     disabled={savingHousehold}
                     className="btn-secondary"
-                    style={{ padding: '4px 10px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4, borderColor: 'var(--accent-purple)', color: 'var(--accent-purple)' }}
+                    style={{ padding: '5px 12px', fontSize: 11.5, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, borderRadius: 8 }}
                   >
                     {savingHousehold ? 'Saving...' : 'Save Updates'}
                   </button>
-                  <span style={{ fontSize: 11, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
-                    * Required for Delivery & Contact
+                  <span style={{ fontSize: 11, background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '3px 9px', borderRadius: 6, fontWeight: 800, border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                    * Required for Courier
                   </span>
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11.5, color: 'var(--text-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
                     Parent / Guardian Name <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <input
@@ -846,10 +898,11 @@ function AddPaymentForm() {
                     value={parentNameInput}
                     onChange={e => setParentNameInput(e.target.value)}
                     required
+                    style={{ borderRadius: 10, height: 42, fontWeight: 600 }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11.5, color: 'var(--text-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
                     Parent Contact Number <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <input
@@ -858,13 +911,14 @@ function AddPaymentForm() {
                     value={parentPhoneInput}
                     onChange={e => setParentPhoneInput(e.target.value)}
                     required
+                    style={{ borderRadius: 10, height: 42, fontWeight: 600 }}
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginTop: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginTop: 16 }}>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11.5, color: 'var(--text-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
                     Delivery Address <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <input
@@ -873,10 +927,11 @@ function AddPaymentForm() {
                     value={addressInput}
                     onChange={e => setAddressInput(e.target.value)}
                     required
+                    style={{ borderRadius: 10, height: 42 }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
                     Area / Delivery Route
                   </label>
                   <input
@@ -884,20 +939,24 @@ function AddPaymentForm() {
                     placeholder="e.g. Kandy Town"
                     value={areaInput}
                     onChange={e => setAreaInput(e.target.value)}
+                    style={{ borderRadius: 10, height: 42 }}
                   />
                 </div>
               </div>
             </div>
 
-            {/* Step 2: Payment Class Selection */}
-            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            {/* Step 3: Payment Class Selection */}
+            <div className="glass-card" style={{ padding: '24px 26px', marginBottom: 20, borderRadius: 16, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 14, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <CreditCard size={18} /> 2. Enrolled Classes &amp; Payment Amounts
+                  <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <CreditCard size={16} />
+                    </div>
+                    3. Enrolled Classes &amp; Payment Amounts
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Check classes to include in this payment. Click <b>+ Class</b> to enroll extra classes/siblings.
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    Check classes to include in this payment slip. Click <b>+ Class</b> to add extra classes or siblings.
                   </div>
                 </div>
                 <div style={{ flexShrink: 0 }}>
@@ -905,7 +964,7 @@ function AddPaymentForm() {
                     type="button"
                     onClick={handleAddPaymentRow}
                     className="btn-primary"
-                    style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                    style={{ padding: '8px 16px', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', borderRadius: 10 }}
                   >
                     <Plus size={14} /> + Class
                   </button>
@@ -921,18 +980,18 @@ function AddPaymentForm() {
                     <div
                       key={row.itemId}
                       style={{
-                        padding: '14px',
-                        borderRadius: 10,
-                        border: '1px solid',
+                        padding: '14px 16px',
+                        borderRadius: 12,
+                        border: '1.5px solid',
                         borderColor: row.selected ? 'var(--accent-blue)' : 'var(--border)',
-                        background: row.selected ? 'rgba(59,130,246,0.08)' : 'var(--bg-base)',
+                        background: row.selected ? 'var(--bg-card-hover)' : 'var(--bg-card)',
                         transition: 'all 0.15s'
                       }}
                     >
                       <div style={{
                         display: 'grid',
-                        gridTemplateColumns: '28px 110px 1fr 110px 100px 32px',
-                        gap: 10,
+                        gridTemplateColumns: '28px 120px 1fr 130px 110px 36px',
+                        gap: 12,
                         alignItems: 'center'
                       }}>
                         {/* Checkbox */}
@@ -941,20 +1000,20 @@ function AddPaymentForm() {
                             type="checkbox"
                             checked={row.selected}
                             onChange={e => handleRowToggleSelect(row.itemId, e.target.checked)}
-                            style={{ width: 18, height: 18, cursor: 'pointer' }}
+                            style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#2563eb' }}
                           />
                         </div>
 
                         {/* Grade Dropdown */}
                         <div>
-                          <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
+                          <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
                             Grade
                           </label>
                           <select
                             className="input-field"
                             value={row.grade}
                             onChange={e => handleRowGradeChange(row.itemId, parseInt(e.target.value))}
-                            style={{ padding: '5px 6px', fontSize: 12, fontWeight: 600 }}
+                            style={{ padding: '5px 8px', fontSize: 12.5, fontWeight: 700, borderRadius: 8, height: 36 }}
                           >
                             {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
                               <option key={g} value={g}>Grade {g}</option>
@@ -964,14 +1023,14 @@ function AddPaymentForm() {
 
                         {/* Aligned Course Dropdown */}
                         <div>
-                          <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
+                          <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
                             Course
                           </label>
                           <select
                             className="input-field"
                             value={row.courseCode}
                             onChange={e => handleRowCourseChange(row.itemId, e.target.value)}
-                            style={{ padding: '5px 8px', fontSize: 12, fontWeight: 600, color: 'var(--accent-blue)' }}
+                            style={{ padding: '5px 10px', fontSize: 12.5, fontWeight: 700, color: 'var(--accent-blue)', borderRadius: 8, height: 36 }}
                           >
                             {coursesForThisGrade.length === 0 ? (
                               <option value="">No courses for Grade {row.grade}</option>
@@ -987,7 +1046,7 @@ function AddPaymentForm() {
 
                         {/* Monthly Fee / Rate */}
                         <div>
-                          <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
+                          <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
                             Fee Rate (Rs.)
                           </label>
                           <input
@@ -995,17 +1054,17 @@ function AddPaymentForm() {
                             className="input-field"
                             value={row.fee}
                             onChange={e => handleRowFeeChange(row.itemId, parseFloat(e.target.value) || 0)}
-                            style={{ padding: '5px 8px', fontSize: 12, fontWeight: 700 }}
+                            style={{ padding: '5px 8px', fontSize: 13, fontWeight: 800, color: '#10b981', borderRadius: 8, height: 36 }}
                             title="Edit monthly rate for this student"
                           />
                         </div>
 
                         {/* Balance Info */}
                         <div style={{ textAlign: 'right' }}>
-                          <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Balance</div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase' }}>Balance</div>
                           <div style={{
-                            fontSize: 12, fontWeight: 700,
-                            color: row.currentBalance > 0 ? '#10b981' : row.currentBalance < 0 ? '#ef4444' : 'var(--text-muted)'
+                            fontSize: 12.5, fontWeight: 800,
+                            color: row.currentBalance > 0 ? '#10b981' : row.currentBalance < 0 ? '#ef4444' : 'var(--text-secondary)'
                           }}>
                             {row.currentBalance >= 0 ? '+' : ''}Rs.{row.currentBalance.toLocaleString()}
                           </div>
@@ -1018,14 +1077,15 @@ function AddPaymentForm() {
                             onClick={() => handleRemovePaymentRow(row.itemId)}
                             disabled={paymentRows.length === 1}
                             style={{
-                              background: 'none', border: 'none',
+                              background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: 8,
                               color: paymentRows.length === 1 ? 'var(--text-muted)' : '#ef4444',
                               cursor: paymentRows.length === 1 ? 'not-allowed' : 'pointer',
-                              padding: 4, opacity: paymentRows.length === 1 ? 0.3 : 1
+                              width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              opacity: paymentRows.length === 1 ? 0.4 : 1
                             }}
                             title="Remove this class"
                           >
-                            <Trash2 size={15} />
+                            <Trash2 size={14} />
                           </button>
                         </div>
                       </div>
@@ -1033,22 +1093,22 @@ function AddPaymentForm() {
                       {/* Bottom Paid Amount Field & Per-Class Deliver Tute Checkbox */}
                       {row.selected && (
                         <div style={{
-                          marginTop: 10, paddingTop: 10, borderTop: '1px solid rgba(255,255,255,0.06)',
+                          marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)',
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10
                         }}>
                           {['BANK', 'CASH', 'PHYSICAL'].includes(form.payment_type) ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                              <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
-                                Suggested: <b>Rs. {row.suggested.toLocaleString()}</b>
+                              <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                                Suggested: <strong style={{ color: 'var(--text-primary)' }}>Rs. {row.suggested.toLocaleString()}</strong>
                               </span>
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-blue)' }}>
+                                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-blue)' }}>
                                   Paid:
                                 </label>
                                 <input
                                   type="number"
                                   className="input-field"
-                                  style={{ width: 110, padding: '4px 8px', fontSize: 13, fontWeight: 700 }}
+                                  style={{ width: 110, padding: '4px 8px', fontSize: 13.5, fontWeight: 800, color: '#10b981', borderRadius: 8 }}
                                   placeholder={`e.g. ${row.suggested}`}
                                   value={row.amountPaid}
                                   onChange={e => handleRowAmountPaidChange(row.itemId, e.target.value)}
@@ -1056,7 +1116,7 @@ function AddPaymentForm() {
                               </div>
                             </div>
                           ) : (
-                            <div style={{ fontSize: 12, color: '#10b981', fontWeight: 600 }}>
+                            <div style={{ fontSize: 12, color: '#10b981', fontWeight: 700 }}>
                               {form.payment_type} Access (Rs. {row.fee.toLocaleString()})
                             </div>
                           )}
@@ -1064,20 +1124,20 @@ function AddPaymentForm() {
                           {/* Per-Class Tute Deliver Checkbox */}
                           <div style={{
                             display: 'flex', alignItems: 'center', gap: 6,
-                            padding: '4px 10px', borderRadius: 6,
-                            background: row.deliverTute ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)',
-                            border: `1px solid ${row.deliverTute ? '#10b981' : 'var(--border)'}`
+                            padding: '4px 10px', borderRadius: 8,
+                            background: row.deliverTute ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card-hover)',
+                            border: `1px solid ${row.deliverTute ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`
                           }}>
                             <input
                               type="checkbox"
                               id={`tute-${row.itemId}`}
                               checked={row.deliverTute}
                               onChange={e => handleRowToggleDeliverTute(row.itemId, e.target.checked)}
-                              style={{ width: 15, height: 15, cursor: 'pointer' }}
+                              style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#10b981' }}
                             />
                             <label htmlFor={`tute-${row.itemId}`} style={{
-                              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                              color: row.deliverTute ? '#34d399' : 'var(--text-muted)'
+                              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                              color: row.deliverTute ? '#10b981' : 'var(--text-secondary)'
                             }}>
                               📦 Deliver Tute (Postal)
                             </label>
@@ -1092,31 +1152,34 @@ function AddPaymentForm() {
               {/* Total Payment Summary Box */}
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '12px 16px', background: 'rgba(59,130,246,0.08)', borderRadius: 8, border: '1px solid rgba(59,130,246,0.25)'
+                padding: '14px 18px', background: 'rgba(56, 189, 248, 0.1)', borderRadius: 10, border: '1px solid rgba(56, 189, 248, 0.25)'
               }}>
-                <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  Selected Classes: <b>{selectedRows.length}</b>
+                <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
+                  Selected Classes: <strong style={{ color: 'var(--accent-blue)' }}>{selectedRows.length}</strong>
                 </span>
-                <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>
+                <span style={{ fontSize: 16, fontWeight: 900, color: '#10b981' }}>
                   Total Payment: {['FREE', 'IMS'].includes(form.payment_type) ? form.payment_type : `Rs. ${totalAmountToPay.toLocaleString()}`}
                 </span>
               </div>
             </div>
 
-            {/* Step 3: Payment Method, Date, Delivery & Group */}
-            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: 'var(--accent-blue)' }}>
-                3. Payment Details &amp; Dispatch Confirmation
+            {/* Step 4: Payment Method, Date, Delivery & Group */}
+            <div className="glass-card" style={{ padding: '24px 26px', marginBottom: 20, borderRadius: 16, border: '1px solid var(--border)' }}>
+              <div style={{ fontWeight: 800, fontSize: 15, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <CreditCard size={16} />
+                </div>
+                4. Payment Method &amp; Dispatch Details
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
                 <FormRow label="Month">
-                  <select className="input-field" value={form.month} onChange={e => setForm(f => ({ ...f, month: parseInt(e.target.value) }))}>
+                  <select className="input-field" style={{ borderRadius: 8, height: 38, fontWeight: 700 }} value={form.month} onChange={e => setForm(f => ({ ...f, month: parseInt(e.target.value) }))}>
                     {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
                   </select>
                 </FormRow>
                 <FormRow label="Year">
-                  <select className="input-field" value={form.year} onChange={e => setForm(f => ({ ...f, year: parseInt(e.target.value) }))}>
+                  <select className="input-field" style={{ borderRadius: 8, height: 38, fontWeight: 700 }} value={form.year} onChange={e => setForm(f => ({ ...f, year: parseInt(e.target.value) }))}>
                     {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
                 </FormRow>
@@ -1127,7 +1190,7 @@ function AddPaymentForm() {
                   {['BANK', 'CASH', 'FREE', 'IMS', 'PHYSICAL'].map(t => (
                     <button key={t} onClick={() => setForm(f => ({ ...f, payment_type: t }))}
                       className={form.payment_type === t ? 'btn-primary' : 'btn-secondary'}
-                      style={{ padding: '6px 12px', fontSize: 12 }}>
+                      style={{ padding: '6px 14px', fontSize: 12, borderRadius: 8, fontWeight: 700 }}>
                       {t}
                     </button>
                   ))}
@@ -1136,42 +1199,43 @@ function AddPaymentForm() {
 
               {form.payment_type === 'BANK' && (
                 <FormRow label="Bank">
-                  <select className="input-field" value={form.bank_name} onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))}>
+                  <select className="input-field" style={{ borderRadius: 8, height: 38, fontWeight: 700 }} value={form.bank_name} onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))}>
                     {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
                   </select>
                 </FormRow>
               )}
 
               <FormRow label="Date Paid">
-                <input className="input-field" type="date" value={form.date_paid}
+                <input className="input-field" type="date" style={{ borderRadius: 8, height: 38, fontWeight: 600 }} value={form.date_paid}
                   onChange={e => setForm(f => ({ ...f, date_paid: e.target.value }))} />
               </FormRow>
 
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--bg-card-hover)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 14 }}>
                 <input type="checkbox" id="group" checked={form.added_to_group}
                   onChange={e => setForm(f => ({ ...f, added_to_group: e.target.checked }))}
-                  style={{ width: 16, height: 16, cursor: 'pointer' }} />
-                <label htmlFor="group" style={{ fontSize: 13, cursor: 'pointer' }}>Added to WhatsApp Group?</label>
+                  style={{ width: 16, height: 16, cursor: 'pointer', accentColor: '#2563eb' }} />
+                <label htmlFor="group" style={{ fontSize: 13, cursor: 'pointer', fontWeight: 600, color: 'var(--text-primary)' }}>Added to WhatsApp Group?</label>
               </div>
 
               <FormRow label="Notes (optional)">
-                <input className="input-field" placeholder="Any notes..."
-                  value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))} />
+                <input className="input-field" placeholder="Any notes or slip details..."
+                  value={form.notes} onChange={e => setForm(f => ({ ...f, notes: e.target.value }))}
+                  style={{ borderRadius: 8, height: 38 }} />
               </FormRow>
             </div>
 
-            {/* Step 4: Who recorded */}
-            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                🔒 4. Audit Log (Auto-Locked)
+            {/* Step 5: Audit log */}
+            <div className="glass-card" style={{ padding: '20px 24px', marginBottom: 24, borderRadius: 16, border: '1px solid var(--border)' }}>
+              <div style={{ fontWeight: 800, fontSize: 14, marginBottom: 10, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                🔒 Audit Log (Auto-Locked)
               </div>
               <div>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
                   Recorded By (Member Name)
                 </label>
                 <div style={{
-                  padding: '10px 14px', background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)',
-                  borderRadius: 8, fontSize: 14, fontWeight: 600, color: 'var(--accent-blue)'
+                  padding: '10px 14px', background: 'var(--bg-card-hover)', border: '1.5px solid var(--border)',
+                  borderRadius: 8, fontSize: 14, fontWeight: 700, color: 'var(--accent-blue)'
                 }}>
                   {memberName || 'Admin / System User'}
                 </div>
@@ -1179,16 +1243,20 @@ function AddPaymentForm() {
             </div>
 
             {/* Submit */}
-            <button className="btn-primary" onClick={submit} disabled={saving}
-              style={{ width: '100%', justifyContent: 'center', padding: '14px', fontSize: 15, fontWeight: 700, borderRadius: 10 }}>
-              {saving ? 'Saving...' : saved ? 'Payment Saved' : 'Save Payment'}
+            <button
+              className="btn-primary"
+              onClick={submit}
+              disabled={saving}
+              style={{ width: '100%', justifyContent: 'center', padding: '14px 20px', fontSize: 15, fontWeight: 800, borderRadius: 12, boxShadow: '0 4px 14px rgba(37, 99, 235, 0.25)' }}
+            >
+              {saving ? 'Recording Payment...' : saved ? '✓ Payment Saved' : 'Save Payment'}
             </button>
             {saved && (
-              <div style={{ marginTop: 12, padding: '12px 16px', background: '#1a3a2a', borderRadius: 8, color: '#34d399', fontSize: 13 }}>
-                ✓ Payment recorded successfully for {selectedRows.length} class(es)!
+              <div style={{ marginTop: 14, padding: '14px 18px', background: 'rgba(16, 185, 129, 0.15)', border: '1px solid rgba(16, 185, 129, 0.3)', borderRadius: 10, color: '#10b981', fontSize: 13.5, fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span>✓ Payment recorded successfully for {selectedRows.length} class(es)!</span>
                 <a href={`/students/${encodeURIComponent(student.ps_code)}`}
-                  style={{ color: 'var(--accent-blue)', marginLeft: 12, textDecoration: 'none' }}>
-                  View student profile →
+                  style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 800 }}>
+                  View Student Profile →
                 </a>
               </div>
             )}
@@ -1210,7 +1278,7 @@ export default function AddPaymentPage() {
 function FormRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div style={{ marginBottom: 14 }}>
-      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: 6 }}>{label}</label>
+      <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>{label}</label>
       {children}
     </div>
   )

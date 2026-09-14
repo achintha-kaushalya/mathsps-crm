@@ -1,8 +1,28 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Truck, Printer, Search, CheckCircle2, Package, History, Check, RotateCcw, Clock, AlertCircle, FileSpreadsheet } from 'lucide-react'
+import {
+  Truck,
+  Printer,
+  Search,
+  CheckCircle2,
+  Package,
+  History,
+  Check,
+  RotateCcw,
+  Clock,
+  AlertCircle,
+  FileSpreadsheet,
+  ChevronLeft,
+  ChevronRight,
+  Phone,
+  MapPin,
+  Sparkles,
+  Layers,
+  Send,
+  Download
+} from 'lucide-react'
 import { CLASS_LABELS, MONTH_NAMES } from '@/lib/types'
 
 interface DeliveryStudentItem {
@@ -46,6 +66,10 @@ export default function DeliveryPage() {
   const [areas, setAreas] = useState<string[]>([])
   const [search, setSearch] = useState('')
 
+  // Pagination State for high performance (solves browser DOM lag with 2,300+ items)
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(36)
+
   // Batch action state
   const [selectedHouseholds, setSelectedHouseholds] = useState<Set<string>>(new Set())
   const [marking, setMarking] = useState(false)
@@ -55,11 +79,16 @@ export default function DeliveryPage() {
     loadDeliveryList()
   }, [month, year, classFilter, areaFilter])
 
+  // Reset to page 1 on filter or tab change
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [activeTab, search, classFilter, areaFilter, pageSize])
+
   async function loadDeliveryList() {
     setLoading(true)
     try {
       // 1. Fetch ALL eligible payments for this month where tute is explicitly marked to be delivered (paginated to exceed 1,000 limit)
-      const PAGE_SIZE = 1000
+      const CHUNK_SIZE = 1000
       let allRows: any[] = []
       let from = 0
       let hasMore = true
@@ -77,7 +106,7 @@ export default function DeliveryPage() {
           .eq('month', month)
           .eq('year', year)
           .eq('tute_delivered', true)
-          .range(from, from + PAGE_SIZE - 1)
+          .range(from, from + CHUNK_SIZE - 1)
 
         if (classFilter) q = q.eq('class_type', classFilter)
 
@@ -85,10 +114,10 @@ export default function DeliveryPage() {
         if (error) throw error
 
         allRows = allRows.concat(data || [])
-        if (!data || data.length < PAGE_SIZE) {
+        if (!data || data.length < CHUNK_SIZE) {
           hasMore = false
         } else {
-          from += PAGE_SIZE
+          from += CHUNK_SIZE
         }
       }
 
@@ -178,26 +207,44 @@ export default function DeliveryPage() {
   }
 
   // Filter based on active tab ('unexported' vs 'dispatched') + search
-  // When activeTab === 'unexported', we only consider the pending (un-dispatched) students
-  const visibleGroups = allGroups
-    .filter(g => (activeTab === 'unexported' ? !g.isDispatched : g.isDispatched))
-    .filter(g => {
-      if (!search.trim()) return true
-      const s = search.toLowerCase()
-      const targetStudents = activeTab === 'unexported'
-        ? g.students.filter(st => !st.dispatched)
-        : g.students
-      return (
-        g.parent_name.toLowerCase().includes(s) ||
-        g.address.toLowerCase().includes(s) ||
-        g.area.toLowerCase().includes(s) ||
-        g.parent_phone.toLowerCase().includes(s) ||
-        targetStudents.some(st => st.ps_code.toLowerCase().includes(s) || st.full_name.toLowerCase().includes(s))
-      )
-    })
+  const visibleGroups = useMemo(() => {
+    return allGroups
+      .filter(g => (activeTab === 'unexported' ? !g.isDispatched : g.isDispatched))
+      .filter(g => {
+        if (!search.trim()) return true
+        const s = search.toLowerCase()
+        const targetStudents = activeTab === 'unexported'
+          ? g.students.filter(st => !st.dispatched)
+          : g.students
+        return (
+          g.parent_name.toLowerCase().includes(s) ||
+          g.address.toLowerCase().includes(s) ||
+          g.area.toLowerCase().includes(s) ||
+          g.parent_phone.toLowerCase().includes(s) ||
+          targetStudents.some(st => st.ps_code.toLowerCase().includes(s) || st.full_name.toLowerCase().includes(s))
+        )
+      })
+  }, [allGroups, activeTab, search])
 
-  const unexportedCount = allGroups.filter(g => !g.isDispatched).length
-  const dispatchedCount = allGroups.filter(g => g.isDispatched).length
+  // Count summaries
+  const unexportedCount = useMemo(() => allGroups.filter(g => !g.isDispatched).length, [allGroups])
+  const dispatchedCount = useMemo(() => allGroups.filter(g => g.isDispatched).length, [allGroups])
+
+  const totalTutesCount = useMemo(() => {
+    return visibleGroups.reduce((acc, g) => {
+      const count = activeTab === 'unexported'
+        ? g.students.filter(st => !st.dispatched).length
+        : g.students.length
+      return acc + count
+    }, 0)
+  }, [visibleGroups, activeTab])
+
+  // Paginated Slicing for fast DOM rendering
+  const totalPages = Math.max(1, Math.ceil(visibleGroups.length / pageSize))
+  const paginatedGroups = useMemo(() => {
+    const start = (currentPage - 1) * pageSize
+    return visibleGroups.slice(start, start + pageSize)
+  }, [visibleGroups, currentPage, pageSize])
 
   function toggleSelectHousehold(hhId: string) {
     const next = new Set(selectedHouseholds)
@@ -209,12 +256,24 @@ export default function DeliveryPage() {
     setSelectedHouseholds(next)
   }
 
-  function toggleSelectAll() {
-    if (selectedHouseholds.size === visibleGroups.length) {
+  function toggleSelectAllVisible() {
+    if (selectedHouseholds.size === visibleGroups.length && visibleGroups.length > 0) {
       setSelectedHouseholds(new Set())
     } else {
       setSelectedHouseholds(new Set(visibleGroups.map(g => g.household_id)))
     }
+  }
+
+  function selectCurrentPageOnly() {
+    const next = new Set(selectedHouseholds)
+    paginatedGroups.forEach(g => next.add(g.household_id))
+    setSelectedHouseholds(next)
+  }
+
+  function deselectCurrentPageOnly() {
+    const next = new Set(selectedHouseholds)
+    paginatedGroups.forEach(g => next.delete(g.household_id))
+    setSelectedHouseholds(next)
   }
 
   // Batch Export & Auto-Mark as Dispatched
@@ -249,7 +308,6 @@ export default function DeliveryPage() {
     const paymentIdsToUpdate: string[] = []
 
     targetGroups.forEach(g => {
-      // In unexported tab, only export pending items so previous dispatched sibling tutes are not duplicated
       const itemsToExport = activeTab === 'unexported' ? g.students.filter(st => !st.dispatched) : g.students
 
       itemsToExport.forEach(st => {
@@ -285,7 +343,6 @@ export default function DeliveryPage() {
     setMarking(true)
     try {
       for (const pId of paymentIdsToUpdate) {
-        // Fetch current notes to avoid overwriting existing text
         const { data: curPay } = await supabase.from('payments').select('notes').eq('id', pId).single()
         const oldNotes = (curPay?.notes || '').replace(/\[DISPATCHED:[^\]]+\]/g, '').trim()
         const newNotes = oldNotes ? `${oldNotes} [DISPATCHED: ${batchTag}]` : `[DISPATCHED: ${batchTag}]`
@@ -293,8 +350,8 @@ export default function DeliveryPage() {
         await supabase.from('payments').update({ notes: newNotes }).eq('id', pId)
       }
 
-      setActionMessage(`✓ Exported & Marked ${targetGroups.length} Houses as Dispatched (${batchTag})!`)
-      setTimeout(() => setActionMessage(''), 5000)
+      setActionMessage(`✓ Successfully exported & marked ${targetGroups.length} Houses as Dispatched (${batchTag})!`)
+      setTimeout(() => setActionMessage(''), 6000)
 
       await loadDeliveryList()
     } catch (err: any) {
@@ -306,7 +363,7 @@ export default function DeliveryPage() {
 
   // Restore Dispatched items back to Unexported queue
   async function revertDispatchedBatch(g: DeliveryGroup) {
-    if (!confirm(`Revert ${g.parent_name} (${g.students.map(s => s.ps_code).join(', ')}) back to Unexported queue?`)) return
+    if (!confirm(`Revert ${g.parent_name} (${g.students.map(s => s.ps_code).join(', ')}) back to Ready to Export queue?`)) return
 
     setMarking(true)
     try {
@@ -408,14 +465,25 @@ export default function DeliveryPage() {
   return (
     <div className="fade-in" style={{ paddingBottom: 60 }}>
       {/* Page Header */}
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 20 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-            <Truck size={22} style={{ color: 'var(--accent-orange)' }} />
-            Tute Delivery & Post Office Batch Dispatch
-          </h1>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-            Manage new vs. already dispatched parcel exports to avoid duplicate deliveries
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <div style={{
+              width: 40, height: 40, borderRadius: 10,
+              background: 'linear-gradient(135deg, #ea580c 0%, #f97316 100%)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: '#fff', boxShadow: '0 4px 12px rgba(234,88,12,0.25)'
+            }}>
+              <Truck size={22} />
+            </div>
+            <div>
+              <h1 style={{ fontSize: 22, fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>
+                Tute Delivery & Post Office Dispatch
+              </h1>
+              <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 2 }}>
+                Batch parcel management, one-pack-per-household grouping, and Post Office CSV exports
+              </div>
+            </div>
           </div>
         </div>
 
@@ -427,20 +495,29 @@ export default function DeliveryPage() {
                 disabled={marking || selectedCount === 0}
                 className="btn-primary"
                 style={{
-                  background: '#10b981', display: 'flex', alignItems: 'center', gap: 6,
-                  fontWeight: 700, opacity: selectedCount === 0 ? 0.6 : 1
+                  background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  fontWeight: 600, padding: '9px 18px',
+                  boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
+                  opacity: selectedCount === 0 ? 0.6 : 1
                 }}
               >
                 <FileSpreadsheet size={16} />
-                {marking ? 'Exporting...' : `Export (${selectedCount})`}
+                {marking ? 'Exporting...' : `Export Post Office CSV (${selectedCount})`}
               </button>
               <button
                 onClick={printBatchEnvelopes}
                 disabled={selectedCount === 0}
                 className="btn-primary"
-                style={{ background: 'var(--accent-orange)', display: 'flex', alignItems: 'center', gap: 6, fontWeight: 700 }}
+                style={{
+                  background: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  fontWeight: 600, padding: '9px 18px',
+                  boxShadow: '0 4px 12px rgba(245,158,11,0.25)',
+                  opacity: selectedCount === 0 ? 0.6 : 1
+                }}
               >
-                <Printer size={16} /> Print Labels ({selectedCount})
+                <Printer size={16} /> Print Envelopes ({selectedCount})
               </button>
             </>
           ) : (
@@ -448,9 +525,9 @@ export default function DeliveryPage() {
               onClick={printBatchEnvelopes}
               disabled={selectedCount === 0}
               className="btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', fontWeight: 600 }}
             >
-              <Printer size={16} /> Print Labels ({selectedCount})
+              <Printer size={16} /> Print Selected Envelopes ({selectedCount})
             </button>
           )}
         </div>
@@ -460,255 +537,559 @@ export default function DeliveryPage() {
         {/* Success Action Message */}
         {actionMessage && (
           <div style={{
-            padding: '12px 16px', background: 'rgba(16,185,129,0.15)', border: '1px solid #10b981',
-            borderRadius: 8, color: '#34d399', fontSize: 13, fontWeight: 600, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8
+            padding: '14px 18px', background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.3)',
+            borderRadius: 10, color: '#059669', fontSize: 13, fontWeight: 600, marginBottom: 20,
+            display: 'flex', alignItems: 'center', gap: 10, boxShadow: '0 2px 8px rgba(16,185,129,0.08)'
           }}>
-            <CheckCircle2 size={16} /> {actionMessage}
+            <CheckCircle2 size={18} /> {actionMessage}
           </div>
         )}
 
-        {/* Tab Switcher: Unexported / New vs Dispatched History */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 18, borderBottom: '1px solid var(--border)', paddingBottom: 12 }}>
-          <button
+        {/* Top KPI Metrics */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 22 }}>
+          {/* Ready for Export */}
+          <div
             onClick={() => {
               setActiveTab('unexported')
               const unexp = new Set(allGroups.filter(g => !g.isDispatched).map(g => g.household_id))
               setSelectedHouseholds(unexp)
             }}
-            className={activeTab === 'unexported' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            className="stat-card"
+            style={{
+              padding: '16px 20px',
+              borderRadius: 16,
+              borderLeft: '4px solid #f97316',
+              boxShadow: activeTab === 'unexported'
+                ? '0 8px 24px -4px rgba(249, 115, 22, 0.22)'
+                : '0 4px 20px -4px rgba(249, 115, 22, 0.14)',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}
           >
-            <Clock size={16} />
-            Ready to Export (New)
-            <span style={{
-              background: activeTab === 'unexported' ? 'rgba(255,255,255,0.2)' : 'rgba(239,68,68,0.2)',
-              color: activeTab === 'unexported' ? '#fff' : '#f87171',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Ready to Export
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>
+                {unexportedCount} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>houses</span>
+              </div>
+            </div>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'rgba(249, 115, 22, 0.15)', color: '#f97316',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              {unexportedCount}
-            </span>
-          </button>
+              <Clock size={20} />
+            </div>
+          </div>
 
-          <button
+          {/* Already Dispatched History */}
+          <div
             onClick={() => {
               setActiveTab('dispatched')
               setSelectedHouseholds(new Set())
             }}
-            className={activeTab === 'dispatched' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            className="stat-card"
+            style={{
+              padding: '16px 20px',
+              borderRadius: 16,
+              borderLeft: '4px solid #10b981',
+              boxShadow: activeTab === 'dispatched'
+                ? '0 8px 24px -4px rgba(16, 185, 129, 0.22)'
+                : '0 4px 20px -4px rgba(16, 185, 129, 0.14)',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between'
+            }}
           >
-            <History size={16} />
-            Already Dispatched / Exported History
-            <span style={{
-              background: activeTab === 'dispatched' ? 'rgba(255,255,255,0.2)' : 'rgba(16,185,129,0.2)',
-              color: activeTab === 'dispatched' ? '#fff' : '#34d399',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Dispatched History
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>
+                {dispatchedCount} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>houses</span>
+              </div>
+            </div>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'rgba(16, 185, 129, 0.15)', color: '#10b981',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              {dispatchedCount}
-            </span>
-          </button>
+              <History size={20} />
+            </div>
+          </div>
+
+          {/* Selected Status */}
+          <div className="stat-card" style={{
+            padding: '16px 20px',
+            borderRadius: 16,
+            borderLeft: '4px solid var(--accent-blue)',
+            boxShadow: '0 4px 20px -4px rgba(56, 189, 248, 0.16)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between'
+          }}>
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Active Selection
+              </div>
+              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--accent-blue)', marginTop: 4 }}>
+                {selectedCount} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>({totalTutesSelected} tutes)</span>
+              </div>
+            </div>
+            <div style={{
+              width: 36, height: 36, borderRadius: 10,
+              background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <CheckCircle2 size={20} />
+            </div>
+          </div>
         </div>
 
-        {/* Filters Bar */}
-        <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center' }}>
+        {/* Filter Toolbar */}
+        <div style={{
+          padding: '16px 20px',
+          background: 'var(--bg-card)',
+          borderRadius: 12,
+          border: '1px solid var(--border)',
+          marginBottom: 18,
+          display: 'flex',
+          gap: 14,
+          flexWrap: 'wrap',
+          alignItems: 'center'
+        }}>
           <div>
-            <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Month</label>
-            <select className="input-field" style={{ width: 130 }} value={month} onChange={e => setMonth(parseInt(e.target.value))}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+              Month
+            </label>
+            <select
+              className="input-field"
+              style={{ width: 140, fontWeight: 600 }}
+              value={month}
+              onChange={e => setMonth(parseInt(e.target.value))}
+            >
               {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
             </select>
           </div>
 
           <div>
-            <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Year</label>
-            <select className="input-field" style={{ width: 100 }} value={year} onChange={e => setYear(parseInt(e.target.value))}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+              Year
+            </label>
+            <select
+              className="input-field"
+              style={{ width: 100, fontWeight: 600 }}
+              value={year}
+              onChange={e => setYear(parseInt(e.target.value))}
+            >
               {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
             </select>
           </div>
 
           <div>
-            <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Class</label>
-            <select className="input-field" style={{ width: 180 }} value={classFilter} onChange={e => setClassFilter(e.target.value)}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+              Class Type
+            </label>
+            <select
+              className="input-field"
+              style={{ width: 190, fontWeight: 500 }}
+              value={classFilter}
+              onChange={e => setClassFilter(e.target.value)}
+            >
               <option value="">All Classes</option>
               {Object.entries(CLASS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
             </select>
           </div>
 
           <div>
-            <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Area / Route</label>
-            <select className="input-field" style={{ width: 160 }} value={areaFilter} onChange={e => setAreaFilter(e.target.value)}>
-              <option value="">All Areas</option>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+              Area / Route
+            </label>
+            <select
+              className="input-field"
+              style={{ width: 170, fontWeight: 500 }}
+              value={areaFilter}
+              onChange={e => setAreaFilter(e.target.value)}
+            >
+              <option value="">All Areas ({areas.length})</option>
               {areas.map(a => <option key={a} value={a}>{a}</option>)}
             </select>
           </div>
 
-          <div style={{ flex: 1, minWidth: 200 }}>
-            <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Search</label>
+          <div style={{ flex: 1, minWidth: 240 }}>
+            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+              Search Recipient / PS Code / Address
+            </label>
             <div style={{ position: 'relative' }}>
-              <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input className="search-bar" style={{ paddingLeft: 32 }} placeholder="Search name, phone, address, PS code..."
-                value={search} onChange={e => setSearch(e.target.value)} />
+              <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+              <input
+                className="input-field"
+                style={{ paddingLeft: 36, width: '100%' }}
+                placeholder="Type name, phone, address, or PS code..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
             </div>
           </div>
         </div>
 
-        {/* Selection & Summary Bar */}
+        {/* Selection Controller & View Settings */}
         <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12,
-          padding: '12px 16px', background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 16
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12,
+          padding: '12px 18px',
+          background: 'var(--bg-card)',
+          borderRadius: 10,
+          border: '1px solid var(--border)',
+          marginBottom: 16
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <input
-              type="checkbox"
-              id="select-all"
-              checked={visibleGroups.length > 0 && selectedHouseholds.size === visibleGroups.length}
-              onChange={toggleSelectAll}
-              style={{ width: 18, height: 18, cursor: 'pointer' }}
-            />
-            <label htmlFor="select-all" style={{ fontSize: 13, fontWeight: 600, cursor: 'pointer' }}>
+          {/* Left Selection Controls */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}>
+              <input
+                type="checkbox"
+                checked={visibleGroups.length > 0 && selectedHouseholds.size === visibleGroups.length}
+                onChange={toggleSelectAllVisible}
+                style={{ width: 17, height: 17, cursor: 'pointer', accentColor: '#f97316' }}
+              />
               Select All {visibleGroups.length} Houses
             </label>
+
+            <span style={{ color: 'var(--border)' }}>|</span>
+
+            <button
+              onClick={selectCurrentPageOnly}
+              className="btn-secondary"
+              style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6 }}
+            >
+              Select Page ({paginatedGroups.length})
+            </button>
+
+            <button
+              onClick={deselectCurrentPageOnly}
+              className="btn-secondary"
+              style={{ padding: '4px 10px', fontSize: 12, borderRadius: 6 }}
+            >
+              Clear Page
+            </button>
           </div>
 
-          <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-            Selected: <b style={{ color: 'var(--accent-orange)' }}>{selectedCount} Houses</b> ({totalTutesSelected} Tutes)
+          {/* Right: Page Size & Current View Stats */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+              Showing <b>{visibleGroups.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, visibleGroups.length)}</b> of <b>{visibleGroups.length}</b> houses
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Per page:</span>
+              <select
+                className="input-field"
+                style={{ width: 75, padding: '4px 8px', fontSize: 12 }}
+                value={pageSize}
+                onChange={e => setPageSize(parseInt(e.target.value))}
+              >
+                <option value={24}>24</option>
+                <option value={36}>36</option>
+                <option value={60}>60</option>
+                <option value={120}>120</option>
+              </select>
+            </div>
           </div>
         </div>
 
         {/* Delivery Cards Grid */}
         {loading ? (
-          <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>Building delivery list...</div>
+          <div style={{ padding: 60, textAlign: 'center', color: 'var(--text-muted)' }}>
+            <div style={{ width: 36, height: 36, border: '3px solid rgba(249,115,22,0.2)', borderTopColor: '#f97316', borderRadius: '50%', margin: '0 auto 16px', animation: 'spin 1s linear infinite' }} />
+            <div style={{ fontWeight: 600, fontSize: 15 }}>Loading and grouping parcel dispatches...</div>
+            <div style={{ fontSize: 12, marginTop: 4 }}>Organizing one delivery pack per household</div>
+          </div>
         ) : visibleGroups.length === 0 ? (
-          <div className="glass-card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-            {activeTab === 'unexported'
-              ? `No unexported/new delivery records pending for ${MONTH_NAMES[month - 1]} ${year}. All morning records are dispatched!`
-              : `No previously dispatched batch records found for ${MONTH_NAMES[month - 1]} ${year}.`}
+          <div style={{
+            padding: 50, textAlign: 'center', background: 'var(--bg-card)',
+            borderRadius: 12, border: '1px solid var(--border)'
+          }}>
+            <div style={{
+              width: 52, height: 52, borderRadius: 26, background: 'rgba(249,115,22,0.1)',
+              color: '#f97316', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 16px'
+            }}>
+              <CheckCircle2 size={28} />
+            </div>
+            <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>
+              {activeTab === 'unexported' ? 'All Clear — No Pending Deliveries!' : 'No Dispatched History Found'}
+            </div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 6, maxWidth: 450, margin: '6px auto 0' }}>
+              {activeTab === 'unexported'
+                ? `All student tutes marked for delivery in ${MONTH_NAMES[month - 1]} ${year} have already been exported and dispatched.`
+                : `No exported batches match your current filter criteria for ${MONTH_NAMES[month - 1]} ${year}.`}
+            </div>
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 16 }}>
-            {visibleGroups.map(g => {
-              const isSelected = selectedHouseholds.has(g.household_id)
+          <>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 16 }}>
+              {paginatedGroups.map(g => {
+                const isSelected = selectedHouseholds.has(g.household_id)
+                const isDispatched = g.isDispatched
+                const accentColor = isDispatched ? '#10b981' : '#f97316'
+                const shadowColor = isDispatched ? 'rgba(16, 185, 129, 0.14)' : 'rgba(249, 115, 22, 0.14)'
 
-              return (
-                <div
-                  key={g.household_id}
-                  className="glass-card"
-                  style={{
-                    padding: 18,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'space-between',
-                    borderColor: isSelected ? 'var(--accent-blue)' : 'var(--border)',
-                    background: isSelected ? 'rgba(59,130,246,0.04)' : 'var(--bg-card)',
-                    transition: 'all 0.15s'
-                  }}
-                >
-                  <div>
-                    {/* Card Header: Checkbox + Name + Badge */}
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleSelectHousehold(g.household_id)}
-                          style={{ width: 18, height: 18, marginTop: 3, cursor: 'pointer' }}
-                        />
-                        <div>
-                          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>{g.parent_name}</div>
-                          {g.parent_phone && (
-                            <div style={{ fontSize: 12, color: 'var(--accent-blue)', fontWeight: 600, marginTop: 2 }}>
-                              📞 {g.parent_phone}
+                return (
+                  <div
+                    key={g.household_id}
+                    className="stat-card"
+                    style={{
+                      padding: 18,
+                      borderRadius: 16,
+                      background: 'var(--bg-card)',
+                      border: '1px solid var(--border)',
+                      borderLeft: `4px solid ${accentColor}`,
+                      boxShadow: isSelected
+                        ? `0 8px 24px -4px ${shadowColor}`
+                        : `0 4px 18px -4px ${shadowColor}`,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'space-between',
+                      transition: 'all 0.2s ease'
+                    }}
+                  >
+                    <div>
+                      {/* Card Header: Checkbox + Name + Badge */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => toggleSelectHousehold(g.household_id)}
+                            style={{ width: 18, height: 18, marginTop: 2, cursor: 'pointer', accentColor: accentColor }}
+                          />
+                          <div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                              {g.parent_name}
                             </div>
-                          )}
-                          <div style={{ fontSize: 11, color: 'var(--accent-orange)', fontWeight: 600, marginTop: 2 }}>
-                            📍 AREA: {g.area}
+                            {g.parent_phone && (
+                              <a
+                                href={`tel:${g.parent_phone}`}
+                                style={{
+                                  fontSize: 12,
+                                  color: 'var(--accent-blue)',
+                                  fontWeight: 600,
+                                  marginTop: 3,
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 4,
+                                  textDecoration: 'none'
+                                }}
+                              >
+                                <Phone size={12} /> {g.parent_phone}
+                              </a>
+                            )}
                           </div>
                         </div>
-                      </div>
 
-                      <span className="badge" style={{ background: '#2a1a1a', color: '#fb923c', fontSize: 11 }}>
-                        {g.students.length} Tute(s)
-                      </span>
-                    </div>
-
-                    {/* Address Box */}
-                    <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 12, background: 'var(--bg-base)', padding: 10, borderRadius: 6, border: '1px solid var(--border)' }}>
-                      {g.address}
-                    </div>
-
-                    {/* Included Tutes List */}
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
-                      {activeTab === 'unexported' ? 'Tutes for this delivery:' : 'Included Tutes:'}
-                    </div>
-
-                    {g.students.map(st => {
-                      const isPending = !st.dispatched
-
-                      return (
-                        <div
-                          key={`${st.ps_code}-${st.class_type}`}
-                          style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: 8,
-                            fontSize: 12,
-                            marginBottom: 6,
-                            padding: '4px 8px',
-                            borderRadius: 6,
-                            background: isPending ? 'rgba(59,130,246,0.06)' : 'rgba(255,255,255,0.02)',
-                            border: `1px solid ${isPending ? 'rgba(59,130,246,0.2)' : 'var(--border)'}`
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                            <Package size={14} style={{ color: isPending ? 'var(--accent-blue)' : '#10b981', flexShrink: 0 }} />
-                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              <strong style={{ color: 'var(--accent-blue)' }}>{st.ps_code}</strong> · {st.full_name} (Gr {st.grade}) — {CLASS_LABELS[st.class_type] || st.class_type}
-                            </span>
-                          </div>
-
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
                           <span style={{
-                            fontSize: 10,
+                            fontSize: 11,
                             fontWeight: 700,
-                            padding: '2px 6px',
-                            borderRadius: 4,
-                            whiteSpace: 'nowrap',
-                            background: isPending ? 'rgba(249,115,22,0.15)' : 'rgba(16,185,129,0.15)',
-                            color: isPending ? '#fb923c' : '#34d399',
-                            border: `1px solid ${isPending ? 'rgba(249,115,22,0.3)' : 'rgba(16,185,129,0.3)'}`
+                            padding: '3px 8px',
+                            borderRadius: 6,
+                            background: isDispatched ? 'rgba(16, 185, 129, 0.15)' : 'rgba(249, 115, 22, 0.15)',
+                            color: isDispatched ? '#10b981' : '#f97316',
+                            border: `1px solid ${isDispatched ? 'rgba(16, 185, 129, 0.3)' : 'rgba(249, 115, 22, 0.3)'}`
                           }}>
-                            {isPending ? '📦 NEW' : '✓ DISPATCHED'}
+                            {g.students.length} {g.students.length === 1 ? 'Tute' : 'Tutes'}
                           </span>
                         </div>
-                      )
-                    })}
-                  </div>
-
-                  {/* Batch Information / Revert Button for Dispatched History */}
-                  {g.isDispatched && (
-                    <div style={{
-                      marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--border)',
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center'
-                    }}>
-                      <div style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>
-                        ✓ {g.latestBatchId || 'Dispatched'}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => revertDispatchedBatch(g)}
-                        className="btn-secondary"
-                        style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
-                        title="Move back to Unexported list"
-                      >
-                        <RotateCcw size={12} /> Revert to New
-                      </button>
+
+                      {/* Address & Area Box */}
+                      <div style={{
+                        fontSize: 13,
+                        color: 'var(--text-primary)',
+                        marginBottom: 12,
+                        background: 'var(--bg-card-hover)',
+                        padding: '10px 12px',
+                        borderRadius: 10,
+                        border: '1px solid var(--border)',
+                        lineHeight: 1.45
+                      }}>
+                        <div style={{ whiteSpace: 'pre-line' }}>{g.address}</div>
+                        <div style={{
+                          display: 'flex', alignItems: 'center', gap: 4,
+                          fontSize: 11, fontWeight: 600, color: accentColor,
+                          marginTop: 6, paddingTop: 6, borderTop: '1px dashed var(--border)'
+                        }}>
+                          <MapPin size={12} /> AREA: {g.area}
+                        </div>
+                      </div>
+
+                      {/* Included Tutes List */}
+                      <div style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        color: 'var(--text-secondary)',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.06em',
+                        marginBottom: 6
+                      }}>
+                        {activeTab === 'unexported' ? 'Tutes in this Pack:' : 'Enclosed Tutes:'}
+                      </div>
+
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                        {g.students.map(st => {
+                          const isPending = !st.dispatched
+
+                          return (
+                            <div
+                              key={`${st.paymentId}-${st.class_type}`}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: 8,
+                                fontSize: 12,
+                                padding: '6px 10px',
+                                borderRadius: 8,
+                                background: isPending ? 'rgba(249,115,22,0.1)' : 'var(--bg-card-hover)',
+                                border: `1px solid ${isPending ? 'rgba(249,115,22,0.25)' : 'var(--border)'}`
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
+                                <Package size={13} style={{ color: isPending ? '#f97316' : '#10b981', flexShrink: 0 }} />
+                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>
+                                  <strong style={{ color: 'var(--accent-blue)' }}>{st.ps_code}</strong> · {st.full_name} <span style={{ color: 'var(--text-secondary)' }}>(Gr {st.grade})</span> — {CLASS_LABELS[st.class_type] || st.class_type}
+                                </span>
+                              </div>
+
+                              <span style={{
+                                fontSize: 9,
+                                fontWeight: 700,
+                                padding: '2px 6px',
+                                borderRadius: 4,
+                                whiteSpace: 'nowrap',
+                                background: isPending ? 'rgba(249, 115, 22, 0.2)' : 'rgba(16, 185, 129, 0.2)',
+                                color: isPending ? '#f97316' : '#10b981',
+                                border: `1px solid ${isPending ? 'rgba(249, 115, 22, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`
+                              }}>
+                                {isPending ? '📦 READY' : '✓ DISPATCHED'}
+                              </span>
+                            </div>
+                          )
+                        })}
+                      </div>
                     </div>
-                  )}
+
+                    {/* Footer for Dispatched Cards */}
+                    {g.isDispatched && (
+                      <div style={{
+                        marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--border)',
+                        display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                      }}>
+                        <div style={{ fontSize: 11, color: '#10b981', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Check size={13} /> {g.latestBatchId || 'Dispatched'}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => revertDispatchedBatch(g)}
+                          className="btn-secondary"
+                          style={{ padding: '3px 8px', fontSize: 11, display: 'flex', alignItems: 'center', gap: 4 }}
+                          title="Move back to Ready to Export queue"
+                        >
+                          <RotateCcw size={12} /> Revert
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div style={{
+                marginTop: 24,
+                padding: '14px 20px',
+                background: 'var(--bg-card)',
+                borderRadius: 12,
+                border: '1px solid var(--border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: 12
+              }}>
+                <div style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                  Page <b>{currentPage}</b> of <b>{totalPages}</b> ({visibleGroups.length} total houses)
                 </div>
-              )
-            })}
-          </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <button
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                    disabled={currentPage === 1}
+                    className="btn-secondary"
+                    style={{ padding: '6px 12px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <ChevronLeft size={16} /> Prev
+                  </button>
+
+                  {/* Page Numbers */}
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum = currentPage
+                    if (totalPages <= 5) {
+                      pageNum = i + 1
+                    } else if (currentPage <= 3) {
+                      pageNum = i + 1
+                    } else if (currentPage >= totalPages - 2) {
+                      pageNum = totalPages - 4 + i
+                    } else {
+                      pageNum = currentPage - 2 + i
+                    }
+
+                    return (
+                      <button
+                        key={pageNum}
+                        onClick={() => setCurrentPage(pageNum)}
+                        style={{
+                          width: 34,
+                          height: 34,
+                          borderRadius: 8,
+                          border: pageNum === currentPage ? '1px solid #f97316' : '1px solid var(--border)',
+                          background: pageNum === currentPage ? '#f97316' : 'var(--bg-base)',
+                          color: pageNum === currentPage ? '#fff' : 'var(--text-primary)',
+                          fontWeight: pageNum === currentPage ? 700 : 500,
+                          fontSize: 13,
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {pageNum}
+                      </button>
+                    )
+                  })}
+
+                  <button
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                    disabled={currentPage === totalPages}
+                    className="btn-secondary"
+                    style={{ padding: '6px 12px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    Next <ChevronRight size={16} />
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>
   )
 }
+

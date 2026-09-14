@@ -411,44 +411,54 @@ export default function NewStudentPage() {
   const totalAmountPaidNow = enrolledClasses.reduce((sum, c) => sum + (parseFloat(classAmountPaid[c.courseCode]) || 0), 0)
 
   return (
-    <div className="fade-in" style={{ paddingBottom: 60 }}>
+    <div className="fade-in" style={{ paddingBottom: 60, minHeight: '100vh', width: '100%' }}>
       {/* Header */}
-      <div className="page-header">
+      <div className="page-header" style={{ padding: '18px 28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <a href="/students" className="btn-secondary" style={{ padding: '6px 10px' }}><ArrowLeft size={14} /></a>
+          <a href="/students" className="btn-secondary" style={{ padding: '7px 11px', borderRadius: 8 }}>
+            <ArrowLeft size={15} />
+          </a>
           <div>
-            <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <UserPlus size={22} style={{ color: 'var(--accent-blue)' }} />
-              Register Student
-            </h1>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-              Step 1: Student details (Name optional) · Step 2: Household & Delivery details (Required)
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <h1 style={{ fontSize: 20, fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <UserPlus size={22} style={{ color: 'var(--accent-blue)' }} />
+                Student Registration
+              </h1>
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12, background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)', border: '1px solid rgba(56, 189, 248, 0.3)' }}>
+                New Admission
+              </span>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', marginTop: 3 }}>
+              Step 1: Student Details · Step 2: Household &amp; Delivery (Required) · Step 3: Class Enrollments
             </div>
           </div>
         </div>
       </div>
 
-      <div className="page-content" style={{ maxWidth: 760 }}>
+      <div className="page-content" style={{ maxWidth: 960, margin: '24px auto', padding: 0 }}>
         {successPs ? (
-          <div className="glass-card" style={{ padding: 40, textAlign: 'center' }}>
-            <div style={{ fontSize: 48, marginBottom: 12 }}>🎉</div>
-            <h2 style={{ fontSize: 22, fontWeight: 700, margin: '0 0 8px' }}>Registration Complete!</h2>
+          <div className="glass-card" style={{ padding: '48px 32px', textAlign: 'center', borderRadius: 20, border: '1px solid var(--border)', boxShadow: '0 10px 30px rgba(0,0,0,0.06)' }}>
+            <div style={{ width: 64, height: 64, borderRadius: '50%', background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+              <Sparkles size={32} />
+            </div>
+            <h2 style={{ fontSize: 24, fontWeight: 800, margin: '0 0 8px', color: 'var(--text-primary)' }}>Registration Successful!</h2>
             <div style={{
-              display: 'inline-block', padding: '10px 24px', background: 'rgba(59,130,246,0.15)',
-              border: '1px solid var(--accent-blue)', borderRadius: 8, fontSize: 24, fontWeight: 800,
+              display: 'inline-block', padding: '10px 28px', background: 'rgba(56, 189, 248, 0.15)',
+              border: '2px solid var(--accent-blue)', borderRadius: 12, fontSize: 28, fontWeight: 900,
               color: 'var(--accent-blue)', letterSpacing: 2, margin: '14px 0'
             }}>
               {successPs}
             </div>
-            <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 24px' }}>
-              Student record with {enrolledClasses.length} enrolled class(es) {recordImmediatePayment ? 'and payment' : ''} have been saved successfully.
+            <p style={{ color: 'var(--text-secondary)', fontSize: 14, margin: '0 0 28px', maxWidth: 460, marginInline: 'auto', lineHeight: 1.5 }}>
+              Student record with <strong>{enrolledClasses.length} enrolled class(es)</strong> {recordImmediatePayment ? 'and payment' : ''} have been registered into the institute directory.
             </p>
             <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-              <a href={`/students/${encodeURIComponent(successPs)}`} className="btn-primary">
-                View Profile →
+              <a href={`/students/${encodeURIComponent(successPs)}`} className="btn-primary" style={{ padding: '10px 22px', fontSize: 14, borderRadius: 10, fontWeight: 700 }}>
+                View Student Profile →
               </a>
               <button
                 className="btn-secondary"
+                style={{ padding: '10px 20px', fontSize: 14, borderRadius: 10, fontWeight: 700 }}
                 onClick={() => {
                   setStudentName('')
                   setAddress('')
@@ -460,34 +470,37 @@ export default function NewStudentPage() {
                   window.location.reload()
                 }}
               >
-                + Next Student
+                + Register Next Student
               </button>
             </div>
           </div>
         ) : (
           <>
             {error && (
-              <div style={{ padding: 14, background: '#2a1a1a', border: '1px solid var(--accent-red)', borderRadius: 8, color: '#f87171', marginBottom: 20, fontSize: 14 }}>
-                ⚠️ {error}
+              <div style={{ padding: '12px 16px', background: 'rgba(239, 68, 68, 0.15)', border: '1.5px solid rgba(239, 68, 68, 0.3)', borderRadius: 10, color: '#ef4444', marginBottom: 20, fontSize: 13.5, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertTriangle size={18} /> {error}
               </div>
             )}
 
-            {/* Section 1: Student Details (FIRST) */}
-            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <UserPlus size={18} /> 1. Student Details (1 PS Code)
+            {/* Section 1: Student Details */}
+            <div className="glass-card" style={{ padding: '24px 26px', marginBottom: 20, borderRadius: 16, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <UserPlus size={16} />
+                  </div>
+                  1. Student Details
                 </div>
-                <span style={{ fontSize: 11, background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)', padding: '3px 8px', borderRadius: 6, fontWeight: 600 }}>
+                <span style={{ fontSize: 11, background: 'var(--bg-card-hover)', color: 'var(--text-secondary)', padding: '3px 9px', borderRadius: 6, fontWeight: 700 }}>
                   Student Name is Optional
                 </span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '150px 1fr', gap: 14, marginBottom: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 16, marginBottom: 16 }}>
                 {/* Locked Auto-Generated PS Code */}
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
-                    <Lock size={11} /> PS Code (Locked)
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                    <Lock size={12} style={{ color: 'var(--accent-blue)' }} /> PS Code (Auto)
                   </label>
                   <input
                     className="input-field"
@@ -495,13 +508,12 @@ export default function NewStudentPage() {
                     readOnly
                     disabled
                     style={{
-                      fontWeight: 800,
+                      fontWeight: 900,
+                      fontSize: 15,
                       letterSpacing: 1.5,
                       color: 'var(--accent-blue)',
-                      background: 'rgba(59,130,246,0.06)',
-                      border: '1px solid rgba(59,130,246,0.25)',
                       cursor: 'not-allowed',
-                      opacity: 0.95
+                      height: 42
                     }}
                     title="Auto-generated unique identifier (Locked)"
                   />
@@ -509,8 +521,8 @@ export default function NewStudentPage() {
 
                 {/* Optional Student / Children Names */}
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                    Student / Children Full Name(s) <span style={{ color: 'var(--text-muted)', fontSize: 10 }}>(Optional)</span>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
+                    Student / Children Full Name(s) <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: 11 }}>(Optional)</span>
                   </label>
                   <input
                     className="input-field"
@@ -518,20 +530,25 @@ export default function NewStudentPage() {
                     value={studentName}
                     onChange={e => setStudentName(e.target.value)}
                     autoFocus
+                    style={{
+                      borderRadius: 10,
+                      fontSize: 13.5,
+                      height: 42
+                    }}
                   />
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr 130px', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 140px', gap: 16 }}>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
                     Primary Grade
                   </label>
                   <select
                     className="input-field"
                     value={primaryGrade}
                     onChange={e => handlePrimaryGradeChange(parseInt(e.target.value))}
-                    style={{ fontWeight: 600 }}
+                    style={{ fontWeight: 700, borderRadius: 10, height: 42 }}
                   >
                     {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
                       <option key={g} value={g}>Grade {g}</option>
@@ -539,7 +556,7 @@ export default function NewStudentPage() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
                     School (Optional)
                   </label>
                   <input
@@ -547,10 +564,11 @@ export default function NewStudentPage() {
                     placeholder="e.g. Royal College"
                     value={school}
                     onChange={e => setSchool(e.target.value)}
+                    style={{ borderRadius: 10, height: 42 }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
                     CRM F-Code
                   </label>
                   <input
@@ -558,25 +576,29 @@ export default function NewStudentPage() {
                     placeholder="e.g. F80001"
                     value={fcodeRef}
                     onChange={e => setFcodeRef(e.target.value)}
+                    style={{ borderRadius: 10, height: 42 }}
                   />
                 </div>
               </div>
             </div>
 
             {/* Section 2: Household & Postal Delivery Details (REQUIRED) */}
-            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 18 }}>
-                <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Home size={18} /> 2. Household & Delivery Details (Required)
+            <div className="glass-card" style={{ padding: '24px 26px', marginBottom: 20, borderRadius: 16, border: '1.5px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+                <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(236, 72, 153, 0.15)', color: '#ec4899', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Home size={16} />
+                  </div>
+                  2. Household &amp; Delivery Details
                 </div>
-                <span style={{ fontSize: 11, background: 'rgba(239,68,68,0.1)', color: '#ef4444', padding: '3px 8px', borderRadius: 6, fontWeight: 700 }}>
-                  * Required for Delivery & Contact
+                <span style={{ fontSize: 11, background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '3px 9px', borderRadius: 6, fontWeight: 800, border: '1px solid rgba(239, 68, 68, 0.3)' }}>
+                  * Required for Courier Delivery
                 </span>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11.5, color: 'var(--text-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
                     Parent / Guardian Name <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <input
@@ -585,10 +607,11 @@ export default function NewStudentPage() {
                     value={parentName}
                     onChange={e => setParentName(e.target.value)}
                     required
+                    style={{ borderRadius: 10, height: 42, fontWeight: 600 }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11.5, color: 'var(--text-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
                     Parent Contact Number <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <input
@@ -597,6 +620,7 @@ export default function NewStudentPage() {
                     value={parentPhone}
                     onChange={e => handlePhoneChange(e.target.value)}
                     required
+                    style={{ borderRadius: 10, height: 42, fontWeight: 600 }}
                   />
                 </div>
               </div>
@@ -604,11 +628,11 @@ export default function NewStudentPage() {
               {/* Existing Household Alert Banner if Phone Already Exists */}
               {existingHousehold && (
                 <div style={{
-                  marginTop: 14, padding: '12px 14px', background: 'rgba(245,158,11,0.1)', border: '1px solid #f59e0b',
-                  borderRadius: 8, color: '#fbbf24', fontSize: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10
+                  marginTop: 16, padding: '12px 16px', background: 'rgba(245, 158, 11, 0.15)', border: '1.5px solid rgba(245, 158, 11, 0.3)',
+                  borderRadius: 10, color: '#f59e0b', fontSize: 12.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10
                 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <AlertTriangle size={16} />
+                    <AlertTriangle size={18} style={{ color: '#f59e0b', flexShrink: 0 }} />
                     <span>
                       <b>Existing Household Found:</b> {existingHousehold.parent_name || 'Parent'} ({existingHousehold.parent_phone})
                       {existingHousehold.students?.length > 0 && ` — Linked PS Code: ${existingHousehold.students[0].ps_code}`}
@@ -618,7 +642,7 @@ export default function NewStudentPage() {
                     <a
                       href={`/students/${existingHousehold.students[0].ps_code}`}
                       target="_blank"
-                      style={{ color: '#60a5fa', textDecoration: 'none', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+                      style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
                     >
                       View Profile <ExternalLink size={12} />
                     </a>
@@ -626,9 +650,9 @@ export default function NewStudentPage() {
                 </div>
               )}
 
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 14, marginTop: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginTop: 16 }}>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-primary)', fontWeight: 600, textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11.5, color: 'var(--text-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
                     Delivery Address <span style={{ color: '#ef4444' }}>*</span>
                   </label>
                   <input
@@ -637,10 +661,11 @@ export default function NewStudentPage() {
                     value={address}
                     onChange={e => setAddress(e.target.value)}
                     required
+                    style={{ borderRadius: 10, height: 42 }}
                   />
                 </div>
                 <div>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                  <label style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
                     Area / Delivery Route
                   </label>
                   <input
@@ -648,20 +673,24 @@ export default function NewStudentPage() {
                     placeholder="e.g. Kandy Town"
                     value={area}
                     onChange={e => setArea(e.target.value)}
+                    style={{ borderRadius: 10, height: 42 }}
                   />
                 </div>
               </div>
             </div>
 
-            {/* Section 3: Class Enrollments & Multi-Subject / Sibling Classes */}
-            <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            {/* Section 3: Class Enrollments */}
+            <div className="glass-card" style={{ padding: '24px 26px', marginBottom: 20, borderRadius: 16, border: '1px solid var(--border)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
                 <div>
-                  <div style={{ fontWeight: 600, fontSize: 15, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <Sparkles size={18} /> 3. Class Enrollments
+                  <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Sparkles size={16} />
+                    </div>
+                    3. Class Enrollments
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
-                    Add classes for this student or siblings in this home. All classes share this 1 PS Code.
+                  <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 2 }}>
+                    Add classes for this student or siblings in this household (all share this PS Code).
                   </div>
                 </div>
                 <div style={{ flexShrink: 0 }}>
@@ -669,7 +698,7 @@ export default function NewStudentPage() {
                     type="button"
                     onClick={handleAddClassRow}
                     className="btn-primary"
-                    style={{ padding: '6px 14px', fontSize: 13, fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}
+                    style={{ padding: '8px 16px', fontSize: 13, fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap', borderRadius: 10 }}
                   >
                     <Plus size={14} /> Add Class
                   </button>
@@ -685,26 +714,26 @@ export default function NewStudentPage() {
                     <div
                       key={row.id}
                       style={{
-                        padding: '14px',
-                        borderRadius: 10,
+                        padding: '14px 16px',
+                        borderRadius: 12,
                         border: '1px solid var(--border)',
-                        background: 'var(--bg-base)',
+                        background: 'var(--bg-card-hover)',
                         display: 'grid',
-                        gridTemplateColumns: '110px 1fr 130px 32px',
-                        gap: 12,
+                        gridTemplateColumns: '120px 1fr 140px 36px',
+                        gap: 14,
                         alignItems: 'center'
                       }}
                     >
                       {/* Grade Dropdown */}
                       <div>
-                        <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                        <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
                           Grade
                         </label>
                         <select
                           className="input-field"
                           value={row.grade}
                           onChange={e => handleClassGradeChange(row.id, parseInt(e.target.value))}
-                          style={{ padding: '6px 8px', fontSize: 13, fontWeight: 600 }}
+                          style={{ padding: '6px 8px', fontSize: 13, fontWeight: 700, borderRadius: 8, height: 38 }}
                         >
                           {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
                             <option key={g} value={g}>Grade {g}</option>
@@ -714,14 +743,14 @@ export default function NewStudentPage() {
 
                       {/* Aligned Course Dropdown */}
                       <div>
-                        <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                        <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
                           Aligned Course ({coursesForThisGrade.length} options)
                         </label>
                         <select
                           className="input-field"
                           value={row.courseCode}
                           onChange={e => handleClassCourseChange(row.id, e.target.value)}
-                          style={{ padding: '6px 10px', fontSize: 13, fontWeight: 600, color: 'var(--accent-blue)' }}
+                          style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700, color: 'var(--accent-blue)', borderRadius: 8, height: 38 }}
                         >
                           {coursesForThisGrade.map(c => (
                             <option key={c.code} value={c.code}>
@@ -733,7 +762,7 @@ export default function NewStudentPage() {
 
                       {/* Monthly Fee / Rate */}
                       <div>
-                        <label style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
+                        <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
                           Fee / Offer (Rs.)
                         </label>
                         <input
@@ -741,7 +770,7 @@ export default function NewStudentPage() {
                           className="input-field"
                           value={row.fee}
                           onChange={e => handleClassFeeChange(row.id, parseFloat(e.target.value) || 0)}
-                          style={{ padding: '6px 10px', fontSize: 13, fontWeight: 700, color: 'var(--accent-green)' }}
+                          style={{ padding: '6px 10px', fontSize: 13.5, fontWeight: 800, color: '#10b981', borderRadius: 8, height: 38 }}
                         />
                       </div>
 
@@ -752,14 +781,15 @@ export default function NewStudentPage() {
                           onClick={() => handleRemoveClassRow(row.id)}
                           disabled={enrolledClasses.length === 1}
                           style={{
-                            background: 'none', border: 'none',
+                            background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: 8,
                             color: enrolledClasses.length === 1 ? 'var(--text-muted)' : '#ef4444',
                             cursor: enrolledClasses.length === 1 ? 'not-allowed' : 'pointer',
-                            padding: 4, opacity: enrolledClasses.length === 1 ? 0.3 : 1
+                            width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            opacity: enrolledClasses.length === 1 ? 0.4 : 1
                           }}
                           title="Remove class"
                         >
-                          <Trash2 size={16} />
+                          <Trash2 size={15} />
                         </button>
                       </div>
                     </div>
@@ -770,19 +800,19 @@ export default function NewStudentPage() {
               {/* Total Fee Summary */}
               <div style={{
                 display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '12px 16px', background: 'rgba(59,130,246,0.06)', borderRadius: 8, border: '1px solid rgba(59,130,246,0.2)'
+                padding: '12px 18px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: 10, border: '1px solid rgba(59, 130, 246, 0.25)'
               }}>
-                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                  Total Enrolled Classes: <b>{enrolledClasses.length}</b>
+                <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
+                  Total Enrolled Classes: <strong style={{ color: 'var(--accent-blue)' }}>{enrolledClasses.length}</strong>
                 </span>
-                <span style={{ fontSize: 15, fontWeight: 800, color: 'var(--accent-green)' }}>
+                <span style={{ fontSize: 15, fontWeight: 900, color: '#10b981' }}>
                   Total Monthly Fee: Rs. {totalMonthlyFee.toLocaleString()}
                 </span>
               </div>
             </div>
 
             {/* Optional Immediate Payment Section */}
-            <div className="glass-card" style={{ padding: 20, marginBottom: 20 }}>
+            <div className="glass-card" style={{ padding: '20px 24px', marginBottom: 24, borderRadius: 16, border: '1px solid var(--border)' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
                   <input
@@ -790,44 +820,44 @@ export default function NewStudentPage() {
                     id="chk-immediate-pay"
                     checked={recordImmediatePayment}
                     onChange={e => setRecordImmediatePayment(e.target.checked)}
-                    style={{ width: 18, height: 18, cursor: 'pointer' }}
+                    style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#2563eb' }}
                   />
-                  <label htmlFor="chk-immediate-pay" style={{ cursor: 'pointer', fontSize: 14, fontWeight: 700, color: recordImmediatePayment ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
+                  <label htmlFor="chk-immediate-pay" style={{ cursor: 'pointer', fontSize: 14.5, fontWeight: 800, color: recordImmediatePayment ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
                     💳 Record Payment Right Now
                   </label>
                 </div>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
                   Optional (Can pay later via Add Payment)
                 </div>
               </div>
 
               {recordImmediatePayment && (
                 <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border)' }}>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
                     <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Month</label>
-                      <select className="input-field" value={paymentForm.month} onChange={e => setPaymentForm(f => ({ ...f, month: parseInt(e.target.value) }))}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Month</label>
+                      <select className="input-field" style={{ borderRadius: 8, height: 38 }} value={paymentForm.month} onChange={e => setPaymentForm(f => ({ ...f, month: parseInt(e.target.value) }))}>
                         {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
                       </select>
                     </div>
                     <div>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Year</label>
-                      <select className="input-field" value={paymentForm.year} onChange={e => setPaymentForm(f => ({ ...f, year: parseInt(e.target.value) }))}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Year</label>
+                      <select className="input-field" style={{ borderRadius: 8, height: 38 }} value={paymentForm.year} onChange={e => setPaymentForm(f => ({ ...f, year: parseInt(e.target.value) }))}>
                         {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
                       </select>
                     </div>
                   </div>
 
                   <div style={{ marginBottom: 14 }}>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Payment Method</label>
-                    <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Payment Method</label>
+                    <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                       {['BANK', 'CASH', 'FREE', 'IMS', 'PHYSICAL'].map(t => (
                         <button
                           key={t}
                           type="button"
                           onClick={() => setPaymentForm(f => ({ ...f, payment_type: t }))}
                           className={paymentForm.payment_type === t ? 'btn-primary' : 'btn-secondary'}
-                          style={{ padding: '5px 12px', fontSize: 12 }}
+                          style={{ padding: '6px 14px', fontSize: 12, borderRadius: 8, fontWeight: 700 }}
                         >
                           {t}
                         </button>
@@ -837,28 +867,28 @@ export default function NewStudentPage() {
 
                   {paymentForm.payment_type === 'BANK' && (
                     <div style={{ marginBottom: 14 }}>
-                      <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Bank</label>
-                      <select className="input-field" value={paymentForm.bank_name} onChange={e => setPaymentForm(f => ({ ...f, bank_name: e.target.value }))}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Bank</label>
+                      <select className="input-field" style={{ borderRadius: 8, height: 38 }} value={paymentForm.bank_name} onChange={e => setPaymentForm(f => ({ ...f, bank_name: e.target.value }))}>
                         {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
                     </div>
                   )}
 
-                  {/* Payment Amount & Delivery Checkbox for each enrolled class */}
+                  {/* Payment Amount & Delivery Checkbox */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 14 }}>
-                    <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block' }}>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block' }}>
                       Enrolled Classes, Amounts &amp; Postal Delivery:
                     </label>
                     {enrolledClasses.map(c => (
                       <div key={c.id} style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap',
-                        gap: 10, padding: '10px 14px', background: 'rgba(255,255,255,0.02)', borderRadius: 8, border: '1px solid var(--border)'
+                        gap: 10, padding: '12px 14px', background: 'var(--bg-card-hover)', borderRadius: 10, border: '1px solid var(--border)'
                       }}>
                         <div>
-                          <div style={{ fontSize: 13, fontWeight: 600 }}>
+                          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
                             Grade {c.grade} · {availableClasses[c.courseCode] || c.courseCode}
                           </div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          <div style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
                             Class Fee: Rs. {c.fee.toLocaleString()}
                           </div>
                         </div>
@@ -866,11 +896,11 @@ export default function NewStudentPage() {
                         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                           {['BANK', 'CASH', 'PHYSICAL'].includes(paymentForm.payment_type) && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                              <label style={{ fontSize: 12, fontWeight: 600, color: 'var(--accent-blue)' }}>Paid (Rs.):</label>
+                              <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-blue)' }}>Paid (Rs.):</label>
                               <input
                                 type="number"
                                 className="input-field"
-                                style={{ width: 110, padding: '4px 8px', fontWeight: 700, color: 'var(--accent-green)' }}
+                                style={{ width: 110, padding: '4px 8px', fontWeight: 800, color: '#10b981', borderRadius: 8 }}
                                 value={classAmountPaid[c.courseCode] ?? ''}
                                 onChange={e => setClassAmountPaid({ ...classAmountPaid, [c.courseCode]: e.target.value })}
                               />
@@ -879,20 +909,20 @@ export default function NewStudentPage() {
 
                           <div style={{
                             display: 'flex', alignItems: 'center', gap: 6,
-                            padding: '4px 8px', borderRadius: 6,
-                            background: classDeliverTute[c.courseCode] ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)',
-                            border: `1px solid ${classDeliverTute[c.courseCode] ? '#10b981' : 'var(--border)'}`
+                            padding: '4px 10px', borderRadius: 8,
+                            background: classDeliverTute[c.courseCode] ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                            border: `1px solid ${classDeliverTute[c.courseCode] ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`
                           }}>
                             <input
                               type="checkbox"
                               id={`reg-tute-${c.id}`}
                               checked={classDeliverTute[c.courseCode] ?? true}
                               onChange={e => setClassDeliverTute({ ...classDeliverTute, [c.courseCode]: e.target.checked })}
-                              style={{ width: 15, height: 15, cursor: 'pointer' }}
+                              style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#10b981' }}
                             />
                             <label htmlFor={`reg-tute-${c.id}`} style={{
-                              fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                              color: classDeliverTute[c.courseCode] ? '#34d399' : 'var(--text-muted)'
+                              fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                              color: classDeliverTute[c.courseCode] ? '#10b981' : 'var(--text-secondary)'
                             }}>
                               📦 Deliver Tute
                             </label>
@@ -901,20 +931,21 @@ export default function NewStudentPage() {
                       </div>
                     ))}
                     {['BANK', 'CASH', 'PHYSICAL'].includes(paymentForm.payment_type) && (
-                      <div style={{ textAlign: 'right', fontSize: 14, fontWeight: 700, color: 'var(--accent-green)', marginTop: 4 }}>
+                      <div style={{ textAlign: 'right', fontSize: 14.5, fontWeight: 800, color: '#10b981', marginTop: 4 }}>
                         Total Slip Payment: Rs. {totalAmountPaidNow.toLocaleString()}
                       </div>
                     )}
                   </div>
 
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'rgba(255,255,255,0.02)', borderRadius: 6, width: 'fit-content' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--bg-card-hover)', borderRadius: 8, border: '1px solid var(--border)', width: 'fit-content' }}>
                     <input
                       type="checkbox"
                       id="chk-add-grp"
                       checked={paymentForm.added_to_group}
                       onChange={e => setPaymentForm(f => ({ ...f, added_to_group: e.target.checked }))}
+                      style={{ accentColor: '#2563eb' }}
                     />
-                    <label htmlFor="chk-add-grp" style={{ fontSize: 12 }}>Added to WhatsApp Group</label>
+                    <label htmlFor="chk-add-grp" style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>Added to WhatsApp Group</label>
                   </div>
                 </div>
               )}
@@ -923,11 +954,11 @@ export default function NewStudentPage() {
             {/* Submit Button */}
             <button
               className="btn-primary"
-              style={{ width: '100%', padding: 14, fontSize: 15, fontWeight: 700, borderRadius: 10 }}
+              style={{ width: '100%', padding: '14px 20px', fontSize: 15, fontWeight: 800, borderRadius: 12, justifyContent: 'center', boxShadow: '0 4px 14px rgba(37, 99, 235, 0.25)' }}
               onClick={submit}
               disabled={saving}
             >
-              {saving ? 'Registering...' : recordImmediatePayment ? 'Register & Pay' : 'Register'}
+              {saving ? 'Registering Student...' : recordImmediatePayment ? 'Register & Record Payment' : 'Complete Registration'}
             </button>
           </>
         )}

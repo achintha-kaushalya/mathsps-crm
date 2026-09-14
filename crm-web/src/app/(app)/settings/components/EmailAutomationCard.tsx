@@ -311,7 +311,7 @@ export default function EmailAutomationCard() {
   }
 
   return (
-    <div className="glass-card" style={{ padding: 24, marginTop: 24, borderRadius: 12 }}>
+    <div className="glass-card" style={{ padding: 24, marginTop: 0, borderRadius: 12, borderLeft: '4px solid #818cf8', boxShadow: '0 4px 20px -4px rgba(129, 140, 248, 0.25)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20, flexWrap: 'wrap', gap: 12 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>

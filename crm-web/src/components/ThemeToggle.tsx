@@ -14,10 +14,8 @@ export default function ThemeToggle() {
       setTheme(saved)
       document.documentElement.setAttribute('data-theme', saved)
     } else {
-      const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
-      const initial = prefersDark ? 'dark' : 'dark' // Default to dark theme
-      setTheme(initial)
-      document.documentElement.setAttribute('data-theme', initial)
+      setTheme('light')
+      document.documentElement.setAttribute('data-theme', 'light')
     }
     setMounted(true)
   }, [])

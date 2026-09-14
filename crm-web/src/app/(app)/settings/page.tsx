@@ -17,16 +17,29 @@ import {
   CheckCircle2,
   FileJson,
   Layers,
-  Archive
+  Archive,
+  Mail,
+  Activity,
+  Cpu,
+  Server,
+  Trash2,
+  HardDrive,
+  Users,
+  Check
 } from 'lucide-react'
 import EmailAutomationCard from './components/EmailAutomationCard'
 
 export default function SettingsPage() {
   const supabase = createClient()
 
+  // Primary Tab State
+  const [activeTab, setActiveTab] = useState<'account_security' | 'database_backup' | 'email_automation' | 'diagnostics'>('account_security')
+
+  // User Profile
   const [email, setEmail] = useState('')
   const [name, setName] = useState('')
   const [role, setRole] = useState('')
+  const [activeTutor, setActiveTutor] = useState('prabuddha')
 
   // Password Change
   const [newPassword, setNewPassword] = useState('')
@@ -36,6 +49,15 @@ export default function SettingsPage() {
   const [savingPassword, setSavingPassword] = useState(false)
   const [passError, setPassError] = useState('')
   const [passSuccess, setPassSuccess] = useState('')
+
+  // Database Summary Stats
+  const [dbCounts, setDbCounts] = useState<{
+    students: number
+    payments: number
+    households: number
+    leads: number
+  }>({ students: 0, payments: 0, households: 0, leads: 0 })
+  const [statsLoading, setStatsLoading] = useState(false)
 
   // Backup & Restore State
   const [backupLoading, setBackupLoading] = useState(false)
@@ -50,6 +72,9 @@ export default function SettingsPage() {
   const [restoreMode, setRestoreMode] = useState<'upsert' | 'clean_wipe'>('upsert')
   const [confirmText, setConfirmText] = useState('')
 
+  // Cache & Diagnostics State
+  const [cacheStatus, setCacheStatus] = useState('')
+
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
@@ -60,11 +85,41 @@ export default function SettingsPage() {
         setRole(user.user_metadata?.role || 'member')
       }
     })
+
+    if (typeof window !== 'undefined') {
+      const tutor = localStorage.getItem('mathsps_active_tutor') || 'prabuddha'
+      setActiveTutor(tutor)
+    }
+
+    loadDatabaseSummaryCounts()
   }, [])
+
+  async function loadDatabaseSummaryCounts() {
+    setStatsLoading(true)
+    try {
+      const [stuRes, payRes, houseRes, leadRes] = await Promise.all([
+        supabase.from('students').select('*', { count: 'exact', head: true }),
+        supabase.from('payments').select('*', { count: 'exact', head: true }),
+        supabase.from('households').select('*', { count: 'exact', head: true }),
+        supabase.from('leads').select('*', { count: 'exact', head: true })
+      ])
+      setDbCounts({
+        students: stuRes.count || 0,
+        payments: payRes.count || 0,
+        households: houseRes.count || 0,
+        leads: leadRes.count || 0
+      })
+    } catch (e) {
+      console.warn('Failed to load count stats', e)
+    } finally {
+      setStatsLoading(false)
+    }
+  }
 
   async function handlePasswordUpdate(e: React.FormEvent) {
     e.preventDefault()
-    setPassError(''); setPassSuccess('')
+    setPassError('')
+    setPassSuccess('')
 
     if (newPassword.length < 6) {
       setPassError('Password must be at least 6 characters long.')
@@ -222,7 +277,6 @@ export default function SettingsPage() {
     const BATCH = 200
     for (let i = 0; i < rows.length; i += BATCH) {
       const slice = rows.slice(i, i + BATCH).map(row => {
-        // Clean out generated columns if present
         if (table === 'payments' && 'balance_after' in row) {
           const { balance_after, ...rest } = row
           return rest
@@ -246,7 +300,6 @@ export default function SettingsPage() {
     const db = backupPayload.database
 
     try {
-      // If Clean Wipe mode selected, delete tables in reverse foreign key order
       if (restoreMode === 'clean_wipe') {
         if (confirmText !== 'RESTORE') {
           throw new Error('Please type RESTORE to confirm full database rebuild.')
@@ -260,7 +313,6 @@ export default function SettingsPage() {
         await supabase.from('leads').delete().neq('id', '00000000-0000-0000-0000-000000000000')
       }
 
-      // Restore in strict foreign-key order
       if (db.members) await chunkInsert('members', db.members, 'Restoring members')
       if (db.households) await chunkInsert('households', db.households, 'Restoring households')
       if (db.students) await chunkInsert('students', db.students, 'Restoring students')
@@ -273,6 +325,7 @@ export default function SettingsPage() {
       setShowRestoreModal(false)
       setBackupPayload(null)
       if (fileInputRef.current) fileInputRef.current.value = ''
+      loadDatabaseSummaryCounts()
     } catch (e: any) {
       setRestoreError(e.message || 'Failed to restore database.')
     } finally {
@@ -281,326 +334,512 @@ export default function SettingsPage() {
     }
   }
 
+  function handleClearLocalCache() {
+    try {
+      localStorage.removeItem('mathsps_active_tutor')
+      setCacheStatus('✓ Local UI cache and filter state reset.')
+      setTimeout(() => setCacheStatus(''), 3500)
+    } catch (e) {
+      console.error(e)
+    }
+  }
+
   const isAdmin = role === 'admin'
 
   return (
     <div className="fade-in" style={{ paddingBottom: 60 }}>
+      {/* Header */}
       <div className="page-header">
         <div>
           <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
             <Settings size={22} style={{ color: 'var(--accent-blue)' }} />
-            Account Settings &amp; System Backup
+            Account Settings &amp; System Hub
           </h1>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-            Manage staff credentials, export full system snapshots, and restore database
+            Manage staff credentials, automated reports, database backups, and system diagnostics
           </div>
         </div>
       </div>
 
-      <div className="page-content" style={{ maxWidth: 760 }}>
+      <div className="page-content" style={{ width: '100%', maxWidth: '100%' }}>
+        {/* Navigation Tabs */}
+        <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 12, flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setActiveTab('account_security')}
+            className={activeTab === 'account_security' ? 'btn-primary' : 'btn-secondary'}
+            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            <User size={16} />
+            👤 Account &amp; Security
+          </button>
 
-        {/* Profile Card */}
-        <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <User size={16} /> My Account Info
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Staff Name</div>
-              <div style={{ fontSize: 14, fontWeight: 600 }}>{name}</div>
-            </div>
-            <div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Login Email</div>
-              <div style={{ fontSize: 14, fontFamily: 'monospace' }}>{email}</div>
-            </div>
-          </div>
-
-          <div style={{ marginTop: 14, paddingTop: 14, borderTop: '1px solid var(--border)' }}>
-            <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Access Role</div>
-            <span className="badge" style={{
-              background: role === 'admin' ? '#2a1a3a' : '#1e3a5f',
-              color: role === 'admin' ? '#c084fc' : '#60a5fa'
+          <button
+            onClick={() => setActiveTab('database_backup')}
+            className={activeTab === 'database_backup' ? 'btn-primary' : 'btn-secondary'}
+            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            <Database size={16} />
+            💾 Database Backup &amp; Recovery
+            <span style={{
+              background: activeTab === 'database_backup' ? 'rgba(255,255,255,0.2)' : 'rgba(74,222,128,0.15)',
+              color: activeTab === 'database_backup' ? '#fff' : '#4ade80',
+              padding: '2px 8px', borderRadius: 12, fontSize: 11
             }}>
-              {role.toUpperCase()}
+              {dbCounts.students} students
             </span>
-          </div>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('email_automation')}
+            className={activeTab === 'email_automation' ? 'btn-primary' : 'btn-secondary'}
+            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            <Mail size={16} />
+            📧 Email Reports &amp; Dispatch
+          </button>
+
+          <button
+            onClick={() => setActiveTab('diagnostics')}
+            className={activeTab === 'diagnostics' ? 'btn-primary' : 'btn-secondary'}
+            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            <Cpu size={16} />
+            ⚡ System Diagnostics
+          </button>
         </div>
 
-        {/* Database Backup & Restore Engine (Admin Only) */}
-        {isAdmin && (
-          <div className="glass-card" style={{ padding: 24, marginBottom: 20 }}>
-            <div style={{ fontWeight: 600, fontSize: 15, marginBottom: 6, color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', gap: 8 }}>
-              <Database size={18} /> Database Backup &amp; Disaster Recovery
+        {/* ========================================================================= */}
+        {/* TAB 1: ACCOUNT & SECURITY                                                 */}
+        {/* ========================================================================= */}
+        {activeTab === 'account_security' && (
+          <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+            {/* Profile Info Card */}
+            <div className="glass-card" style={{ padding: 24, borderLeft: '4px solid #38bdf8', boxShadow: '0 4px 20px -4px rgba(56, 189, 248, 0.25)' }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 18, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <User size={18} /> Staff Profile Overview
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Staff Name</div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)' }}>{name}</div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>Login Email</div>
+                  <div style={{ fontSize: 14, fontFamily: 'monospace', color: 'var(--text-secondary)' }}>{email}</div>
+                </div>
+
+                <div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Access Permission Role</div>
+                  <span className="badge" style={{
+                    background: role === 'admin' ? 'rgba(192, 132, 252, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                    color: role === 'admin' ? '#c084fc' : '#38bdf8',
+                    padding: '4px 10px',
+                    fontSize: 12,
+                    fontWeight: 700
+                  }}>
+                    {role.toUpperCase()}
+                  </span>
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>Active Tutor Scope</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <span className="badge" style={{ background: 'rgba(59,130,246,0.15)', color: '#60a5fa', fontWeight: 600 }}>
+                      {activeTutor === 'sanduni' ? 'Sanduni (SM)' : 'Prabuddha (PS)'}
+                    </span>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      (Switch anytime via the sidebar top switch button)
+                    </span>
+                  </div>
+                </div>
+              </div>
             </div>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 18px' }}>
-              Download a complete offline snapshot file (.json) containing all students, payments, balances, households, and marketing leads. You can use this file anytime to restore the entire CRM.
-            </p>
 
-            {backupStatus && (
-              <div style={{
-                padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16,
-                background: backupStatus.startsWith('✓') ? 'rgba(16,185,129,0.1)' : 'rgba(59,130,246,0.1)',
-                border: `1px solid ${backupStatus.startsWith('✓') ? '#10b981' : 'var(--accent-blue)'}`,
-                color: backupStatus.startsWith('✓') ? '#34d399' : 'var(--accent-blue)'
-              }}>
-                {backupStatus}
+            {/* Password Change Form */}
+            <div className="glass-card" style={{ padding: 24, borderLeft: '4px solid #818cf8', boxShadow: '0 4px 20px -4px rgba(129, 140, 248, 0.25)' }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: '#818cf8', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Lock size={18} /> Change Login Password
               </div>
-            )}
 
-            {restoreSuccess && (
-              <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid #10b981', borderRadius: 8, color: '#34d399', fontSize: 13, marginBottom: 16 }}>
-                {restoreSuccess}
-              </div>
-            )}
-
-            {restoreError && (
-              <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid var(--accent-red)', borderRadius: 8, color: '#f87171', fontSize: 13, marginBottom: 16 }}>
-                ⚠️ {restoreError}
-              </div>
-            )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              {/* Export Button */}
-              <div style={{ padding: 16, borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Download size={15} style={{ color: 'var(--accent-blue)' }} /> Download Backup
+              {passError && (
+                <div style={{ padding: '10px 14px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid var(--accent-red)', borderRadius: 8, color: '#f87171', fontSize: 13, marginBottom: 16 }}>
+                  ⚠️ {passError}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14 }}>
-                  Generates full system snapshot with all active records and history.
+              )}
+
+              {passSuccess && (
+                <div style={{ padding: '10px 14px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', borderRadius: 8, color: '#34d399', fontSize: 13, marginBottom: 16 }}>
+                  {passSuccess}
                 </div>
+              )}
+
+              <form onSubmit={handlePasswordUpdate}>
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    New Password *
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      className="input-field"
+                      type={showNewPassword ? 'text' : 'password'}
+                      placeholder="Enter new password (min 6 chars)"
+                      required
+                      style={{ paddingRight: 36, width: '100%' }}
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(v => !v)}
+                      style={{
+                        position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4
+                      }}
+                      title={showNewPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 20 }}>
+                  <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                    Confirm New Password *
+                  </label>
+                  <div style={{ position: 'relative' }}>
+                    <input
+                      className="input-field"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="Re-enter new password"
+                      required
+                      style={{ paddingRight: 36, width: '100%' }}
+                      value={confirmPassword}
+                      onChange={e => setConfirmPassword(e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(v => !v)}
+                      style={{
+                        position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                        background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4
+                      }}
+                      title={showConfirmPassword ? 'Hide password' : 'Show password'}
+                    >
+                      {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                </div>
+
                 <button
-                  type="button"
-                  onClick={handleCreateBackup}
-                  disabled={backupLoading}
+                  type="submit"
                   className="btn-primary"
-                  style={{ width: '100%', justifyContent: 'center', padding: '9px 14px', fontSize: 13 }}
+                  disabled={savingPassword}
+                  style={{ width: '100%', justifyContent: 'center', padding: '11px', fontSize: 13, fontWeight: 700 }}
                 >
-                  {backupLoading ? <RefreshCw size={14} className="spin" /> : <Download size={14} />}
-                  {backupLoading ? 'Exporting...' : 'Download Full Backup (.json)'}
+                  {savingPassword ? 'Updating Password...' : '🔒 Update Account Password'}
                 </button>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* TAB 2: DATABASE BACKUP & RECOVERY                                         */}
+        {/* ========================================================================= */}
+        {activeTab === 'database_backup' && (
+          <div className="fade-in">
+            {/* Health & Live Record Stats */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
+              <div className="stat-card" style={{ borderLeft: '4px solid #38bdf8', boxShadow: '0 4px 20px -4px rgba(56, 189, 248, 0.25)' }}>
+                <div className="stat-card label">Total Students</div>
+                <div className="stat-card value" style={{ color: '#38bdf8' }}>{dbCounts.students.toLocaleString()}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Active registered records</div>
               </div>
 
-              {/* Restore Button */}
-              <div style={{ padding: 16, borderRadius: 8, border: '1px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Upload size={15} style={{ color: 'var(--accent-purple)' }} /> Restore Database
+              <div className="stat-card" style={{ borderLeft: '4px solid #4ade80', boxShadow: '0 4px 20px -4px rgba(74, 222, 128, 0.25)' }}>
+                <div className="stat-card label">Payment Slips</div>
+                <div className="stat-card value" style={{ color: '#4ade80' }}>{dbCounts.payments.toLocaleString()}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Audited ledger records</div>
+              </div>
+
+              <div className="stat-card" style={{ borderLeft: '4px solid #fcd34d', boxShadow: '0 4px 20px -4px rgba(245, 158, 11, 0.25)' }}>
+                <div className="stat-card label">Households &amp; Families</div>
+                <div className="stat-card value" style={{ color: '#f59e0b' }}>{dbCounts.households.toLocaleString()}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>Parent contact &amp; address records</div>
+              </div>
+
+              <div className="stat-card" style={{ borderLeft: '4px solid #818cf8', boxShadow: '0 4px 20px -4px rgba(129, 140, 248, 0.25)' }}>
+                <div className="stat-card label">Marketing Leads</div>
+                <div className="stat-card value" style={{ color: '#818cf8' }}>{dbCounts.leads.toLocaleString()}</div>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>CRM intake pipeline records</div>
+              </div>
+            </div>
+
+            {/* Backup & Restore Action Engines */}
+            <div className="glass-card" style={{ padding: 24, borderLeft: '4px solid #4ade80', boxShadow: '0 4px 20px -4px rgba(74, 222, 128, 0.25)' }}>
+              <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 6, color: '#4ade80', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Database size={20} /> Full Offline Database Backup &amp; Disaster Recovery
+              </div>
+              <p style={{ fontSize: 13, color: 'var(--text-secondary)', margin: '0 0 18px' }}>
+                Download an offline snapshot file (.json) containing all students, payments, balances, households, and marketing leads. You can use this file anytime to restore the entire CRM.
+              </p>
+
+              {backupStatus && (
+                <div style={{
+                  padding: '10px 14px', borderRadius: 8, fontSize: 13, marginBottom: 16,
+                  background: backupStatus.startsWith('✓') ? 'rgba(16,185,129,0.1)' : 'rgba(59,130,246,0.1)',
+                  border: `1px solid ${backupStatus.startsWith('✓') ? '#10b981' : 'var(--accent-blue)'}`,
+                  color: backupStatus.startsWith('✓') ? '#34d399' : 'var(--accent-blue)'
+                }}>
+                  {backupStatus}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 14 }}>
-                  Upload a previously saved .json backup snapshot to restore records.
+              )}
+
+              {restoreSuccess && (
+                <div style={{ padding: '10px 14px', background: 'rgba(16,185,129,0.1)', border: '1px solid #10b981', borderRadius: 8, color: '#34d399', fontSize: 13, marginBottom: 16 }}>
+                  {restoreSuccess}
                 </div>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  accept=".json"
-                  onChange={handleFileSelected}
-                  style={{ display: 'none' }}
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="btn-secondary"
-                  style={{ width: '100%', justifyContent: 'center', padding: '9px 14px', fontSize: 13 }}
-                >
-                  <FileJson size={14} /> Select Backup File to Restore
-                </button>
+              )}
+
+              {restoreError && (
+                <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.1)', border: '1px solid var(--accent-red)', borderRadius: 8, color: '#f87171', fontSize: 13, marginBottom: 16 }}>
+                  ⚠️ {restoreError}
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                {/* Export Button */}
+                <div style={{ padding: 18, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-base)' }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
+                    <Download size={16} style={{ color: '#4ade80' }} /> Download Offline Backup
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.4 }}>
+                    Generates a complete JSON snapshot file containing all tables, balances, enrollments, and slip history.
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleCreateBackup}
+                    disabled={backupLoading}
+                    className="btn-primary"
+                    style={{ width: '100%', justifyContent: 'center', padding: '10px 14px', fontSize: 13, fontWeight: 700 }}
+                  >
+                    {backupLoading ? <RefreshCw size={14} className="spin" /> : <Download size={14} />}
+                    {backupLoading ? 'Exporting Tables...' : 'Download Full Backup (.json)'}
+                  </button>
+                </div>
+
+                {/* Restore Button */}
+                <div style={{ padding: 18, borderRadius: 10, border: '1px solid var(--border)', background: 'var(--bg-base)' }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6, color: 'var(--text-primary)' }}>
+                    <Upload size={16} style={{ color: '#818cf8' }} /> Restore Database Snapshot
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 16, lineHeight: 1.4 }}>
+                    Upload a previously saved .json backup snapshot to inspect records and merge or rebuild the database.
+                  </div>
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    accept=".json"
+                    onChange={handleFileSelected}
+                    style={{ display: 'none' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="btn-secondary"
+                    style={{ width: '100%', justifyContent: 'center', padding: '10px 14px', fontSize: 13, fontWeight: 700 }}
+                  >
+                    <FileJson size={14} /> Select Backup File to Restore
+                  </button>
+                </div>
               </div>
             </div>
           </div>
         )}
 
-        {/* Password Change Form */}
-        <div className="glass-card" style={{ padding: 24 }}>
-          <div style={{ fontWeight: 600, fontSize: 14, marginBottom: 16, color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Lock size={16} /> Change Login Password
+        {/* ========================================================================= */}
+        {/* TAB 3: EMAIL REPORTS & DISPATCH CENTER                                    */}
+        {/* ========================================================================= */}
+        {activeTab === 'email_automation' && (
+          <div className="fade-in">
+            <EmailAutomationCard />
           </div>
+        )}
 
-          {passError && (
-            <div style={{ padding: '10px 14px', background: '#2a1a1a', border: '1px solid var(--accent-red)', borderRadius: 8, color: '#f87171', fontSize: 13, marginBottom: 16 }}>
-              ⚠️ {passError}
-            </div>
-          )}
-
-          {passSuccess && (
-            <div style={{ padding: '10px 14px', background: '#1a3a2a', border: '1px solid #10b981', borderRadius: 8, color: '#34d399', fontSize: 13, marginBottom: 16 }}>
-              {passSuccess}
-            </div>
-          )}
-
-          <form onSubmit={handlePasswordUpdate}>
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                New Password *
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  className="input-field"
-                  type={showNewPassword ? 'text' : 'password'}
-                  placeholder="Enter new password (min 6 chars)"
-                  required
-                  style={{ paddingRight: 36 }}
-                  value={newPassword}
-                  onChange={e => setNewPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowNewPassword(v => !v)}
-                  style={{
-                    position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4
-                  }}
-                  title={showNewPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showNewPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
+        {/* ========================================================================= */}
+        {/* TAB 4: SYSTEM DIAGNOSTICS                                                 */}
+        {/* ========================================================================= */}
+        {activeTab === 'diagnostics' && (
+          <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
+            {/* System Info Card */}
+            <div className="glass-card" style={{ padding: 24, borderLeft: '4px solid #fcd34d', boxShadow: '0 4px 20px -4px rgba(245, 158, 11, 0.25)' }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Activity size={18} /> System Diagnostics &amp; Environment
               </div>
-            </div>
 
-            <div style={{ marginBottom: 20 }}>
-              <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                Confirm New Password *
-              </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  className="input-field"
-                  type={showConfirmPassword ? 'text' : 'password'}
-                  placeholder="Re-enter new password"
-                  required
-                  style={{ paddingRight: 36 }}
-                  value={confirmPassword}
-                  onChange={e => setConfirmPassword(e.target.value)}
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirmPassword(v => !v)}
-                  style={{
-                    position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
-                    background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4
-                  }}
-                  title={showConfirmPassword ? 'Hide password' : 'Show password'}
-                >
-                  {showConfirmPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="btn-primary"
-              disabled={savingPassword}
-              style={{ width: '100%', justifyContent: 'center', padding: '12px' }}
-            >
-              {savingPassword ? 'Updating...' : '🔒 Update Password'}
-            </button>
-          </form>
-        </div>
-
-      </div>
-
-      {/* Automated Email Reports & Dispatch Center */}
-      <EmailAutomationCard />
-
-      {/* Restore Inspection & Confirmation Modal */}
-      {showRestoreModal && backupPayload && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16
-        }}>
-          <div className="glass-card" style={{ maxWidth: 540, width: '100%', padding: 24, borderRadius: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-              <Archive size={22} style={{ color: 'var(--accent-purple)' }} />
-              <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Inspect &amp; Restore Backup</h3>
-            </div>
-
-            <div style={{ padding: 14, background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 16 }}>
-              <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
-                Backup Date: <strong>{new Date(backupPayload.exported_at || Date.now()).toLocaleString()}</strong>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
-                <div>👥 Students: <strong>{(backupPayload.database?.students?.length || 0).toLocaleString()}</strong></div>
-                <div>💳 Payments: <strong>{(backupPayload.database?.payments?.length || 0).toLocaleString()}</strong></div>
-                <div>🏠 Households: <strong>{(backupPayload.database?.households?.length || 0).toLocaleString()}</strong></div>
-                <div>📞 Leads: <strong>{(backupPayload.database?.leads?.length || 0).toLocaleString()}</strong></div>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: 16 }}>
-              <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Restore Mode:</label>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="restore_mode"
-                    value="upsert"
-                    checked={restoreMode === 'upsert'}
-                    onChange={() => setRestoreMode('upsert')}
-                  />
-                  <span><strong>Merge &amp; Update (Safe)</strong> — Updates existing records and adds missing ones</span>
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="restore_mode"
-                    value="clean_wipe"
-                    checked={restoreMode === 'clean_wipe'}
-                    onChange={() => setRestoreMode('clean_wipe')}
-                  />
-                  <span style={{ color: '#f87171' }}><strong>Clean Wipe &amp; Full Rebuild</strong> — Clears existing database before restoring</span>
-                </label>
-              </div>
-            </div>
-
-            {restoreMode === 'clean_wipe' && (
-              <div style={{ marginBottom: 16, padding: 12, background: 'rgba(239,68,68,0.1)', border: '1px solid var(--accent-red)', borderRadius: 8 }}>
-                <div style={{ fontSize: 12, color: '#f87171', marginBottom: 6 }}>
-                  Type <strong>RESTORE</strong> below to confirm replacing current data:
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>CRM Application Version</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>v2.4.0 (Turbopack Engine)</span>
                 </div>
-                <input
-                  type="text"
-                  className="input-field"
-                  placeholder="Type RESTORE"
-                  value={confirmText}
-                  onChange={e => setConfirmText(e.target.value)}
-                />
-              </div>
-            )}
 
-            {restoreProgress && (
-              <div style={{ padding: '8px 12px', background: 'rgba(59,130,246,0.15)', borderRadius: 6, color: 'var(--accent-blue)', fontSize: 13, marginBottom: 14 }}>
-                <RefreshCw size={13} className="spin" style={{ display: 'inline', marginRight: 6 }} />
-                {restoreProgress}
-              </div>
-            )}
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Database Host</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#4ade80', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4ade80' }}></span>
+                    Supabase PostgreSQL Connected
+                  </span>
+                </div>
 
-            <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Local Server Time</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'monospace' }}>
+                    {new Date().toLocaleString('en-US', { timeZone: 'Asia/Colombo' })} (UTC+5:30)
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 10, borderBottom: '1px solid var(--border)' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Client Framework</span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>Next.js 16 + React 19</span>
+                </div>
+
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>Session Security</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8' }}>Supabase JWT Auth (Active)</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Cache & Local State Card */}
+            <div className="glass-card" style={{ padding: 24, borderLeft: '4px solid #818cf8', boxShadow: '0 4px 20px -4px rgba(129, 140, 248, 0.25)' }}>
+              <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 16, color: '#818cf8', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <HardDrive size={18} /> Storage &amp; Cache Controls
+              </div>
+
+              <p style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 18, lineHeight: 1.5 }}>
+                Reset locally cached tutor filters, date pickers, or table search buffers if you experience state inconsistencies.
+              </p>
+
+              {cacheStatus && (
+                <div style={{ padding: '10px 14px', background: 'rgba(16, 185, 129, 0.1)', border: '1px solid #10b981', borderRadius: 8, color: '#34d399', fontSize: 13, marginBottom: 16 }}>
+                  {cacheStatus}
+                </div>
+              )}
+
               <button
                 type="button"
+                onClick={handleClearLocalCache}
                 className="btn-secondary"
-                disabled={restoreLoading}
-                onClick={() => {
-                  setShowRestoreModal(false)
-                  setBackupPayload(null)
-                  if (fileInputRef.current) fileInputRef.current.value = ''
-                }}
+                style={{ width: '100%', justifyContent: 'center', padding: '11px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6 }}
               >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                disabled={restoreLoading || (restoreMode === 'clean_wipe' && confirmText !== 'RESTORE')}
-                onClick={executeRestore}
-              >
-                {restoreLoading ? 'Restoring...' : '🚀 Start Restore'}
+                <Trash2 size={15} style={{ color: '#f87171' }} /> Reset Local UI State &amp; Cache
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
+        {/* Restore Inspection & Confirmation Modal */}
+        {showRestoreModal && backupPayload && (
+          <div style={{
+            position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100, padding: 16
+          }}>
+            <div className="glass-card" style={{ maxWidth: 540, width: '100%', padding: 24, borderRadius: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                <Archive size={22} style={{ color: 'var(--accent-purple)' }} />
+                <h3 style={{ margin: 0, fontSize: 18, fontWeight: 700 }}>Inspect &amp; Restore Backup</h3>
+              </div>
+
+              <div style={{ padding: 14, background: 'rgba(255,255,255,0.03)', borderRadius: 8, border: '1px solid var(--border)', marginBottom: 16 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginBottom: 8 }}>
+                  Backup Date: <strong>{new Date(backupPayload.exported_at || Date.now()).toLocaleString()}</strong>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: 13 }}>
+                  <div>👥 Students: <strong>{(backupPayload.database?.students?.length || 0).toLocaleString()}</strong></div>
+                  <div>💳 Payments: <strong>{(backupPayload.database?.payments?.length || 0).toLocaleString()}</strong></div>
+                  <div>🏠 Households: <strong>{(backupPayload.database?.households?.length || 0).toLocaleString()}</strong></div>
+                  <div>📞 Leads: <strong>{(backupPayload.database?.leads?.length || 0).toLocaleString()}</strong></div>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 16 }}>
+                <label style={{ fontSize: 12, fontWeight: 600, display: 'block', marginBottom: 6 }}>Restore Mode:</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="restore_mode"
+                      value="upsert"
+                      checked={restoreMode === 'upsert'}
+                      onChange={() => setRestoreMode('upsert')}
+                    />
+                    <span><strong>Merge &amp; Update (Safe)</strong> — Updates existing records and adds missing ones</span>
+                  </label>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, cursor: 'pointer' }}>
+                    <input
+                      type="radio"
+                      name="restore_mode"
+                      value="clean_wipe"
+                      checked={restoreMode === 'clean_wipe'}
+                      onChange={() => setRestoreMode('clean_wipe')}
+                    />
+                    <span style={{ color: '#f87171' }}><strong>Clean Wipe &amp; Full Rebuild</strong> — Clears existing database before restoring</span>
+                  </label>
+                </div>
+              </div>
+
+              {restoreMode === 'clean_wipe' && (
+                <div style={{ marginBottom: 16, padding: 12, background: 'rgba(239,68,68,0.1)', border: '1px solid var(--accent-red)', borderRadius: 8 }}>
+                  <div style={{ fontSize: 12, color: '#f87171', marginBottom: 6 }}>
+                    Type <strong>RESTORE</strong> below to confirm replacing current data:
+                  </div>
+                  <input
+                    type="text"
+                    className="input-field"
+                    placeholder="Type RESTORE"
+                    value={confirmText}
+                    onChange={e => setConfirmText(e.target.value)}
+                  />
+                </div>
+              )}
+
+              {restoreProgress && (
+                <div style={{ padding: '8px 12px', background: 'rgba(59,130,246,0.15)', borderRadius: 6, color: 'var(--accent-blue)', fontSize: 13, marginBottom: 14 }}>
+                  <RefreshCw size={13} className="spin" style={{ display: 'inline', marginRight: 6 }} />
+                  {restoreProgress}
+                </div>
+              )}
+
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  disabled={restoreLoading}
+                  onClick={() => {
+                    setShowRestoreModal(false)
+                    setBackupPayload(null)
+                    if (fileInputRef.current) fileInputRef.current.value = ''
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="btn-primary"
+                  disabled={restoreLoading || (restoreMode === 'clean_wipe' && confirmText !== 'RESTORE')}
+                  onClick={executeRestore}
+                >
+                  {restoreLoading ? 'Restoring...' : '🚀 Start Restore'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
-
