@@ -11,7 +11,33 @@ export async function POST(request: Request) {
     }
 
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+
+    // 0. Authenticate admin user from session cookies
+    const cookieHeader = request.headers.get('cookie') || ''
+    const supabaseUserClient = createServerClient(supabaseUrl, anonKey, {
+      cookies: {
+        getAll() {
+          return cookieHeader.split(';').map(c => {
+            const [n, ...val] = c.trim().split('=')
+            return { name: n, value: val.join('=') }
+          }).filter(c => c.name && c.value)
+        },
+        setAll() {}
+      }
+    })
+
+    const { data: { user: callingUser } } = await supabaseUserClient.auth.getUser()
+    if (!callingUser) {
+      return NextResponse.json({ error: 'Unauthorized. Please login as Admin.' }, { status: 401 })
+    }
+
+    const callingEmail = callingUser.email || ''
+    const callingRole = callingUser.user_metadata?.role || (callingEmail.includes('admin') ? 'admin' : 'member')
+    if (callingRole !== 'admin' && callingRole !== 'owner' && !callingEmail.includes('admin')) {
+      return NextResponse.json({ error: 'Permission denied. Admin privileges required.' }, { status: 403 })
+    }
 
     // Use Service Role client to create Auth user directly
     const supabaseAdmin = createServerClient(supabaseUrl, serviceKey, {
