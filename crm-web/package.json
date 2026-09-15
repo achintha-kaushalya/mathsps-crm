@@ -12,6 +12,27 @@
     "electron:pack": "electron-builder --dir",
     "electron:dist": "electron-builder"
   },
+  "build": {
+    "appId": "com.mathsps.crm2",
+    "productName": "MathsPS Virtual HQ 2.0",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "public/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "MathsPS Virtual HQ 2.0"
+    }
+  },
   "dependencies": {
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.112.3",
