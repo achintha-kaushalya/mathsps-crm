@@ -39,13 +39,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // 2. Authenticated users visiting /login -> Redirect to appropriate home page
+  // 2. Authenticated users visiting /login -> Redirect to /dashboard
   if (session && isAuthPage) {
-    const userRole = session.user.user_metadata?.role || (session.user.email?.includes('admin') ? 'admin' : 'member')
-    if (userRole === 'payments') {
-      return NextResponse.redirect(new URL('/students', request.url))
-    }
-    return NextResponse.redirect(new URL('/leads', request.url))
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   // 3. Role-Based Access Control (RBAC)
@@ -66,16 +62,12 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    // Admin-only routes
-    const isAdminOnlyRoute = pathname.startsWith('/dashboard') ||
-                             pathname.startsWith('/reports') ||
+    // Admin-only routes (Dashboard is open to everyone now!)
+    const isAdminOnlyRoute = pathname.startsWith('/reports') ||
                              pathname.startsWith('/members')
 
     if (userRole !== 'admin' && userRole !== 'owner' && isAdminOnlyRoute) {
-      if (userRole === 'payments') {
-        return NextResponse.redirect(new URL('/students', request.url))
-      }
-      return NextResponse.redirect(new URL('/leads', request.url))
+      return NextResponse.redirect(new URL('/dashboard', request.url))
     }
 
     // Call Center role: CRM system only (block payment routes /students, /payments, /delivery)
