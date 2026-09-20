@@ -67,10 +67,31 @@ export default function CoursesManagerPage() {
   const channelRef = useRef<any>(null)
   const isAdmin = currentUserRole === 'admin' || currentUserRole === 'owner' || (currentUserName && currentUserName.toLowerCase().includes('admin'))
 
+  const getAdminMember = async () => {
+    try {
+      let { data: adminMem } = await supabase.from('members').select('id, notes').eq('name', 'Admin User').maybeSingle()
+      if (!adminMem) {
+        const res = await supabase.from('members').select('id, notes').eq('email', 'admin@mathsps.com').maybeSingle()
+        adminMem = res.data
+      }
+      if (!adminMem) {
+        const res = await supabase.from('members').select('id, notes').in('role', ['admin', 'owner']).limit(1).maybeSingle()
+        adminMem = res.data
+      }
+      if (!adminMem) {
+        const res = await supabase.from('members').select('id, notes').limit(1).maybeSingle()
+        adminMem = res.data
+      }
+      return adminMem
+    } catch (e) {
+      return null
+    }
+  }
+
   // Load courses setup from admin user metadata
   const loadCourses = async () => {
     try {
-      const { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').single()
+      const adminRecord = await getAdminMember()
       if (adminRecord?.notes) {
         const notesObj = JSON.parse(adminRecord.notes)
         if (notesObj.grade_courses) {
@@ -103,7 +124,7 @@ export default function CoursesManagerPage() {
         let name = user.user_metadata?.full_name || user.email?.split('@')[0] || ''
         let role: 'member' | 'admin' | 'owner' = 'member'
         if (user.email) {
-          const { data: dbMem } = await supabase.from('members').select('name, role').eq('email', user.email).single()
+          const { data: dbMem } = await supabase.from('members').select('name, role').eq('email', user.email).maybeSingle()
           if (dbMem?.name) name = dbMem.name
           if (dbMem?.role) role = dbMem.role as any
         }
@@ -153,46 +174,48 @@ export default function CoursesManagerPage() {
   ) {
     setSaving(true)
     try {
-      const { data: adminMem } = await supabase.from('members').select('id').eq('name', 'Admin User').single()
-      if (adminMem?.id) {
-        const customCourses = getAllCourseLabels(updatedGC, updatedStandalone)
-        const classFees = getAllCourseFees(updatedGC, updatedStandalone)
+      const adminMem = await getAdminMember()
+      const memberId = adminMem?.id || 'admin_user_auto'
+      const customCourses = getAllCourseLabels(updatedGC, updatedStandalone)
+      const classFees = getAllCourseFees(updatedGC, updatedStandalone)
 
-        const res = await fetch('/api/members/manage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'update_custom_courses',
-            memberId: adminMem.id,
-            courses: customCourses,
-            fees: classFees,
+      const res = await fetch('/api/members/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_custom_courses',
+          memberId,
+          courses: customCourses,
+          fees: classFees,
+          grade_courses: updatedGC,
+          standalone_courses: updatedStandalone,
+          payment_methods: updatedPayMethods,
+          banks: updatedBanks,
+          adminPassword: 'sb_secret_verification_bypass'
+        })
+      })
+
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Failed to update')
+      }
+
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'courses_updated',
+          payload: {
             grade_courses: updatedGC,
             standalone_courses: updatedStandalone,
             payment_methods: updatedPayMethods,
-            banks: updatedBanks,
-            adminPassword: 'sb_secret_verification_bypass'
-          })
+            banks: updatedBanks
+          }
         })
-
-        if (!res.ok) {
-          const errData = await res.json()
-          throw new Error(errData.error || 'Failed to update')
-        }
-
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'courses_updated',
-            payload: {
-              grade_courses: updatedGC,
-              standalone_courses: updatedStandalone,
-              payment_methods: updatedPayMethods,
-              banks: updatedBanks
-            }
-          })
-        }
       }
+      setToastMsg('✓ Changes saved & synced across CRM in real time!')
+      setTimeout(() => setToastMsg(''), 3000)
     } catch (err: any) {
+      console.error('Save error:', err)
       alert('Failed to save configuration: ' + err.message)
     } finally {
       setSaving(false)

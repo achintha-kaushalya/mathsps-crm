@@ -106,7 +106,19 @@ export default function NewStudentPage() {
 
   // Load admin course & payment setup
   const loadAdminCourses = async () => {
-    const { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').single()
+    let { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').maybeSingle()
+    if (!adminRecord) {
+      const res = await supabase.from('members').select('notes').eq('email', 'admin@mathsps.com').maybeSingle()
+      adminRecord = res.data
+    }
+    if (!adminRecord) {
+      const res = await supabase.from('members').select('notes').in('role', ['admin', 'owner']).limit(1).maybeSingle()
+      adminRecord = res.data
+    }
+    if (!adminRecord) {
+      const res = await supabase.from('members').select('notes').limit(1).maybeSingle()
+      adminRecord = res.data
+    }
     if (adminRecord?.notes) {
       try {
         const notesObj = JSON.parse(adminRecord.notes)

@@ -6,8 +6,8 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { action, memberId, newRole, newActive, adminPassword, newMemberPassword, permissions } = body
 
-    if (!action || !memberId || !adminPassword) {
-      return NextResponse.json({ error: 'Action, memberId, and admin password are required.' }, { status: 400 })
+    if (!action || (!memberId && action !== 'update_custom_courses') || !adminPassword) {
+      return NextResponse.json({ error: 'Action and admin password are required.' }, { status: 400 })
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
@@ -125,13 +125,48 @@ export async function POST(request: Request) {
     if (action === 'update_custom_courses') {
       const { courses, fees, grade_courses, standalone_courses, payment_methods, banks } = body
 
-      // Get current admin user metadata
-      const { data: adminMem } = await supabaseAdmin
-        .from('members')
-        .select('notes')
-        .eq('id', memberId)
-        .single()
+      // 1. Locate the admin record to store notes
+      let adminMem: any = null
 
+      if (memberId && memberId !== 'admin_user_auto') {
+        const { data } = await supabaseAdmin.from('members').select('id, notes').eq('id', memberId).maybeSingle()
+        adminMem = data
+      }
+
+      if (!adminMem) {
+        const { data } = await supabaseAdmin.from('members').select('id, notes').eq('name', 'Admin User').maybeSingle()
+        adminMem = data
+      }
+
+      if (!adminMem) {
+        const { data } = await supabaseAdmin.from('members').select('id, notes').eq('email', 'admin@mathsps.com').maybeSingle()
+        adminMem = data
+      }
+
+      if (!adminMem) {
+        const { data } = await supabaseAdmin.from('members').select('id, notes').in('role', ['admin', 'owner']).limit(1).maybeSingle()
+        adminMem = data
+      }
+
+      if (!adminMem) {
+        const { data } = await supabaseAdmin.from('members').select('id, notes').limit(1).maybeSingle()
+        adminMem = data
+      }
+
+      if (!adminMem?.id) {
+        // If members table is completely empty, insert a default Admin User record
+        const { data: newAdmin, error: insErr } = await supabaseAdmin.from('members').insert({
+          name: 'Admin User',
+          email: 'admin@mathsps.com',
+          role: 'admin',
+          active: true,
+          notes: '{}'
+        }).select().single()
+        if (insErr) throw insErr
+        adminMem = newAdmin
+      }
+
+      const targetMemberId = adminMem.id
       let existingNotes: any = {}
       try {
         if (adminMem?.notes) {
@@ -141,8 +176,8 @@ export async function POST(request: Request) {
 
       const notesStr = JSON.stringify({
         ...existingNotes,
-        custom_courses: courses || {},
-        class_fees: fees || {},
+        custom_courses: courses || existingNotes?.custom_courses || {},
+        class_fees: fees || existingNotes?.class_fees || {},
         grade_courses: grade_courses || existingNotes?.grade_courses || {},
         standalone_courses: standalone_courses || existingNotes?.standalone_courses || [],
         payment_methods: payment_methods !== undefined ? payment_methods : (existingNotes?.payment_methods || undefined),
@@ -152,7 +187,7 @@ export async function POST(request: Request) {
       const { data: member, error: dbErr } = await supabaseAdmin
         .from('members')
         .update({ notes: notesStr })
-        .eq('id', memberId)
+        .eq('id', targetMemberId)
         .select()
         .single()
 

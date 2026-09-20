@@ -76,23 +76,34 @@ export default function StudentDetailPage() {
     })
 
     // Fetch custom courses & fees & payment options
-    const loadAdminConfig = () => {
-      supabase.from('members').select('notes').eq('name', 'Admin User').single().then(({ data: adminRecord }) => {
-        if (adminRecord?.notes) {
-          try {
-            const notesObj = JSON.parse(adminRecord.notes)
-            const gc = notesObj.grade_courses || DEFAULT_GRADE_COURSES
-            const sc = notesObj.standalone_courses || DEFAULT_STANDALONE_COURSES
-            setCourseLabels(getAllCourseLabels(gc, sc))
-            if (notesObj.payment_methods && Array.isArray(notesObj.payment_methods)) {
-              setPaymentMethods(notesObj.payment_methods)
-            }
-            if (notesObj.banks && Array.isArray(notesObj.banks)) {
-              setBanks(notesObj.banks)
-            }
-          } catch (e) {}
-        }
-      })
+    const loadAdminConfig = async () => {
+      let { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').maybeSingle()
+      if (!adminRecord) {
+        const res = await supabase.from('members').select('notes').eq('email', 'admin@mathsps.com').maybeSingle()
+        adminRecord = res.data
+      }
+      if (!adminRecord) {
+        const res = await supabase.from('members').select('notes').in('role', ['admin', 'owner']).limit(1).maybeSingle()
+        adminRecord = res.data
+      }
+      if (!adminRecord) {
+        const res = await supabase.from('members').select('notes').limit(1).maybeSingle()
+        adminRecord = res.data
+      }
+      if (adminRecord?.notes) {
+        try {
+          const notesObj = JSON.parse(adminRecord.notes)
+          const gc = notesObj.grade_courses || DEFAULT_GRADE_COURSES
+          const sc = notesObj.standalone_courses || DEFAULT_STANDALONE_COURSES
+          setCourseLabels(getAllCourseLabels(gc, sc))
+          if (notesObj.payment_methods && Array.isArray(notesObj.payment_methods)) {
+            setPaymentMethods(notesObj.payment_methods)
+          }
+          if (notesObj.banks && Array.isArray(notesObj.banks)) {
+            setBanks(notesObj.banks)
+          }
+        } catch (e) {}
+      }
     }
 
     loadAdminConfig()
