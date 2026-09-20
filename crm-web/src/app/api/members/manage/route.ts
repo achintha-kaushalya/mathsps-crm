@@ -10,9 +10,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Action and admin password are required.' }, { status: 400 })
     }
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hwtewfqwzsqxvhdfyvkk.supabase.co'
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || anonKey
 
     // 1. Verify Admin Password with Supabase Auth (or bypass for internal custom course sync & email settings)
     const isBypass = (action === 'update_custom_courses' || action === 'update_email_settings') && adminPassword === 'sb_secret_verification_bypass'

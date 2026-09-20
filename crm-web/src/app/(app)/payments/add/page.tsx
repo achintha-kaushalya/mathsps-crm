@@ -107,6 +107,19 @@ function AddPaymentForm() {
 
   // Load admin course & payment setup
   const loadAdminCourses = async () => {
+    try {
+      const cached = localStorage.getItem('MATHSPS_COURSES_CACHE')
+      if (cached) {
+        const c = JSON.parse(cached)
+        if (c.grade_courses) setGradeCourses(c.grade_courses)
+        if (c.standalone_courses) setStandaloneCourses(c.standalone_courses)
+        if (c.payment_methods) setPaymentMethods(c.payment_methods)
+        if (c.banks) setBanks(c.banks)
+        setAvailableClasses(getAllCourseLabels(c.grade_courses || DEFAULT_GRADE_COURSES, c.standalone_courses || DEFAULT_STANDALONE_COURSES))
+        setClassDefaultFees(getAllCourseFees(c.grade_courses || DEFAULT_GRADE_COURSES, c.standalone_courses || DEFAULT_STANDALONE_COURSES))
+      }
+    } catch {}
+
     let { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').maybeSingle()
     if (!adminRecord) {
       const res = await supabase.from('members').select('notes').eq('email', 'admin@mathsps.com').maybeSingle()
