@@ -691,8 +691,8 @@ export default function StudentDetailPage() {
                           <div style={{ fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
                             {courseLabels[cType] || CLASS_LABELS[cType] || cType}
                             {isSpecialist && (
-                              <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: 'rgba(236, 72, 153, 0.15)', color: '#db2777' }}>
-                                ⭐ Specialist Course
+                              <span style={{ fontSize: 10, fontWeight: 700, padding: '1px 6px', borderRadius: 4, background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)', border: '1px solid rgba(56, 189, 248, 0.25)' }}>
+                                Course
                               </span>
                             )}
                           </div>

@@ -871,26 +871,26 @@ export default function NewStudentPage() {
                 })}
               </div>
 
-              {/* Specialist / Standalone Courses Section */}
+              {/* Courses Section */}
               <div style={{
                 marginTop: 20,
                 padding: '16px 18px',
                 borderRadius: 14,
-                background: 'rgba(236, 72, 153, 0.04)',
-                border: '1.5px dashed rgba(236, 72, 153, 0.25)',
+                background: 'rgba(56, 189, 248, 0.03)',
+                border: '1px solid var(--border)',
                 marginBottom: 20
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                   <div>
-                    <div style={{ fontSize: 13.5, fontWeight: 800, color: '#db2777', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      ⭐ Specialist / Standalone Courses ({standaloneCourses.length} available)
+                    <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      Courses ({standaloneCourses.length} available)
                     </div>
                     <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 2 }}>
-                      Enroll student in non-grade special masterclasses (e.g. Geometry, BODMAS, Revision banks)
+                      Enroll student in standalone subjects or courses
                     </div>
                   </div>
                   {activeStandaloneList.length > 0 && (
-                    <span style={{ fontSize: 11.5, fontWeight: 800, padding: '3px 10px', borderRadius: 20, background: '#db2777', color: '#fff' }}>
+                    <span style={{ fontSize: 11.5, fontWeight: 700, padding: '3px 10px', borderRadius: 20, background: 'var(--accent-blue)', color: '#fff' }}>
                       {activeStandaloneList.length} Selected
                     </span>
                   )}
@@ -909,8 +909,8 @@ export default function NewStudentPage() {
                         style={{
                           padding: '12px 14px',
                           borderRadius: 12,
-                          border: isSelected ? '2px solid #db2777' : '1px solid var(--border)',
-                          background: isSelected ? 'rgba(236, 72, 153, 0.08)' : 'var(--bg-card)',
+                          border: isSelected ? '1.5px solid var(--accent-blue)' : '1px solid var(--border)',
+                          background: isSelected ? 'rgba(56, 189, 248, 0.08)' : 'var(--bg-card)',
                           cursor: 'pointer',
                           transition: 'all 0.15s ease',
                           display: 'flex',
@@ -923,11 +923,11 @@ export default function NewStudentPage() {
                             <input
                               type="checkbox"
                               checked={isSelected}
-                              onChange={() => {}} // Handled by parent div
-                              style={{ width: 16, height: 16, accentColor: '#db2777', cursor: 'pointer' }}
+                              onChange={() => {}}
+                              style={{ width: 16, height: 16, accentColor: 'var(--accent-blue)', cursor: 'pointer' }}
                             />
                             <div>
-                              <div style={{ fontSize: 13, fontWeight: 800, color: isSelected ? '#db2777' : 'var(--text-primary)' }}>
+                              <div style={{ fontSize: 13, fontWeight: 700, color: isSelected ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
                                 {sc.name}
                               </div>
                               {sc.description && (
@@ -939,11 +939,11 @@ export default function NewStudentPage() {
                           </div>
                           <span style={{
                             fontSize: 10,
-                            fontWeight: 800,
+                            fontWeight: 700,
                             padding: '2px 6px',
                             borderRadius: 6,
-                            background: isOneTime ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
-                            color: isOneTime ? '#059669' : '#2563eb',
+                            background: isOneTime ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                            color: isOneTime ? '#059669' : 'var(--accent-blue)',
                             whiteSpace: 'nowrap'
                           }}>
                             {isOneTime ? 'One-Time' : 'Monthly'}
@@ -959,18 +959,18 @@ export default function NewStudentPage() {
                               justifyContent: 'space-between',
                               paddingTop: 8,
                               marginTop: 4,
-                              borderTop: '1px dashed rgba(236, 72, 153, 0.3)'
+                              borderTop: '1px solid var(--border)'
                             }}
                           >
-                            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>
-                              Specialist Fee (Rs.):
+                            <label style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                              Fee (Rs.):
                             </label>
                             <input
                               type="number"
                               className="input-field"
                               value={currentFee}
                               onChange={e => handleStandaloneFeeChange(sc.code, parseFloat(e.target.value) || 0)}
-                              style={{ width: 100, padding: '4px 8px', fontSize: 12.5, fontWeight: 800, color: '#db2777', height: 30, borderRadius: 6 }}
+                              style={{ width: 100, padding: '4px 8px', fontSize: 12.5, fontWeight: 700, color: 'var(--accent-blue)', height: 30, borderRadius: 6 }}
                             />
                           </div>
                         )}
@@ -988,10 +988,10 @@ export default function NewStudentPage() {
                 <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
                   Enrolled: <strong style={{ color: 'var(--accent-blue)' }}>{enrolledClasses.length} Grade Class(es)</strong>
                   {activeStandaloneList.length > 0 && (
-                    <span> + <strong style={{ color: '#db2777' }}>{activeStandaloneList.length} Specialist Course(s)</strong></span>
+                    <span> + <strong style={{ color: 'var(--accent-blue)' }}>{activeStandaloneList.length} Course(s)</strong></span>
                   )}
                 </div>
-                <div style={{ fontSize: 15, fontWeight: 900, color: '#10b981' }}>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#10b981' }}>
                   Total Fee / Tuition: Rs. {totalMonthlyFee.toLocaleString()}
                 </div>
               </div>
@@ -1009,7 +1009,7 @@ export default function NewStudentPage() {
                     style={{ width: 18, height: 18, cursor: 'pointer', accentColor: '#2563eb' }}
                   />
                   <label htmlFor="chk-immediate-pay" style={{ cursor: 'pointer', fontSize: 14.5, fontWeight: 800, color: recordImmediatePayment ? 'var(--accent-blue)' : 'var(--text-primary)' }}>
-                    💳 Record Payment Right Now
+                    Record Payment Right Now
                   </label>
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -1112,25 +1112,25 @@ export default function NewStudentPage() {
                               fontSize: 12, fontWeight: 700, cursor: 'pointer',
                               color: classDeliverTute[c.courseCode] ? '#10b981' : 'var(--text-secondary)'
                             }}>
-                              📦 Deliver Tute
+                              Deliver Tute
                             </label>
                           </div>
                         </div>
                       </div>
                     ))}
 
-                    {/* Specialist Standalone Course Payment Rows */}
+                    {/* Standalone Course Payment Rows */}
                     {activeStandaloneList.map(scItem => {
                       const scConfig = standaloneCourses.find(c => c.code === scItem.code)
                       return (
                         <div key={scItem.code} style={{
                           display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap',
-                          gap: 10, padding: '12px 14px', background: 'rgba(236, 72, 153, 0.05)', borderRadius: 10, border: '1px solid rgba(236, 72, 153, 0.25)'
+                          gap: 10, padding: '12px 14px', background: 'var(--bg-card-hover)', borderRadius: 10, border: '1px solid var(--border)'
                         }}>
                           <div>
-                            <div style={{ fontSize: 13, fontWeight: 800, color: '#db2777', display: 'flex', alignItems: 'center', gap: 6 }}>
-                              ⭐ {scConfig?.name || scItem.code}
-                              <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(236, 72, 153, 0.15)', color: '#db2777' }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              {scConfig?.name || scItem.code}
+                              <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)' }}>
                                 {scConfig?.billingType === 'ONE_TIME' ? 'One-Time' : 'Monthly'}
                               </span>
                             </div>
@@ -1142,7 +1142,7 @@ export default function NewStudentPage() {
                           <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                             {['BANK', 'CASH', 'PHYSICAL'].includes(paymentForm.payment_type) && (
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                                <label style={{ fontSize: 12, fontWeight: 700, color: '#db2777' }}>Paid (Rs.):</label>
+                                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent-blue)' }}>Paid (Rs.):</label>
                                 <input
                                   type="number"
                                   className="input-field"
@@ -1170,7 +1170,7 @@ export default function NewStudentPage() {
                                 fontSize: 12, fontWeight: 700, cursor: 'pointer',
                                 color: classDeliverTute[scItem.code] ? '#10b981' : 'var(--text-secondary)'
                               }}>
-                                📦 Deliver Tute
+                                Deliver Tute
                               </label>
                             </div>
                           </div>

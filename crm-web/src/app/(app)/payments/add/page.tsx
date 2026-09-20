@@ -1066,8 +1066,8 @@ function AddPaymentForm() {
                               fontWeight: 700,
                               borderRadius: 8,
                               height: 36,
-                              color: row.grade === 'standalone' ? '#db2777' : 'inherit',
-                              border: row.grade === 'standalone' ? '1px solid #db2777' : undefined
+                              color: row.grade === 'standalone' ? 'var(--accent-blue)' : 'inherit',
+                              border: row.grade === 'standalone' ? '1px solid var(--accent-blue)' : undefined
                             }}
                           >
                             <optgroup label="Regular Grades">
@@ -1075,8 +1075,8 @@ function AddPaymentForm() {
                                 <option key={g} value={g}>Grade {g}</option>
                               ))}
                             </optgroup>
-                            <optgroup label="Specialist Courses">
-                              <option value="standalone">⭐ Specialist Course</option>
+                            <optgroup label="Other Courses">
+                              <option value="standalone">Courses</option>
                             </optgroup>
                           </select>
                         </div>
@@ -1084,7 +1084,7 @@ function AddPaymentForm() {
                         {/* Aligned Course Dropdown */}
                         <div>
                           <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
-                            {row.grade === 'standalone' ? 'Specialist Course' : 'Aligned Course'}
+                            {row.grade === 'standalone' ? 'Course' : 'Aligned Course'}
                           </label>
                           <select
                             className="input-field"
@@ -1094,7 +1094,7 @@ function AddPaymentForm() {
                               padding: '5px 10px',
                               fontSize: 12.5,
                               fontWeight: 700,
-                              color: row.grade === 'standalone' ? '#db2777' : 'var(--accent-blue)',
+                              color: 'var(--accent-blue)',
                               borderRadius: 8,
                               height: 36
                             }}

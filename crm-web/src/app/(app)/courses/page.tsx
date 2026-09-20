@@ -461,16 +461,16 @@ export default function CoursesManagerPage() {
           borderRadius: 12,
           border: '1px solid var(--border)'
         }}>
-          {/* Standalone Specialist Courses Tab */}
+          {/* Standalone Courses Tab */}
           <button
             onClick={() => setSelectedGradeTab('standalone')}
             style={{
               padding: '9px 18px',
               borderRadius: 8,
-              border: selectedGradeTab === 'standalone' ? '1px solid #ec4899' : '1px solid transparent',
-              background: selectedGradeTab === 'standalone' ? 'rgba(236, 72, 153, 0.15)' : 'transparent',
-              color: selectedGradeTab === 'standalone' ? '#ec4899' : 'var(--text-secondary)',
-              fontWeight: selectedGradeTab === 'standalone' ? 800 : 600,
+              border: selectedGradeTab === 'standalone' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: selectedGradeTab === 'standalone' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+              color: selectedGradeTab === 'standalone' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: selectedGradeTab === 'standalone' ? 700 : 500,
               fontSize: 13,
               cursor: 'pointer',
               display: 'flex',
@@ -480,13 +480,13 @@ export default function CoursesManagerPage() {
               transition: 'all 0.15s ease'
             }}
           >
-            <Sparkles size={15} style={{ color: '#ec4899' }} />
-            <span>Specialist / Standalone Courses</span>
+            <BookOpen size={15} />
+            <span>Courses</span>
             <span style={{
               fontSize: 11,
               padding: '2px 7px',
               borderRadius: 10,
-              background: selectedGradeTab === 'standalone' ? '#ec4899' : 'var(--bg-card-hover)',
+              background: selectedGradeTab === 'standalone' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
               color: selectedGradeTab === 'standalone' ? '#fff' : 'var(--text-muted)',
               border: selectedGradeTab === 'standalone' ? 'none' : '1px solid var(--border)',
               fontWeight: 700
@@ -552,8 +552,8 @@ export default function CoursesManagerPage() {
               <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span>
                   {selectedGradeTab === 'standalone'
-                    ? '⭐ Specialist Standalone Courses (e.g. Geometry, BODMAS)'
-                    : `Grade ${selectedGradeTab} Courses & Streams`}
+                    ? 'Courses'
+                    : `Grade ${selectedGradeTab} Courses`}
                 </span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-card-hover)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
                   {currentTabCourses.length} {currentTabCourses.length === 1 ? 'course' : 'courses'}
@@ -561,8 +561,8 @@ export default function CoursesManagerPage() {
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
                 {selectedGradeTab === 'standalone'
-                  ? 'Standalone specialist courses can be enrolled independently or bundled with regular grade classes.'
-                  : `Students registering under Grade ${selectedGradeTab} will be presented with these exact curriculum streams.`}
+                  ? 'Courses that can be enrolled independently or bundled with grade classes.'
+                  : `Curriculum streams configured for Grade ${selectedGradeTab}.`}
               </div>
             </div>
 
@@ -572,7 +572,7 @@ export default function CoursesManagerPage() {
                 className="btn-secondary"
                 style={{ padding: '7px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
               >
-                <Plus size={14} /> {selectedGradeTab === 'standalone' ? 'Add Specialist Course' : `Add Course to Grade ${selectedGradeTab}`}
+                <Plus size={14} /> {selectedGradeTab === 'standalone' ? 'Add Course' : `Add Course to Grade ${selectedGradeTab}`}
               </button>
             )}
           </div>
@@ -588,13 +588,13 @@ export default function CoursesManagerPage() {
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
                 {selectedGradeTab === 'standalone'
-                  ? 'No specialist standalone courses configured yet'
+                  ? 'No courses configured yet'
                   : `No courses configured for Grade ${selectedGradeTab}`}
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 18, maxWidth: 420, margin: '4px auto 18px' }}>
                 {selectedGradeTab === 'standalone'
-                  ? 'Click Add Specialist Course to create standalone subjects like Geometry Full Course, BODMAS, or Short Questions.'
-                  : 'Add Theory, Paper, Revision, or custom bundle courses to enable registrations for this grade.'}
+                  ? 'Click Add Course to create standalone subjects like Geometry Full Course or BODMAS.'
+                  : 'Add Theory, Paper, Revision, or custom bundle courses for this grade.'}
               </div>
               {isAdmin && (
                 <button
@@ -602,7 +602,7 @@ export default function CoursesManagerPage() {
                   className="btn-primary"
                   style={{ padding: '8px 18px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  <Plus size={15} /> {selectedGradeTab === 'standalone' ? '+ Create Specialist Course' : 'Add First Course'}
+                  <Plus size={15} /> Add Course
                 </button>
               )}
             </div>
@@ -614,8 +614,8 @@ export default function CoursesManagerPage() {
                 const isRevision = c.name.toLowerCase().includes('revision') && !isCombo
                 const isStandalone = Boolean(c.isStandalone)
 
-                const cardBorderColor = isStandalone ? '#ec4899' : isCombo ? '#fcd34d' : isPaper ? '#818cf8' : isRevision ? '#c084fc' : '#38bdf8'
-                const cardShadowColor = isStandalone ? 'rgba(236, 72, 153, 0.20)' : isCombo ? 'rgba(252, 211, 77, 0.20)' : isPaper ? 'rgba(129, 140, 248, 0.16)' : isRevision ? 'rgba(192, 132, 252, 0.16)' : 'rgba(56, 189, 248, 0.16)'
+                const cardBorderColor = isStandalone ? '#3b82f6' : isCombo ? '#fcd34d' : isPaper ? '#818cf8' : isRevision ? '#c084fc' : '#38bdf8'
+                const cardShadowColor = isStandalone ? 'rgba(59, 130, 246, 0.16)' : isCombo ? 'rgba(252, 211, 77, 0.16)' : isPaper ? 'rgba(129, 140, 248, 0.16)' : isRevision ? 'rgba(192, 132, 252, 0.16)' : 'rgba(56, 189, 248, 0.16)'
 
                 return (
                   <div
@@ -643,9 +643,9 @@ export default function CoursesManagerPage() {
                         </div>
                         <span style={{
                           fontSize: 10,
-                          color: isStandalone ? '#ec4899' : 'var(--accent-blue)',
-                          background: isStandalone ? 'rgba(236, 72, 153, 0.15)' : 'rgba(56, 189, 248, 0.15)',
-                          border: `1px solid ${isStandalone ? 'rgba(236, 72, 153, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`,
+                          color: 'var(--accent-blue)',
+                          background: 'rgba(56, 189, 248, 0.15)',
+                          border: '1px solid rgba(56, 189, 248, 0.3)',
                           padding: '2px 7px',
                           borderRadius: 6,
                           fontWeight: 700,
@@ -662,11 +662,11 @@ export default function CoursesManagerPage() {
                           fontWeight: 700,
                           padding: '3px 8px',
                           borderRadius: 6,
-                          background: isStandalone ? 'rgba(236, 72, 153, 0.15)' : isCombo ? 'rgba(245, 158, 11, 0.15)' : isPaper ? 'rgba(99, 102, 241, 0.15)' : isRevision ? 'rgba(192, 132, 252, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                          color: isStandalone ? '#ec4899' : isCombo ? '#f59e0b' : isPaper ? '#818cf8' : isRevision ? '#c084fc' : '#10b981',
-                          border: `1px solid ${isStandalone ? 'rgba(236, 72, 153, 0.3)' : isCombo ? 'rgba(245, 158, 11, 0.3)' : isPaper ? 'rgba(99, 102, 241, 0.3)' : isRevision ? 'rgba(192, 132, 252, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
+                          background: isStandalone ? 'rgba(59, 130, 246, 0.12)' : isCombo ? 'rgba(245, 158, 11, 0.15)' : isPaper ? 'rgba(99, 102, 241, 0.15)' : isRevision ? 'rgba(192, 132, 252, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                          color: isStandalone ? 'var(--accent-blue)' : isCombo ? '#f59e0b' : isPaper ? '#818cf8' : isRevision ? '#c084fc' : '#10b981',
+                          border: `1px solid ${isStandalone ? 'rgba(59, 130, 246, 0.25)' : isCombo ? 'rgba(245, 158, 11, 0.3)' : isPaper ? 'rgba(99, 102, 241, 0.3)' : isRevision ? 'rgba(192, 132, 252, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
                         }}>
-                          {isStandalone ? '⭐ SPECIALIST COURSE' : isCombo ? '⚡ COMBO BUNDLE' : isPaper ? '📝 PAPER CLASS' : isRevision ? '🎯 REVISION' : '📖 THEORY'}
+                          {isStandalone ? 'COURSE' : isCombo ? 'COMBO BUNDLE' : isPaper ? 'PAPER CLASS' : isRevision ? 'REVISION' : 'THEORY'}
                         </span>
 
                         <span style={{
@@ -678,7 +678,7 @@ export default function CoursesManagerPage() {
                           color: c.billingType === 'ONE_TIME' ? '#10b981' : 'var(--accent-blue)',
                           border: `1px solid ${c.billingType === 'ONE_TIME' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`
                         }}>
-                          {c.billingType === 'ONE_TIME' ? '💳 ONE-TIME PURCHASE' : '📅 MONTHLY RECURRING'}
+                          {c.billingType === 'ONE_TIME' ? 'ONE-TIME' : 'MONTHLY'}
                         </span>
                       </div>
 
@@ -763,10 +763,10 @@ export default function CoursesManagerPage() {
               CURRICULUM ARCHITECTURE
             </div>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>
-              {totalCoursesCount} Active Course Streams ({standaloneCourses.length} Specialist Courses)
+              {totalCoursesCount} Active Course Streams ({standaloneCourses.length} Courses)
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
-              Configured across Grades 5 through 13 and standalone courses. Fee structure auto-populates in student admissions and payment receipts.
+              Configured across Grades 5 through 13 and standalone courses. Fee structure auto-populates in student registrations and payment receipts.
             </div>
           </div>
 
@@ -820,19 +820,19 @@ export default function CoursesManagerPage() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
               <div style={{
-                width: 38, height: 38, borderRadius: 10, background: isFormStandalone ? 'rgba(236,72,153,0.15)' : 'rgba(59,130,246,0.12)',
-                color: isFormStandalone ? '#ec4899' : 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                width: 38, height: 38, borderRadius: 10, background: 'rgba(59,130,246,0.12)',
+                color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
-                <Sparkles size={20} />
+                <BookOpen size={20} />
               </div>
               <div>
                 <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>
                   {editingCode
-                    ? (isFormStandalone ? 'Edit Specialist Course' : `Edit Course Stream`)
-                    : (isFormStandalone ? 'Add New Specialist Course' : `Add New Course to Grade ${formGrade}`)}
+                    ? (isFormStandalone ? 'Edit Course' : `Edit Course Stream`)
+                    : (isFormStandalone ? 'Add New Course' : `Add New Course to Grade ${formGrade}`)}
                 </h3>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Set subject title, payment type, and default tuition fee
+                  Set course title, payment type, and default tuition fee
                 </div>
               </div>
             </div>
@@ -855,7 +855,7 @@ export default function CoursesManagerPage() {
                       color: !isFormStandalone ? 'var(--accent-blue)' : 'var(--text-secondary)'
                     }}
                   >
-                    📚 Grade Class
+                    Grade Class
                   </button>
                   <button
                     type="button"
@@ -863,12 +863,12 @@ export default function CoursesManagerPage() {
                     onClick={() => setIsFormStandalone(true)}
                     style={{
                       padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                      border: isFormStandalone ? '1.5px solid #ec4899' : '1px solid var(--border)',
-                      background: isFormStandalone ? 'rgba(236, 72, 153, 0.15)' : 'var(--bg-card)',
-                      color: isFormStandalone ? '#ec4899' : 'var(--text-secondary)'
+                      border: isFormStandalone ? '1.5px solid var(--accent-blue)' : '1px solid var(--border)',
+                      background: isFormStandalone ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-card)',
+                      color: isFormStandalone ? 'var(--accent-blue)' : 'var(--text-secondary)'
                     }}
                   >
-                    ⭐ Specialist Course
+                    Course
                   </button>
                 </div>
               </div>
@@ -923,7 +923,7 @@ export default function CoursesManagerPage() {
                       color: formBillingType === 'ONE_TIME' ? '#10b981' : 'var(--text-secondary)'
                     }}
                   >
-                    💳 One-Time Full Fee
+                    One-Time Fee
                   </button>
                   <button
                     type="button"
@@ -935,7 +935,7 @@ export default function CoursesManagerPage() {
                       color: formBillingType === 'MONTHLY' ? 'var(--accent-blue)' : 'var(--text-secondary)'
                     }}
                   >
-                    📅 Monthly Recurring
+                    Monthly Recurring
                   </button>
                 </div>
               </div>
