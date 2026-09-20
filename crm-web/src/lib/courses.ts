@@ -146,6 +146,21 @@ export function getAllCourseFees(
   return map
 }
 
+// 3. Payment Methods & Banks Configuration
+export const DEFAULT_PAYMENT_METHODS = ['BANK', 'CASH', 'FREE', 'IMS', 'PHYSICAL']
+
+export const DEFAULT_BANKS = [
+  'BOC',
+  'Sampath',
+  'Commercial',
+  'HNB',
+  "People's Bank",
+  'NSB',
+  'Seylan',
+  'NTB',
+  'Other'
+]
+
 export function getCourseBillingType(
   courseCode: string,
   gradeCourses: Record<number, CourseConfig[]> = DEFAULT_GRADE_COURSES,
@@ -161,4 +176,3 @@ export function getCourseBillingType(
 
   return 'MONTHLY'
 }
-

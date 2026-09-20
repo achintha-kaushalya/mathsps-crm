@@ -5,7 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, Plus, Printer, ExternalLink, Trash2, Edit2, Shield, Home, Phone, MapPin, UserCheck } from 'lucide-react'
 import { Student, Payment, Enrollment, CLASS_LABELS, MONTH_NAMES } from '@/lib/types'
-import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES, getAllCourseLabels } from '@/lib/courses'
+import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES, DEFAULT_PAYMENT_METHODS, DEFAULT_BANKS, getAllCourseLabels } from '@/lib/courses'
 import { logAuditEvent } from '@/lib/audit-logger'
 
 const MONTH_NUM_TO_NAME = (m: number) => MONTH_NAMES[m - 1] || '?'
@@ -23,8 +23,10 @@ export default function StudentDetailPage() {
   const [householdSiblings, setHouseholdSiblings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
 
-  // Course labels map
+  // Dynamic configuration state
   const [courseLabels, setCourseLabels] = useState<Record<string, string>>(getAllCourseLabels(DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES))
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(DEFAULT_PAYMENT_METHODS)
+  const [banks, setBanks] = useState<string[]>(DEFAULT_BANKS)
 
   // Student Edit State
   const [editing, setEditing] = useState(false)
@@ -73,17 +75,51 @@ export default function StudentDetailPage() {
       }
     })
 
-    // Fetch custom courses & fees
-    supabase.from('members').select('notes').eq('name', 'Admin User').single().then(({ data: adminRecord }) => {
-      if (adminRecord?.notes) {
-        try {
-          const notesObj = JSON.parse(adminRecord.notes)
-          const gc = notesObj.grade_courses || DEFAULT_GRADE_COURSES
-          const sc = notesObj.standalone_courses || DEFAULT_STANDALONE_COURSES
+    // Fetch custom courses & fees & payment options
+    const loadAdminConfig = () => {
+      supabase.from('members').select('notes').eq('name', 'Admin User').single().then(({ data: adminRecord }) => {
+        if (adminRecord?.notes) {
+          try {
+            const notesObj = JSON.parse(adminRecord.notes)
+            const gc = notesObj.grade_courses || DEFAULT_GRADE_COURSES
+            const sc = notesObj.standalone_courses || DEFAULT_STANDALONE_COURSES
+            setCourseLabels(getAllCourseLabels(gc, sc))
+            if (notesObj.payment_methods && Array.isArray(notesObj.payment_methods)) {
+              setPaymentMethods(notesObj.payment_methods)
+            }
+            if (notesObj.banks && Array.isArray(notesObj.banks)) {
+              setBanks(notesObj.banks)
+            }
+          } catch (e) {}
+        }
+      })
+    }
+
+    loadAdminConfig()
+
+    const room = supabase.channel('mathsps-global-courses-sync')
+    room
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => {
+        loadAdminConfig()
+      })
+      .on('broadcast', { event: 'courses_updated' }, (payload: any) => {
+        if (payload?.payload?.grade_courses || payload?.payload?.standalone_courses) {
+          const gc = payload.payload.grade_courses || DEFAULT_GRADE_COURSES
+          const sc = payload.payload.standalone_courses || DEFAULT_STANDALONE_COURSES
           setCourseLabels(getAllCourseLabels(gc, sc))
-        } catch (e) {}
-      }
-    })
+        }
+        if (payload?.payload?.payment_methods) {
+          setPaymentMethods(payload.payload.payment_methods)
+        }
+        if (payload?.payload?.banks) {
+          setBanks(payload.payload.banks)
+        }
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(room)
+    }
   }, [])
 
   useEffect(() => { if (decodedCode) load() }, [decodedCode])
@@ -845,7 +881,7 @@ export default function StudentDetailPage() {
                   Payment Type
                 </label>
                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                  {['BANK', 'CASH', 'FREE', 'IMS', 'PHYSICAL'].map(t => (
+                  {paymentMethods.map(t => (
                     <button
                       key={t}
                       type="button"
@@ -859,7 +895,7 @@ export default function StudentDetailPage() {
                 </div>
               </div>
 
-              {['BANK', 'CASH', 'PHYSICAL'].includes(editPaymentType) && (
+              {!['FREE', 'IMS'].includes(editPaymentType) && (
                 <div style={{ marginBottom: 12 }}>
                   <label style={{ fontSize: 11, color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
                     Amount Paid (Rs.)
@@ -884,7 +920,7 @@ export default function StudentDetailPage() {
                     value={editBankName}
                     onChange={e => setEditBankName(e.target.value)}
                   >
-                    {['BOC', 'Sampath', 'Commercial', 'HNB', 'People\'s Bank', 'NSB', 'Seylan', 'NTB', 'Other'].map(b => (
+                    {banks.map(b => (
                       <option key={b} value={b}>{b}</option>
                     ))}
                   </select>

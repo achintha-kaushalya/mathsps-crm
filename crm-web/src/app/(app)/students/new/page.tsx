@@ -4,9 +4,15 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, UserPlus, Plus, Trash2, Home, Sparkles, AlertTriangle, ExternalLink, Lock } from 'lucide-react'
 import { MONTH_NAMES } from '@/lib/types'
-import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
-
-const BANKS = ['BOC', 'Sampath', 'Commercial', 'HNB', 'People\'s Bank', 'NSB', 'Seylan', 'NTB', 'Other']
+import {
+  DEFAULT_GRADE_COURSES,
+  DEFAULT_STANDALONE_COURSES,
+  DEFAULT_PAYMENT_METHODS,
+  DEFAULT_BANKS,
+  CourseConfig,
+  getAllCourseLabels,
+  getAllCourseFees
+} from '@/lib/courses'
 
 interface ClassRow {
   id: string
@@ -63,6 +69,8 @@ export default function NewStudentPage() {
   // Specialist / Standalone Courses Selection
   const [standaloneCourses, setStandaloneCourses] = useState<CourseConfig[]>(DEFAULT_STANDALONE_COURSES)
   const [selectedStandalone, setSelectedStandalone] = useState<Record<string, { fee: number; enabled: boolean }>>({})
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(DEFAULT_PAYMENT_METHODS)
+  const [banks, setBanks] = useState<string[]>(DEFAULT_BANKS)
 
   // User details
   const [createdBy, setCreatedBy] = useState('')
@@ -96,7 +104,7 @@ export default function NewStudentPage() {
   const channelRef = useRef<any>(null)
   const phoneCheckTimer = useRef<NodeJS.Timeout | undefined>(undefined)
 
-  // Load admin course setup
+  // Load admin course & payment setup
   const loadAdminCourses = async () => {
     const { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').single()
     if (adminRecord?.notes) {
@@ -116,6 +124,14 @@ export default function NewStudentPage() {
         if (notesObj.standalone_courses && Array.isArray(notesObj.standalone_courses)) {
           sc = notesObj.standalone_courses
           setStandaloneCourses(sc)
+        }
+
+        if (notesObj.payment_methods && Array.isArray(notesObj.payment_methods)) {
+          setPaymentMethods(notesObj.payment_methods)
+        }
+
+        if (notesObj.banks && Array.isArray(notesObj.banks)) {
+          setBanks(notesObj.banks)
         }
 
         setAvailableClasses(getAllCourseLabels(gc, sc))
@@ -174,6 +190,12 @@ export default function NewStudentPage() {
           if (payload.payload.standalone_courses) setStandaloneCourses(sc)
           setAvailableClasses(getAllCourseLabels(gc, sc))
           setClassDefaultFees(getAllCourseFees(gc, sc))
+        }
+        if (payload?.payload?.payment_methods) {
+          setPaymentMethods(payload.payload.payment_methods)
+        }
+        if (payload?.payload?.banks) {
+          setBanks(payload.payload.banks)
         }
       })
       .subscribe()
@@ -1037,7 +1059,7 @@ export default function NewStudentPage() {
                   <div style={{ marginBottom: 14 }}>
                     <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>Payment Method</label>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {['BANK', 'CASH', 'FREE', 'IMS', 'PHYSICAL'].map(t => (
+                      {paymentMethods.map(t => (
                         <button
                           key={t}
                           type="button"
@@ -1055,7 +1077,7 @@ export default function NewStudentPage() {
                     <div style={{ marginBottom: 14 }}>
                       <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Bank</label>
                       <select className="input-field" style={{ borderRadius: 8, height: 38 }} value={paymentForm.bank_name} onChange={e => setPaymentForm(f => ({ ...f, bank_name: e.target.value }))}>
-                        {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
+                        {banks.map(b => <option key={b} value={b}>{b}</option>)}
                       </select>
                     </div>
                   )}

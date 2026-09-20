@@ -5,9 +5,15 @@ import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, Search, Plus, Trash2, CreditCard, Home, Phone, User, MapPin, CheckCircle, Edit3, ShieldAlert } from 'lucide-react'
 import { MONTH_NAMES, Student, Enrollment, StudentBalance } from '@/lib/types'
-import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
-
-const BANKS = ['BOC', 'Sampath', 'Commercial', 'HNB', 'People\'s Bank', 'NSB', 'Seylan', 'NTB', 'Other']
+import {
+  DEFAULT_GRADE_COURSES,
+  DEFAULT_STANDALONE_COURSES,
+  DEFAULT_PAYMENT_METHODS,
+  DEFAULT_BANKS,
+  CourseConfig,
+  getAllCourseLabels,
+  getAllCourseFees
+} from '@/lib/courses'
 
 interface PaymentClassItem {
   itemId: string
@@ -51,9 +57,11 @@ function AddPaymentForm() {
   const [memberName, setMemberName] = useState('')
   const [currentUserRole, setCurrentUserRole] = useState<'member' | 'admin' | 'owner'>('member')
 
-  // Course configuration state
+  // Course & payment configuration state
   const [gradeCourses, setGradeCourses] = useState<Record<number, CourseConfig[]>>(DEFAULT_GRADE_COURSES)
   const [standaloneCourses, setStandaloneCourses] = useState<CourseConfig[]>(DEFAULT_STANDALONE_COURSES)
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(DEFAULT_PAYMENT_METHODS)
+  const [banks, setBanks] = useState<string[]>(DEFAULT_BANKS)
   const [availableClasses, setAvailableClasses] = useState<Record<string, string>>(getAllCourseLabels(DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES))
   const [classDefaultFees, setClassDefaultFees] = useState<Record<string, number>>(getAllCourseFees(DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES))
 
@@ -97,7 +105,7 @@ function AddPaymentForm() {
   const channelRef = useRef<any>(null)
   const isAdmin = currentUserRole === 'admin' || currentUserRole === 'owner' || (memberName && memberName.toLowerCase().includes('admin'))
 
-  // Load admin course setup
+  // Load admin course & payment setup
   const loadAdminCourses = async () => {
     const { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').single()
     if (adminRecord?.notes) {
@@ -117,6 +125,14 @@ function AddPaymentForm() {
         if (notesObj.standalone_courses && Array.isArray(notesObj.standalone_courses)) {
           sc = notesObj.standalone_courses
           setStandaloneCourses(sc)
+        }
+
+        if (notesObj.payment_methods && Array.isArray(notesObj.payment_methods)) {
+          setPaymentMethods(notesObj.payment_methods)
+        }
+
+        if (notesObj.banks && Array.isArray(notesObj.banks)) {
+          setBanks(notesObj.banks)
         }
 
         setAvailableClasses(getAllCourseLabels(gc, sc))
@@ -162,6 +178,12 @@ function AddPaymentForm() {
           if (payload.payload.standalone_courses) setStandaloneCourses(sc)
           setAvailableClasses(getAllCourseLabels(gc, sc))
           setClassDefaultFees(getAllCourseFees(gc, sc))
+        }
+        if (payload?.payload?.payment_methods) {
+          setPaymentMethods(payload.payload.payment_methods)
+        }
+        if (payload?.payload?.banks) {
+          setBanks(payload.payload.banks)
         }
       })
       .subscribe()
@@ -1169,7 +1191,7 @@ function AddPaymentForm() {
                           marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border)',
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10
                         }}>
-                          {['BANK', 'CASH', 'PHYSICAL'].includes(form.payment_type) ? (
+                          {!['FREE', 'IMS'].includes(form.payment_type) ? (
                             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
                               <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
                                 Suggested: <strong style={{ color: 'var(--text-primary)' }}>Rs. {row.suggested.toLocaleString()}</strong>
@@ -1260,7 +1282,7 @@ function AddPaymentForm() {
 
               <FormRow label="Payment Type">
                 <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                  {['BANK', 'CASH', 'FREE', 'IMS', 'PHYSICAL'].map(t => (
+                  {paymentMethods.map(t => (
                     <button key={t} onClick={() => setForm(f => ({ ...f, payment_type: t }))}
                       className={form.payment_type === t ? 'btn-primary' : 'btn-secondary'}
                       style={{ padding: '6px 14px', fontSize: 12, borderRadius: 8, fontWeight: 700 }}>
@@ -1273,7 +1295,7 @@ function AddPaymentForm() {
               {form.payment_type === 'BANK' && (
                 <FormRow label="Bank">
                   <select className="input-field" style={{ borderRadius: 8, height: 38, fontWeight: 700 }} value={form.bank_name} onChange={e => setForm(f => ({ ...f, bank_name: e.target.value }))}>
-                    {BANKS.map(b => <option key={b} value={b}>{b}</option>)}
+                    {banks.map(b => <option key={b} value={b}>{b}</option>)}
                   </select>
                 </FormRow>
               )}

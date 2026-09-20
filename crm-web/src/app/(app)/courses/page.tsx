@@ -18,9 +18,19 @@ import {
   FileText,
   BookmarkCheck,
   UserCheck,
-  CreditCard
+  CreditCard,
+  Building2
 } from 'lucide-react'
-import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES, CourseConfig, BillingType, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
+import {
+  DEFAULT_GRADE_COURSES,
+  DEFAULT_STANDALONE_COURSES,
+  DEFAULT_PAYMENT_METHODS,
+  DEFAULT_BANKS,
+  CourseConfig,
+  BillingType,
+  getAllCourseLabels,
+  getAllCourseFees
+} from '@/lib/courses'
 
 export default function CoursesManagerPage() {
   const supabase = createClient()
@@ -32,9 +42,12 @@ export default function CoursesManagerPage() {
   // Grade-aligned courses configuration state
   const [gradeCourses, setGradeCourses] = useState<Record<number, CourseConfig[]>>(DEFAULT_GRADE_COURSES)
   const [standaloneCourses, setStandaloneCourses] = useState<CourseConfig[]>(DEFAULT_STANDALONE_COURSES)
-  const [selectedGradeTab, setSelectedGradeTab] = useState<number | 'standalone'>(10)
+  const [paymentMethods, setPaymentMethods] = useState<string[]>(DEFAULT_PAYMENT_METHODS)
+  const [banks, setBanks] = useState<string[]>(DEFAULT_BANKS)
 
-  // Modal / Form state for Add / Edit
+  const [selectedGradeTab, setSelectedGradeTab] = useState<number | 'standalone' | 'payments'>(10)
+
+  // Modal / Form state for Add / Edit Course
   const [showModal, setShowModal] = useState(false)
   const [editingCode, setEditingCode] = useState<string | null>(null)
   const [isFormStandalone, setIsFormStandalone] = useState(false)
@@ -46,6 +59,10 @@ export default function CoursesManagerPage() {
   const [formDesc, setFormDesc] = useState('')
   const [saving, setSaving] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
+
+  // Payment Methods / Bank Input State
+  const [newPayMethod, setNewPayMethod] = useState('')
+  const [newBank, setNewBank] = useState('')
 
   const channelRef = useRef<any>(null)
   const isAdmin = currentUserRole === 'admin' || currentUserRole === 'owner' || (currentUserName && currentUserName.toLowerCase().includes('admin'))
@@ -65,6 +82,12 @@ export default function CoursesManagerPage() {
         }
         if (notesObj.standalone_courses) {
           setStandaloneCourses(notesObj.standalone_courses)
+        }
+        if (notesObj.payment_methods && Array.isArray(notesObj.payment_methods)) {
+          setPaymentMethods(notesObj.payment_methods)
+        }
+        if (notesObj.banks && Array.isArray(notesObj.banks)) {
+          setBanks(notesObj.banks)
         }
       }
     } catch (err) {
@@ -108,6 +131,12 @@ export default function CoursesManagerPage() {
         if (payload?.payload?.standalone_courses) {
           setStandaloneCourses(payload.payload.standalone_courses)
         }
+        if (payload?.payload?.payment_methods) {
+          setPaymentMethods(payload.payload.payment_methods)
+        }
+        if (payload?.payload?.banks) {
+          setBanks(payload.payload.banks)
+        }
       })
       .subscribe()
 
@@ -116,7 +145,12 @@ export default function CoursesManagerPage() {
     }
   }, [])
 
-  async function persistCourses(updatedGC: Record<number, CourseConfig[]>, updatedStandalone: CourseConfig[]) {
+  async function persistCourses(
+    updatedGC: Record<number, CourseConfig[]>,
+    updatedStandalone: CourseConfig[],
+    updatedPayMethods: string[] = paymentMethods,
+    updatedBanks: string[] = banks
+  ) {
     setSaving(true)
     try {
       const { data: adminMem } = await supabase.from('members').select('id').eq('name', 'Admin User').single()
@@ -134,27 +168,94 @@ export default function CoursesManagerPage() {
             fees: classFees,
             grade_courses: updatedGC,
             standalone_courses: updatedStandalone,
+            payment_methods: updatedPayMethods,
+            banks: updatedBanks,
             adminPassword: 'sb_secret_verification_bypass'
           })
         })
 
-        if (!res.ok) throw new Error('Failed to save to database')
+        if (!res.ok) {
+          const errData = await res.json()
+          throw new Error(errData.error || 'Failed to update')
+        }
 
         if (channelRef.current) {
           channelRef.current.send({
             type: 'broadcast',
             event: 'courses_updated',
-            payload: { grade_courses: updatedGC, standalone_courses: updatedStandalone, courses: customCourses, fees: classFees }
+            payload: {
+              grade_courses: updatedGC,
+              standalone_courses: updatedStandalone,
+              payment_methods: updatedPayMethods,
+              banks: updatedBanks
+            }
           })
         }
       }
-      setToastMsg('✓ Changes saved & synced across CRM in real time!')
-      setTimeout(() => setToastMsg(''), 3500)
     } catch (err: any) {
-      alert('Error updating courses: ' + err.message)
+      alert('Failed to save configuration: ' + err.message)
     } finally {
       setSaving(false)
     }
+  }
+
+  // Payment Methods & Banks Management Handlers
+  async function handleAddPaymentMethod(e: React.FormEvent) {
+    e.preventDefault()
+    const clean = newPayMethod.trim().toUpperCase()
+    if (!clean) return
+    if (paymentMethods.includes(clean)) {
+      alert('This payment method already exists.')
+      return
+    }
+    const updated = [...paymentMethods, clean]
+    setPaymentMethods(updated)
+    setNewPayMethod('')
+    await persistCourses(gradeCourses, standaloneCourses, updated, banks)
+    setToastMsg(`Payment method "${clean}" added!`)
+    setTimeout(() => setToastMsg(''), 3000)
+  }
+
+  async function handleDeletePaymentMethod(method: string) {
+    if (paymentMethods.length <= 1) {
+      alert('At least one payment method is required.')
+      return
+    }
+    if (!confirm(`Delete payment method "${method}"?`)) return
+    const updated = paymentMethods.filter(m => m !== method)
+    setPaymentMethods(updated)
+    await persistCourses(gradeCourses, standaloneCourses, updated, banks)
+    setToastMsg(`Payment method "${method}" removed.`)
+    setTimeout(() => setToastMsg(''), 3000)
+  }
+
+  async function handleAddBank(e: React.FormEvent) {
+    e.preventDefault()
+    const clean = newBank.trim()
+    if (!clean) return
+    if (banks.some(b => b.toLowerCase() === clean.toLowerCase())) {
+      alert('This bank already exists.')
+      return
+    }
+    const updated = [...banks, clean]
+    setBanks(updated)
+    setNewBank('')
+    await persistCourses(gradeCourses, standaloneCourses, paymentMethods, updated)
+    setToastMsg(`Bank "${clean}" added!`)
+    setTimeout(() => setToastMsg(''), 3000)
+  }
+
+  async function handleDeleteBank(bankName: string) {
+    if (banks.length <= 1) {
+      alert('At least one bank is required.')
+      return
+    }
+    if (!confirm(`Delete bank "${bankName}"?`)) return
+    const updated = banks.filter(b => b !== bankName)
+    setBanks(updated)
+    await persistCourses(gradeCourses, standaloneCourses, paymentMethods, updated)
+    setToastMsg(`Bank "${bankName}" removed.`)
+    setTimeout(() => setToastMsg(''), 3000)
   }
 
   function handleOpenAdd(target: number | 'standalone') {
@@ -281,9 +382,11 @@ export default function CoursesManagerPage() {
 
   // Available grade tabs (5 through 13)
   const grades = [5, 6, 7, 8, 9, 10, 11, 12, 13]
-  const currentTabCourses = selectedGradeTab === 'standalone'
+  const currentTabCourses: CourseConfig[] = selectedGradeTab === 'standalone'
     ? standaloneCourses
-    : (gradeCourses[selectedGradeTab] || [])
+    : typeof selectedGradeTab === 'number'
+    ? (gradeCourses[selectedGradeTab] || [])
+    : []
 
   // Total courses count across all grades + standalone
   const totalCoursesCount = Object.values(gradeCourses).reduce((sum, list) => sum + list.length, 0) + standaloneCourses.length
@@ -326,7 +429,7 @@ export default function CoursesManagerPage() {
         <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
           {isAdmin ? (
             <button
-              onClick={() => handleOpenAdd(selectedGradeTab)}
+              onClick={() => handleOpenAdd(selectedGradeTab === 'payments' ? 10 : selectedGradeTab)}
               className="btn-primary"
               style={{
                 background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)',
@@ -536,9 +639,249 @@ export default function CoursesManagerPage() {
               </button>
             )
           })}
+
+          <div style={{ width: 1, height: 24, background: 'var(--border)', margin: 'auto 4px' }} />
+
+          {/* Payment Methods & Banks Tab */}
+          <button
+            onClick={() => setSelectedGradeTab('payments')}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 8,
+              border: selectedGradeTab === 'payments' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: selectedGradeTab === 'payments' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+              color: selectedGradeTab === 'payments' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: selectedGradeTab === 'payments' ? 700 : 500,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <CreditCard size={15} />
+            <span>Payment Methods & Banks</span>
+            <span style={{
+              fontSize: 11,
+              padding: '2px 7px',
+              borderRadius: 10,
+              background: selectedGradeTab === 'payments' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
+              color: selectedGradeTab === 'payments' ? '#fff' : 'var(--text-muted)',
+              border: selectedGradeTab === 'payments' ? 'none' : '1px solid var(--border)',
+              fontWeight: 700
+            }}>
+              {paymentMethods.length + banks.length}
+            </span>
+          </button>
         </div>
 
-        {/* Grade / Standalone Courses Cards Section */}
+        {/* Payment Methods & Banks Manager View */}
+        {selectedGradeTab === 'payments' ? (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: 20, marginBottom: 24 }}>
+            {/* Payment Methods Card */}
+            <div style={{
+              padding: 24,
+              background: 'var(--bg-card)',
+              borderRadius: 12,
+              border: '1px solid var(--border)',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <CreditCard size={18} style={{ color: 'var(--accent-blue)' }} />
+                    Payment Methods
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Accepted methods in Student Registration &amp; Add Payment forms
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-card-hover)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                  {paymentMethods.length} methods
+                </span>
+              </div>
+
+              {/* Add Payment Method Input */}
+              {isAdmin && (
+                <form onSubmit={handleAddPaymentMethod} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. KOKO, MINTPAY, SIPSA"
+                    value={newPayMethod}
+                    onChange={e => setNewPayMethod(e.target.value)}
+                    style={{ flex: 1, textTransform: 'uppercase', fontWeight: 600, fontSize: 13 }}
+                  />
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    disabled={saving || !newPayMethod.trim()}
+                    style={{ padding: '7px 14px', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <Plus size={14} /> Add
+                  </button>
+                </form>
+              )}
+
+              {/* Payment Methods List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {paymentMethods.map(pm => (
+                  <div
+                    key={pm}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      background: 'var(--bg-card-hover)',
+                      borderRadius: 8,
+                      border: '1px solid var(--border)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        background: 'rgba(56, 189, 248, 0.15)',
+                        color: 'var(--accent-blue)',
+                        border: '1px solid rgba(56, 189, 248, 0.3)'
+                      }}>
+                        {pm}
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {pm === 'BANK' ? 'Bank Deposit / Slip Upload' : pm === 'CASH' ? 'Cash Collection' : pm === 'FREE' ? 'Free / Scholarship Access' : pm === 'IMS' ? 'IMS Portal Payment' : pm === 'PHYSICAL' ? 'Physical Class Collection' : `${pm} Payment`}
+                      </span>
+                    </div>
+
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeletePaymentMethod(pm)}
+                        disabled={saving || paymentMethods.length <= 1}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: paymentMethods.length <= 1 ? 'var(--text-muted)' : '#ef4444',
+                          cursor: paymentMethods.length <= 1 ? 'not-allowed' : 'pointer',
+                          padding: 4,
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                        title="Delete method"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Banks Card */}
+            <div style={{
+              padding: 24,
+              background: 'var(--bg-card)',
+              borderRadius: 12,
+              border: '1px solid var(--border)',
+              boxShadow: '0 1px 3px rgba(0,0,0,0.03)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Building2 size={18} style={{ color: '#10b981' }} />
+                    Deposit Banks
+                  </div>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                    Bank options available for bank transfer &amp; slip verification
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-card-hover)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
+                  {banks.length} banks
+                </span>
+              </div>
+
+              {/* Add Bank Input */}
+              {isAdmin && (
+                <form onSubmit={handleAddBank} style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. NDB, DFCC, Union Bank"
+                    value={newBank}
+                    onChange={e => setNewBank(e.target.value)}
+                    style={{ flex: 1, fontWeight: 600, fontSize: 13 }}
+                  />
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    disabled={saving || !newBank.trim()}
+                    style={{ padding: '7px 14px', fontSize: 12, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}
+                  >
+                    <Plus size={14} /> Add
+                  </button>
+                </form>
+              )}
+
+              {/* Banks List */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {banks.map(b => (
+                  <div
+                    key={b}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '10px 14px',
+                      background: 'var(--bg-card-hover)',
+                      borderRadius: 8,
+                      border: '1px solid var(--border)'
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '2px 8px',
+                        borderRadius: 6,
+                        background: 'rgba(16, 185, 129, 0.15)',
+                        color: '#10b981',
+                        border: '1px solid rgba(16, 185, 129, 0.3)'
+                      }}>
+                        BANK
+                      </span>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {b}
+                      </span>
+                    </div>
+
+                    {isAdmin && (
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteBank(b)}
+                        disabled={saving || banks.length <= 1}
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: banks.length <= 1 ? 'var(--text-muted)' : '#ef4444',
+                          cursor: banks.length <= 1 ? 'not-allowed' : 'pointer',
+                          padding: 4,
+                          display: 'flex',
+                          alignItems: 'center'
+                        }}
+                        title="Delete bank"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+        /* Grade / Standalone Courses Cards Section */
         <div style={{
           padding: 24,
           background: 'var(--bg-card)',
@@ -608,7 +951,7 @@ export default function CoursesManagerPage() {
             </div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: 16 }}>
-              {currentTabCourses.map(c => {
+              {currentTabCourses.map((c: CourseConfig) => {
                 const isCombo = c.name.toLowerCase().includes('both') || c.name.toLowerCase().includes('full package') || c.name.toLowerCase().includes('+')
                 const isPaper = c.name.toLowerCase().includes('paper') && !isCombo
                 const isRevision = c.name.toLowerCase().includes('revision') && !isCombo
@@ -750,6 +1093,7 @@ export default function CoursesManagerPage() {
             </div>
           )}
         </div>
+      )}
 
         {/* Global Summary & Quick Access */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
