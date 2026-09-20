@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, Plus, Printer, ExternalLink, Trash2, Edit2, Shield, Home, Phone, MapPin, UserCheck } from 'lucide-react'
 import { Student, Payment, Enrollment, CLASS_LABELS, MONTH_NAMES } from '@/lib/types'
+import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES, getAllCourseLabels } from '@/lib/courses'
 import { logAuditEvent } from '@/lib/audit-logger'
 
 const MONTH_NUM_TO_NAME = (m: number) => MONTH_NAMES[m - 1] || '?'
@@ -21,6 +22,9 @@ export default function StudentDetailPage() {
   const [balances, setBalances] = useState<any[]>([])
   const [householdSiblings, setHouseholdSiblings] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+
+  // Course labels map
+  const [courseLabels, setCourseLabels] = useState<Record<string, string>>(getAllCourseLabels(DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES))
 
   // Student Edit State
   const [editing, setEditing] = useState(false)
@@ -66,6 +70,18 @@ export default function StudentDetailPage() {
         }
         setCurrentUserName(name)
         setUserRole(role)
+      }
+    })
+
+    // Fetch custom courses & fees
+    supabase.from('members').select('notes').eq('name', 'Admin User').single().then(({ data: adminRecord }) => {
+      if (adminRecord?.notes) {
+        try {
+          const notesObj = JSON.parse(adminRecord.notes)
+          const gc = notesObj.grade_courses || DEFAULT_GRADE_COURSES
+          const sc = notesObj.standalone_courses || DEFAULT_STANDALONE_COURSES
+          setCourseLabels(getAllCourseLabels(gc, sc))
+        } catch (e) {}
       }
     })
   }, [])
@@ -613,7 +629,7 @@ export default function StudentDetailPage() {
               </div>
               {balances.map(b => (
                 <div key={b.class_type} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid var(--border)', fontSize: 13 }}>
-                  <span style={{ color: 'var(--text-secondary)' }}>{CLASS_LABELS[b.class_type] || b.class_type}</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{courseLabels[b.class_type] || CLASS_LABELS[b.class_type] || b.class_type}</span>
                   <span className={b.current_balance < 0 ? 'balance-negative' : b.current_balance > 0 ? 'balance-positive' : 'balance-zero'}>
                     {b.current_balance >= 0 ? '+' : ''}Rs.{b.current_balance.toLocaleString()}
                   </span>
@@ -666,15 +682,23 @@ export default function StudentDetailPage() {
                   const enrol = enrollments.find(e => e.class_type === cType)
                   const enrolPayments = payments.filter(p => p.class_type === cType)
                   const balance = balances.find(b => b.class_type === cType)
+                  const isSpecialist = !cType.startsWith('GR') && !cType.startsWith('grade')
 
                   return (
                     <div key={cType} className="glass-card" style={{ overflow: 'hidden' }}>
                       <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <div style={{ fontWeight: 600, fontSize: 14 }}>{CLASS_LABELS[cType] || cType}</div>
+                          <div style={{ fontWeight: 600, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8 }}>
+                            {courseLabels[cType] || CLASS_LABELS[cType] || cType}
+                            {isSpecialist && (
+                              <span style={{ fontSize: 10, fontWeight: 800, padding: '1px 6px', borderRadius: 4, background: 'rgba(236, 72, 153, 0.15)', color: '#db2777' }}>
+                                ⭐ Specialist Course
+                              </span>
+                            )}
+                          </div>
                           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
                             {enrol
-                              ? `${enrol.tier} · Monthly Fee: Rs.${enrol.fee_amount.toLocaleString()} · ${enrol.active ? '✅ Active' : '⏹ Inactive'}`
+                              ? `${enrol.tier} · Fee: Rs.${enrol.fee_amount.toLocaleString()} · ${enrol.active ? '✅ Active' : '⏹ Inactive'}`
                               : 'Past Class Record (Not currently enrolled)'}
                           </div>
                         </div>

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, Search, Plus, Trash2, CreditCard, Home, Phone, User, MapPin, CheckCircle, Edit3, ShieldAlert } from 'lucide-react'
 import { MONTH_NAMES, Student, Enrollment, StudentBalance } from '@/lib/types'
-import { DEFAULT_GRADE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
+import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
 
 const BANKS = ['BOC', 'Sampath', 'Commercial', 'HNB', 'People\'s Bank', 'NSB', 'Seylan', 'NTB', 'Other']
 
@@ -13,7 +13,7 @@ interface PaymentClassItem {
   itemId: string
   isExistingEnrollment: boolean
   enrollmentId?: string
-  grade: number
+  grade: number | 'standalone'
   courseCode: string
   fee: number
   selected: boolean
@@ -21,6 +21,7 @@ interface PaymentClassItem {
   currentBalance: number
   suggested: number
   deliverTute: boolean
+  isStandalone?: boolean
 }
 
 // Sri Lanka phone normalizer: returns 10-digit 07XXXXXXXX or formatted string
@@ -52,8 +53,9 @@ function AddPaymentForm() {
 
   // Course configuration state
   const [gradeCourses, setGradeCourses] = useState<Record<number, CourseConfig[]>>(DEFAULT_GRADE_COURSES)
-  const [availableClasses, setAvailableClasses] = useState<Record<string, string>>(getAllCourseLabels(DEFAULT_GRADE_COURSES))
-  const [classDefaultFees, setClassDefaultFees] = useState<Record<string, number>>(getAllCourseFees(DEFAULT_GRADE_COURSES))
+  const [standaloneCourses, setStandaloneCourses] = useState<CourseConfig[]>(DEFAULT_STANDALONE_COURSES)
+  const [availableClasses, setAvailableClasses] = useState<Record<string, string>>(getAllCourseLabels(DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES))
+  const [classDefaultFees, setClassDefaultFees] = useState<Record<string, number>>(getAllCourseFees(DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES))
 
   // Dynamic Payment Class Rows under this 1 PS Code
   const [paymentRows, setPaymentRows] = useState<PaymentClassItem[]>([])
@@ -101,18 +103,24 @@ function AddPaymentForm() {
     if (adminRecord?.notes) {
       try {
         const notesObj = JSON.parse(adminRecord.notes)
+        let gc = { ...DEFAULT_GRADE_COURSES }
+        let sc = [...DEFAULT_STANDALONE_COURSES]
+
         if (notesObj.grade_courses) {
-          const gc: Record<number, CourseConfig[]> = {}
+          gc = { ...DEFAULT_GRADE_COURSES }
           Object.entries(notesObj.grade_courses).forEach(([grStr, list]: [string, any]) => {
             gc[Number(grStr)] = list
           })
           setGradeCourses(gc)
-          setAvailableClasses(getAllCourseLabels(gc))
-          setClassDefaultFees(getAllCourseFees(gc))
-        } else if (notesObj.custom_courses) {
-          setAvailableClasses(prev => ({ ...prev, ...notesObj.custom_courses }))
-          if (notesObj.class_fees) setClassDefaultFees(prev => ({ ...prev, ...notesObj.class_fees }))
         }
+
+        if (notesObj.standalone_courses && Array.isArray(notesObj.standalone_courses)) {
+          sc = notesObj.standalone_courses
+          setStandaloneCourses(sc)
+        }
+
+        setAvailableClasses(getAllCourseLabels(gc, sc))
+        setClassDefaultFees(getAllCourseFees(gc, sc))
       } catch (err) {
         console.error('Failed to parse custom courses & fees:', err)
       }
@@ -147,10 +155,13 @@ function AddPaymentForm() {
         loadAdminCourses()
       })
       .on('broadcast', { event: 'courses_updated' }, (payload: any) => {
-        if (payload?.payload?.grade_courses) {
-          setGradeCourses(payload.payload.grade_courses)
-          setAvailableClasses(getAllCourseLabels(payload.payload.grade_courses))
-          setClassDefaultFees(getAllCourseFees(payload.payload.grade_courses))
+        if (payload?.payload?.grade_courses || payload?.payload?.standalone_courses) {
+          const gc = payload.payload.grade_courses || gradeCourses
+          const sc = payload.payload.standalone_courses || standaloneCourses
+          if (payload.payload.grade_courses) setGradeCourses(gc)
+          if (payload.payload.standalone_courses) setStandaloneCourses(sc)
+          setAvailableClasses(getAllCourseLabels(gc, sc))
+          setClassDefaultFees(getAllCourseFees(gc, sc))
         }
       })
       .subscribe()
@@ -239,7 +250,10 @@ function AddPaymentForm() {
     loadStudentClasses(selectedStu)
   }
 
-  function inferGradeFromCourse(courseCode: string, fallbackGrade: number): number {
+  function inferGradeFromCourse(courseCode: string, fallbackGrade: number): number | 'standalone' {
+    if (standaloneCourses.some(sc => sc.code === courseCode)) {
+      return 'standalone'
+    }
     for (const [grStr, list] of Object.entries(gradeCourses)) {
       if (list.some(c => c.code === courseCode)) {
         return Number(grStr)
@@ -278,6 +292,7 @@ function AddPaymentForm() {
         const curBal = bMap[e.class_type]?.current_balance || 0
         const sug = Math.max(0, e.fee_amount - curBal)
         const rowGrade = inferGradeFromCourse(e.class_type, stuGrade)
+        const isStandalone = rowGrade === 'standalone'
 
         return {
           itemId: `enrol-${e.id}`,
@@ -290,7 +305,8 @@ function AddPaymentForm() {
           amountPaid: String(sug),
           currentBalance: curBal,
           suggested: sug,
-          deliverTute: true
+          deliverTute: true,
+          isStandalone
         }
       })
       setPaymentRows(rows)
@@ -311,7 +327,8 @@ function AddPaymentForm() {
           amountPaid: String(fee),
           currentBalance: 0,
           suggested: fee,
-          deliverTute: true
+          deliverTute: true,
+          isStandalone: false
         }
       ])
     }
@@ -337,7 +354,8 @@ function AddPaymentForm() {
       amountPaid: String(defFee),
       currentBalance: 0,
       suggested: defFee,
-      deliverTute: true
+      deliverTute: true,
+      isStandalone: false
     }
     setPaymentRows([...paymentRows, newRow])
   }
@@ -350,7 +368,32 @@ function AddPaymentForm() {
     setPaymentRows(paymentRows.filter(r => r.itemId !== itemId))
   }
 
-  function handleRowGradeChange(itemId: string, newGrade: number) {
+  function handleRowGradeChange(itemId: string, newGrade: number | 'standalone') {
+    if (newGrade === 'standalone') {
+      const firstSc = standaloneCourses[0]
+      const defFee = firstSc ? firstSc.defaultFee : 2500
+      const defCode = firstSc ? firstSc.code : 'GEOMETRY_FULL'
+
+      setPaymentRows(prev => prev.map(r => {
+        if (r.itemId === itemId) {
+          const curBal = allBalances[defCode]?.current_balance || 0
+          const sug = Math.max(0, defFee - curBal)
+          return {
+            ...r,
+            grade: 'standalone',
+            courseCode: defCode,
+            fee: defFee,
+            currentBalance: curBal,
+            suggested: sug,
+            amountPaid: String(sug),
+            isStandalone: true
+          }
+        }
+        return r
+      }))
+      return
+    }
+
     const coursesForGrade = gradeCourses[newGrade] || []
     const firstCourse = coursesForGrade[0]
     const defFee = firstCourse ? firstCourse.defaultFee : 1800
@@ -367,7 +410,8 @@ function AddPaymentForm() {
           fee: defFee,
           currentBalance: curBal,
           suggested: sug,
-          amountPaid: String(sug)
+          amountPaid: String(sug),
+          isStandalone: false
         }
       }
       return r
@@ -974,7 +1018,7 @@ function AddPaymentForm() {
               {/* Payment Class Rows */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
                 {paymentRows.map((row) => {
-                  const coursesForThisGrade = gradeCourses[row.grade] || []
+                  const coursesForThisGrade: CourseConfig[] = typeof row.grade === 'number' ? (gradeCourses[row.grade] || []) : []
 
                   return (
                     <div
@@ -1007,35 +1051,64 @@ function AddPaymentForm() {
                         {/* Grade Dropdown */}
                         <div>
                           <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
-                            Grade
+                            Category / Grade
                           </label>
                           <select
                             className="input-field"
                             value={row.grade}
-                            onChange={e => handleRowGradeChange(row.itemId, parseInt(e.target.value))}
-                            style={{ padding: '5px 8px', fontSize: 12.5, fontWeight: 700, borderRadius: 8, height: 36 }}
+                            onChange={e => {
+                              const val = e.target.value
+                              handleRowGradeChange(row.itemId, val === 'standalone' ? 'standalone' : parseInt(val))
+                            }}
+                            style={{
+                              padding: '5px 8px',
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              borderRadius: 8,
+                              height: 36,
+                              color: row.grade === 'standalone' ? '#db2777' : 'inherit',
+                              border: row.grade === 'standalone' ? '1px solid #db2777' : undefined
+                            }}
                           >
-                            {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
-                              <option key={g} value={g}>Grade {g}</option>
-                            ))}
+                            <optgroup label="Regular Grades">
+                              {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                                <option key={g} value={g}>Grade {g}</option>
+                              ))}
+                            </optgroup>
+                            <optgroup label="Specialist Courses">
+                              <option value="standalone">⭐ Specialist Course</option>
+                            </optgroup>
                           </select>
                         </div>
 
                         {/* Aligned Course Dropdown */}
                         <div>
                           <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
-                            Course
+                            {row.grade === 'standalone' ? 'Specialist Course' : 'Aligned Course'}
                           </label>
                           <select
                             className="input-field"
                             value={row.courseCode}
                             onChange={e => handleRowCourseChange(row.itemId, e.target.value)}
-                            style={{ padding: '5px 10px', fontSize: 12.5, fontWeight: 700, color: 'var(--accent-blue)', borderRadius: 8, height: 36 }}
+                            style={{
+                              padding: '5px 10px',
+                              fontSize: 12.5,
+                              fontWeight: 700,
+                              color: row.grade === 'standalone' ? '#db2777' : 'var(--accent-blue)',
+                              borderRadius: 8,
+                              height: 36
+                            }}
                           >
-                            {coursesForThisGrade.length === 0 ? (
+                            {row.grade === 'standalone' ? (
+                              standaloneCourses.map((sc: CourseConfig) => (
+                                <option key={sc.code} value={sc.code}>
+                                  {sc.name} ({sc.billingType === 'ONE_TIME' ? 'One-Time' : 'Monthly'})
+                                </option>
+                              ))
+                            ) : coursesForThisGrade.length === 0 ? (
                               <option value="">No courses for Grade {row.grade}</option>
                             ) : (
-                              coursesForThisGrade.map(c => (
+                              coursesForThisGrade.map((c: CourseConfig) => (
                                 <option key={c.code} value={c.code}>
                                   {c.name}
                                 </option>
@@ -1047,7 +1120,7 @@ function AddPaymentForm() {
                         {/* Monthly Fee / Rate */}
                         <div>
                           <label style={{ fontSize: 10.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 2 }}>
-                            Fee Rate (Rs.)
+                            {row.grade === 'standalone' ? 'Fee Rate (Rs.)' : 'Fee Rate (Rs.)'}
                           </label>
                           <input
                             type="number"

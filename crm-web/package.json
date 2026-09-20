@@ -18,6 +18,12 @@
     "directories": {
       "output": "dist"
     },
+    "files": [
+      "electron/**/*",
+      "public/brand-logo.jpg",
+      "public/icon.ico"
+    ],
+    "asar": true,
     "win": {
       "target": [
         "nsis",

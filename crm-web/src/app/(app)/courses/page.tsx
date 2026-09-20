@@ -20,7 +20,7 @@ import {
   UserCheck,
   CreditCard
 } from 'lucide-react'
-import { DEFAULT_GRADE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
+import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES, CourseConfig, BillingType, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
 
 export default function CoursesManagerPage() {
   const supabase = createClient()
@@ -31,15 +31,19 @@ export default function CoursesManagerPage() {
 
   // Grade-aligned courses configuration state
   const [gradeCourses, setGradeCourses] = useState<Record<number, CourseConfig[]>>(DEFAULT_GRADE_COURSES)
-  const [selectedGradeTab, setSelectedGradeTab] = useState<number>(10)
+  const [standaloneCourses, setStandaloneCourses] = useState<CourseConfig[]>(DEFAULT_STANDALONE_COURSES)
+  const [selectedGradeTab, setSelectedGradeTab] = useState<number | 'standalone'>(10)
 
   // Modal / Form state for Add / Edit
   const [showModal, setShowModal] = useState(false)
   const [editingCode, setEditingCode] = useState<string | null>(null)
+  const [isFormStandalone, setIsFormStandalone] = useState(false)
   const [formGrade, setFormGrade] = useState<number>(10)
   const [formCode, setFormCode] = useState('')
   const [formName, setFormName] = useState('')
   const [formFee, setFormFee] = useState<string>('1800')
+  const [formBillingType, setFormBillingType] = useState<BillingType>('MONTHLY')
+  const [formDesc, setFormDesc] = useState('')
   const [saving, setSaving] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
 
@@ -58,6 +62,9 @@ export default function CoursesManagerPage() {
             gc[Number(grStr)] = list
           })
           setGradeCourses(gc)
+        }
+        if (notesObj.standalone_courses) {
+          setStandaloneCourses(notesObj.standalone_courses)
         }
       }
     } catch (err) {
@@ -98,6 +105,9 @@ export default function CoursesManagerPage() {
         if (payload?.payload?.grade_courses) {
           setGradeCourses(payload.payload.grade_courses)
         }
+        if (payload?.payload?.standalone_courses) {
+          setStandaloneCourses(payload.payload.standalone_courses)
+        }
       })
       .subscribe()
 
@@ -106,13 +116,13 @@ export default function CoursesManagerPage() {
     }
   }, [])
 
-  async function persistCourses(updatedGC: Record<number, CourseConfig[]>) {
+  async function persistCourses(updatedGC: Record<number, CourseConfig[]>, updatedStandalone: CourseConfig[]) {
     setSaving(true)
     try {
       const { data: adminMem } = await supabase.from('members').select('id').eq('name', 'Admin User').single()
       if (adminMem?.id) {
-        const customCourses = getAllCourseLabels(updatedGC)
-        const classFees = getAllCourseFees(updatedGC)
+        const customCourses = getAllCourseLabels(updatedGC, updatedStandalone)
+        const classFees = getAllCourseFees(updatedGC, updatedStandalone)
 
         const res = await fetch('/api/members/manage', {
           method: 'POST',
@@ -123,6 +133,7 @@ export default function CoursesManagerPage() {
             courses: customCourses,
             fees: classFees,
             grade_courses: updatedGC,
+            standalone_courses: updatedStandalone,
             adminPassword: 'sb_secret_verification_bypass'
           })
         })
@@ -133,7 +144,7 @@ export default function CoursesManagerPage() {
           channelRef.current.send({
             type: 'broadcast',
             event: 'courses_updated',
-            payload: { grade_courses: updatedGC, courses: customCourses, fees: classFees }
+            payload: { grade_courses: updatedGC, standalone_courses: updatedStandalone, courses: customCourses, fees: classFees }
           })
         }
       }
@@ -146,21 +157,37 @@ export default function CoursesManagerPage() {
     }
   }
 
-  function handleOpenAdd(grade: number) {
+  function handleOpenAdd(target: number | 'standalone') {
     setEditingCode(null)
-    setFormGrade(grade)
-    setFormCode('')
-    setFormName('')
-    setFormFee(grade >= 10 ? '1800' : '1500')
+    if (target === 'standalone') {
+      setIsFormStandalone(true)
+      setFormGrade(10)
+      setFormCode('')
+      setFormName('')
+      setFormFee('2500')
+      setFormBillingType('ONE_TIME')
+      setFormDesc('')
+    } else {
+      setIsFormStandalone(false)
+      setFormGrade(target)
+      setFormCode('')
+      setFormName('')
+      setFormFee(target >= 10 ? '1800' : '1500')
+      setFormBillingType('MONTHLY')
+      setFormDesc('')
+    }
     setShowModal(true)
   }
 
   function handleOpenEdit(course: CourseConfig) {
     setEditingCode(course.code)
-    setFormGrade(course.grade)
+    setIsFormStandalone(Boolean(course.isStandalone))
+    setFormGrade(course.grade || 10)
     setFormCode(course.code)
     setFormName(course.name)
     setFormFee(String(course.defaultFee))
+    setFormBillingType(course.billingType || (course.isStandalone ? 'ONE_TIME' : 'MONTHLY'))
+    setFormDesc(course.description || '')
     setShowModal(true)
   }
 
@@ -169,47 +196,97 @@ export default function CoursesManagerPage() {
     if (!formName.trim()) return
 
     const fee = parseFloat(formFee) || 1800
-    const code = editingCode || (formCode.trim() ? formCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_') : `GR${formGrade}_${Date.now().toString().slice(-4)}`)
 
-    const currentList = gradeCourses[formGrade] || []
-    let updatedList: CourseConfig[] = []
+    if (isFormStandalone) {
+      const code = editingCode || (formCode.trim() ? formCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_') : `SPEC_${Date.now().toString().slice(-5)}`)
+      let updatedStandalone: CourseConfig[] = []
 
-    if (editingCode) {
-      updatedList = currentList.map(c => c.code === editingCode ? { ...c, name: formName.trim(), defaultFee: fee, grade: formGrade } : c)
+      if (editingCode) {
+        updatedStandalone = standaloneCourses.map(c => c.code === editingCode ? {
+          ...c,
+          name: formName.trim(),
+          defaultFee: fee,
+          isStandalone: true,
+          billingType: formBillingType,
+          description: formDesc.trim() || undefined
+        } : c)
+      } else {
+        updatedStandalone = [...standaloneCourses.filter(c => c.code !== code), {
+          code,
+          name: formName.trim(),
+          defaultFee: fee,
+          isStandalone: true,
+          billingType: formBillingType,
+          description: formDesc.trim() || undefined
+        }]
+      }
+
+      setStandaloneCourses(updatedStandalone)
+      setShowModal(false)
+      await persistCourses(gradeCourses, updatedStandalone)
     } else {
-      updatedList = [...currentList.filter(c => c.code !== code), { code, name: formName.trim(), defaultFee: fee, grade: formGrade }]
-    }
+      const code = editingCode || (formCode.trim() ? formCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_') : `GR${formGrade}_${Date.now().toString().slice(-4)}`)
+      const currentList = gradeCourses[formGrade] || []
+      let updatedList: CourseConfig[] = []
 
-    const updatedGC = {
-      ...gradeCourses,
-      [formGrade]: updatedList
-    }
+      if (editingCode) {
+        updatedList = currentList.map(c => c.code === editingCode ? {
+          ...c,
+          name: formName.trim(),
+          defaultFee: fee,
+          grade: formGrade,
+          billingType: formBillingType,
+          description: formDesc.trim() || undefined
+        } : c)
+      } else {
+        updatedList = [...currentList.filter(c => c.code !== code), {
+          code,
+          name: formName.trim(),
+          defaultFee: fee,
+          grade: formGrade,
+          billingType: formBillingType,
+          description: formDesc.trim() || undefined
+        }]
+      }
 
-    setGradeCourses(updatedGC)
-    setShowModal(false)
-    await persistCourses(updatedGC)
+      const updatedGC = {
+        ...gradeCourses,
+        [formGrade]: updatedList
+      }
+
+      setGradeCourses(updatedGC)
+      setShowModal(false)
+      await persistCourses(updatedGC, standaloneCourses)
+    }
   }
 
   async function handleDeleteCourse(course: CourseConfig) {
-    if (!confirm(`Are you sure you want to delete "${course.name}" from Grade ${course.grade}?`)) return
-
-    const currentList = gradeCourses[course.grade] || []
-    const updatedList = currentList.filter(c => c.code !== course.code)
-    const updatedGC = {
-      ...gradeCourses,
-      [course.grade]: updatedList
+    if (course.isStandalone) {
+      if (!confirm(`Are you sure you want to delete Standalone Course "${course.name}"?`)) return
+      const updatedStandalone = standaloneCourses.filter(c => c.code !== course.code)
+      setStandaloneCourses(updatedStandalone)
+      await persistCourses(gradeCourses, updatedStandalone)
+    } else {
+      if (!confirm(`Are you sure you want to delete "${course.name}" from Grade ${course.grade}?`)) return
+      const currentList = gradeCourses[course.grade || 10] || []
+      const updatedList = currentList.filter(c => c.code !== course.code)
+      const updatedGC = {
+        ...gradeCourses,
+        [course.grade || 10]: updatedList
+      }
+      setGradeCourses(updatedGC)
+      await persistCourses(updatedGC, standaloneCourses)
     }
-
-    setGradeCourses(updatedGC)
-    await persistCourses(updatedGC)
   }
 
   // Available grade tabs (5 through 13)
   const grades = [5, 6, 7, 8, 9, 10, 11, 12, 13]
-  const currentTabCourses = gradeCourses[selectedGradeTab] || []
+  const currentTabCourses = selectedGradeTab === 'standalone'
+    ? standaloneCourses
+    : (gradeCourses[selectedGradeTab] || [])
 
-  // Total courses count across all grades
-  const totalCoursesCount = Object.values(gradeCourses).reduce((sum, list) => sum + list.length, 0)
+  // Total courses count across all grades + standalone
+  const totalCoursesCount = Object.values(gradeCourses).reduce((sum, list) => sum + list.length, 0) + standaloneCourses.length
   const configuredGradesCount = Object.keys(gradeCourses).filter(k => (gradeCourses[Number(k)] || []).length > 0).length
 
   if (loading) {
@@ -373,7 +450,7 @@ export default function CoursesManagerPage() {
           </div>
         </div>
 
-        {/* Grade Tabs Navigation */}
+        {/* Grade & Standalone Tabs Navigation */}
         <div style={{
           display: 'flex',
           gap: 6,
@@ -384,6 +461,42 @@ export default function CoursesManagerPage() {
           borderRadius: 12,
           border: '1px solid var(--border)'
         }}>
+          {/* Standalone Specialist Courses Tab */}
+          <button
+            onClick={() => setSelectedGradeTab('standalone')}
+            style={{
+              padding: '9px 18px',
+              borderRadius: 8,
+              border: selectedGradeTab === 'standalone' ? '1px solid #ec4899' : '1px solid transparent',
+              background: selectedGradeTab === 'standalone' ? 'rgba(236, 72, 153, 0.15)' : 'transparent',
+              color: selectedGradeTab === 'standalone' ? '#ec4899' : 'var(--text-secondary)',
+              fontWeight: selectedGradeTab === 'standalone' ? 800 : 600,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Sparkles size={15} style={{ color: '#ec4899' }} />
+            <span>Specialist / Standalone Courses</span>
+            <span style={{
+              fontSize: 11,
+              padding: '2px 7px',
+              borderRadius: 10,
+              background: selectedGradeTab === 'standalone' ? '#ec4899' : 'var(--bg-card-hover)',
+              color: selectedGradeTab === 'standalone' ? '#fff' : 'var(--text-muted)',
+              border: selectedGradeTab === 'standalone' ? 'none' : '1px solid var(--border)',
+              fontWeight: 700
+            }}>
+              {standaloneCourses.length}
+            </span>
+          </button>
+
+          <div style={{ width: 1, height: 24, background: 'var(--border)', margin: 'auto 4px' }} />
+
           {grades.map(g => {
             const count = (gradeCourses[g] || []).length
             const isSelected = selectedGradeTab === g
@@ -425,7 +538,7 @@ export default function CoursesManagerPage() {
           })}
         </div>
 
-        {/* Grade Courses Cards Section */}
+        {/* Grade / Standalone Courses Cards Section */}
         <div style={{
           padding: 24,
           background: 'var(--bg-card)',
@@ -437,13 +550,19 @@ export default function CoursesManagerPage() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20, flexWrap: 'wrap', gap: 10 }}>
             <div>
               <div style={{ fontSize: 17, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span>Grade {selectedGradeTab} Courses & Streams</span>
+                <span>
+                  {selectedGradeTab === 'standalone'
+                    ? '⭐ Specialist Standalone Courses (e.g. Geometry, BODMAS)'
+                    : `Grade ${selectedGradeTab} Courses & Streams`}
+                </span>
                 <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)', background: 'var(--bg-card-hover)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)' }}>
                   {currentTabCourses.length} {currentTabCourses.length === 1 ? 'course' : 'courses'}
                 </span>
               </div>
               <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 3 }}>
-                Students registering under Grade {selectedGradeTab} will be presented with these exact curriculum streams
+                {selectedGradeTab === 'standalone'
+                  ? 'Standalone specialist courses can be enrolled independently or bundled with regular grade classes.'
+                  : `Students registering under Grade ${selectedGradeTab} will be presented with these exact curriculum streams.`}
               </div>
             </div>
 
@@ -453,7 +572,7 @@ export default function CoursesManagerPage() {
                 className="btn-secondary"
                 style={{ padding: '7px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6, fontWeight: 600 }}
               >
-                <Plus size={14} /> Add Course
+                <Plus size={14} /> {selectedGradeTab === 'standalone' ? 'Add Specialist Course' : `Add Course to Grade ${selectedGradeTab}`}
               </button>
             )}
           </div>
@@ -468,10 +587,14 @@ export default function CoursesManagerPage() {
                 <BookmarkCheck size={26} />
               </div>
               <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', marginBottom: 4 }}>
-                No courses configured for Grade {selectedGradeTab}
+                {selectedGradeTab === 'standalone'
+                  ? 'No specialist standalone courses configured yet'
+                  : `No courses configured for Grade ${selectedGradeTab}`}
               </div>
               <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 18, maxWidth: 420, margin: '4px auto 18px' }}>
-                Add Theory, Paper, Revision, or custom bundle courses to enable registrations for this grade.
+                {selectedGradeTab === 'standalone'
+                  ? 'Click Add Specialist Course to create standalone subjects like Geometry Full Course, BODMAS, or Short Questions.'
+                  : 'Add Theory, Paper, Revision, or custom bundle courses to enable registrations for this grade.'}
               </div>
               {isAdmin && (
                 <button
@@ -479,7 +602,7 @@ export default function CoursesManagerPage() {
                   className="btn-primary"
                   style={{ padding: '8px 18px', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 6 }}
                 >
-                  <Plus size={15} /> Add First Course
+                  <Plus size={15} /> {selectedGradeTab === 'standalone' ? '+ Create Specialist Course' : 'Add First Course'}
                 </button>
               )}
             </div>
@@ -489,9 +612,10 @@ export default function CoursesManagerPage() {
                 const isCombo = c.name.toLowerCase().includes('both') || c.name.toLowerCase().includes('full package') || c.name.toLowerCase().includes('+')
                 const isPaper = c.name.toLowerCase().includes('paper') && !isCombo
                 const isRevision = c.name.toLowerCase().includes('revision') && !isCombo
+                const isStandalone = Boolean(c.isStandalone)
 
-                const cardBorderColor = isCombo ? '#fcd34d' : isPaper ? '#818cf8' : isRevision ? '#c084fc' : '#38bdf8'
-                const cardShadowColor = isCombo ? 'rgba(252, 211, 77, 0.20)' : isPaper ? 'rgba(129, 140, 248, 0.16)' : isRevision ? 'rgba(192, 132, 252, 0.16)' : 'rgba(56, 189, 248, 0.16)'
+                const cardBorderColor = isStandalone ? '#ec4899' : isCombo ? '#fcd34d' : isPaper ? '#818cf8' : isRevision ? '#c084fc' : '#38bdf8'
+                const cardShadowColor = isStandalone ? 'rgba(236, 72, 153, 0.20)' : isCombo ? 'rgba(252, 211, 77, 0.20)' : isPaper ? 'rgba(129, 140, 248, 0.16)' : isRevision ? 'rgba(192, 132, 252, 0.16)' : 'rgba(56, 189, 248, 0.16)'
 
                 return (
                   <div
@@ -519,9 +643,9 @@ export default function CoursesManagerPage() {
                         </div>
                         <span style={{
                           fontSize: 10,
-                          color: 'var(--accent-blue)',
-                          background: 'rgba(56, 189, 248, 0.15)',
-                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          color: isStandalone ? '#ec4899' : 'var(--accent-blue)',
+                          background: isStandalone ? 'rgba(236, 72, 153, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                          border: `1px solid ${isStandalone ? 'rgba(236, 72, 153, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`,
                           padding: '2px 7px',
                           borderRadius: 6,
                           fontWeight: 700,
@@ -531,20 +655,38 @@ export default function CoursesManagerPage() {
                         </span>
                       </div>
 
-                      {/* Course Type Tag */}
-                      <div style={{ marginBottom: 12 }}>
+                      {/* Course Type & Billing Badge */}
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 10 }}>
                         <span style={{
                           fontSize: 10,
                           fontWeight: 700,
                           padding: '3px 8px',
                           borderRadius: 6,
-                          background: isCombo ? 'rgba(245, 158, 11, 0.15)' : isPaper ? 'rgba(99, 102, 241, 0.15)' : isRevision ? 'rgba(192, 132, 252, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                          color: isCombo ? '#f59e0b' : isPaper ? '#818cf8' : isRevision ? '#c084fc' : '#10b981',
-                          border: `1px solid ${isCombo ? 'rgba(245, 158, 11, 0.3)' : isPaper ? 'rgba(99, 102, 241, 0.3)' : isRevision ? 'rgba(192, 132, 252, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
+                          background: isStandalone ? 'rgba(236, 72, 153, 0.15)' : isCombo ? 'rgba(245, 158, 11, 0.15)' : isPaper ? 'rgba(99, 102, 241, 0.15)' : isRevision ? 'rgba(192, 132, 252, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                          color: isStandalone ? '#ec4899' : isCombo ? '#f59e0b' : isPaper ? '#818cf8' : isRevision ? '#c084fc' : '#10b981',
+                          border: `1px solid ${isStandalone ? 'rgba(236, 72, 153, 0.3)' : isCombo ? 'rgba(245, 158, 11, 0.3)' : isPaper ? 'rgba(99, 102, 241, 0.3)' : isRevision ? 'rgba(192, 132, 252, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
                         }}>
-                          {isCombo ? '⚡ COMBO BUNDLE' : isPaper ? '📝 PAPER CLASS' : isRevision ? '🎯 REVISION' : '📖 THEORY'}
+                          {isStandalone ? '⭐ SPECIALIST COURSE' : isCombo ? '⚡ COMBO BUNDLE' : isPaper ? '📝 PAPER CLASS' : isRevision ? '🎯 REVISION' : '📖 THEORY'}
+                        </span>
+
+                        <span style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: 6,
+                          background: c.billingType === 'ONE_TIME' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                          color: c.billingType === 'ONE_TIME' ? '#10b981' : 'var(--accent-blue)',
+                          border: `1px solid ${c.billingType === 'ONE_TIME' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`
+                        }}>
+                          {c.billingType === 'ONE_TIME' ? '💳 ONE-TIME PURCHASE' : '📅 MONTHLY RECURRING'}
                         </span>
                       </div>
+
+                      {c.description && (
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: 12 }}>
+                          {c.description}
+                        </div>
+                      )}
 
                       {/* Default Fee */}
                       <div style={{
@@ -556,7 +698,9 @@ export default function CoursesManagerPage() {
                         borderRadius: 10,
                         border: '1px solid var(--border)'
                       }}>
-                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>Monthly Tuition:</span>
+                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
+                          {c.billingType === 'ONE_TIME' ? 'Full Course Fee:' : 'Monthly Tuition:'}
+                        </span>
                         <span style={{ fontSize: 16, fontWeight: 800, color: '#10b981' }}>
                           Rs. {c.defaultFee.toLocaleString()}
                         </span>
@@ -619,10 +763,10 @@ export default function CoursesManagerPage() {
               CURRICULUM ARCHITECTURE
             </div>
             <div style={{ fontSize: 18, fontWeight: 800, color: 'var(--text-primary)' }}>
-              {totalCoursesCount} Active Course Streams
+              {totalCoursesCount} Active Course Streams ({standaloneCourses.length} Specialist Courses)
             </div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
-              Configured across Grades 5 through 13. Fee structure auto-populates in student admissions and payment receipts.
+              Configured across Grades 5 through 13 and standalone courses. Fee structure auto-populates in student admissions and payment receipts.
             </div>
           </div>
 
@@ -676,47 +820,86 @@ export default function CoursesManagerPage() {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
               <div style={{
-                width: 38, height: 38, borderRadius: 10, background: 'rgba(59,130,246,0.12)',
-                color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+                width: 38, height: 38, borderRadius: 10, background: isFormStandalone ? 'rgba(236,72,153,0.15)' : 'rgba(59,130,246,0.12)',
+                color: isFormStandalone ? '#ec4899' : 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
                 <Sparkles size={20} />
               </div>
               <div>
                 <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>
-                  {editingCode ? 'Edit Course Stream' : `Add New Course to Grade ${formGrade}`}
+                  {editingCode
+                    ? (isFormStandalone ? 'Edit Specialist Course' : `Edit Course Stream`)
+                    : (isFormStandalone ? 'Add New Specialist Course' : `Add New Course to Grade ${formGrade}`)}
                 </h3>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Set subject title, unique identifier, and default monthly tuition fee
+                  Set subject title, payment type, and default tuition fee
                 </div>
               </div>
             </div>
 
             <form onSubmit={handleSaveForm}>
+              {/* Target Scope Selection */}
               <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                  Target Grade
+                  Course Category
                 </label>
-                <select
-                  className="input-field"
-                  value={formGrade}
-                  onChange={e => setFormGrade(parseInt(e.target.value))}
-                  disabled={!!editingCode}
-                  style={{ width: '100%', fontWeight: 600 }}
-                >
-                  {grades.map(g => (
-                    <option key={g} value={g}>Grade {g}</option>
-                  ))}
-                </select>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button
+                    type="button"
+                    disabled={!!editingCode}
+                    onClick={() => setIsFormStandalone(false)}
+                    style={{
+                      padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      border: !isFormStandalone ? '1.5px solid var(--accent-blue)' : '1px solid var(--border)',
+                      background: !isFormStandalone ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-card)',
+                      color: !isFormStandalone ? 'var(--accent-blue)' : 'var(--text-secondary)'
+                    }}
+                  >
+                    📚 Grade Class
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!!editingCode}
+                    onClick={() => setIsFormStandalone(true)}
+                    style={{
+                      padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      border: isFormStandalone ? '1.5px solid #ec4899' : '1px solid var(--border)',
+                      background: isFormStandalone ? 'rgba(236, 72, 153, 0.15)' : 'var(--bg-card)',
+                      color: isFormStandalone ? '#ec4899' : 'var(--text-secondary)'
+                    }}
+                  >
+                    ⭐ Specialist Course
+                  </button>
+                </div>
               </div>
+
+              {!isFormStandalone && (
+                <div style={{ marginBottom: 14 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                    Target Grade
+                  </label>
+                  <select
+                    className="input-field"
+                    value={formGrade}
+                    onChange={e => setFormGrade(parseInt(e.target.value))}
+                    disabled={!!editingCode}
+                    style={{ width: '100%', fontWeight: 600 }}
+                  >
+                    {grades.map(g => (
+                      <option key={g} value={g}>Grade {g}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
               <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                  Course Name / Title <span style={{ color: 'var(--accent-red)' }}>*</span>
+                  Course Title <span style={{ color: 'var(--accent-red)' }}>*</span>
                 </label>
                 <input
                   className="input-field"
                   style={{ width: '100%' }}
-                  placeholder="e.g. Grade 10 — Theory"
+                  placeholder={isFormStandalone ? "e.g. Geometry Full Course (ජ්‍යාමිතිය)" : "e.g. Grade 10 — Theory"}
                   value={formName}
                   onChange={e => setFormName(e.target.value)}
                   autoFocus
@@ -724,15 +907,48 @@ export default function CoursesManagerPage() {
                 />
               </div>
 
+              {/* Billing / Payment Type */}
               <div style={{ marginBottom: 14 }}>
                 <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                  Default Monthly Fee (Rs.) <span style={{ color: 'var(--accent-red)' }}>*</span>
+                  Billing Type
+                </label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setFormBillingType('ONE_TIME')}
+                    style={{
+                      padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      border: formBillingType === 'ONE_TIME' ? '1.5px solid #10b981' : '1px solid var(--border)',
+                      background: formBillingType === 'ONE_TIME' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                      color: formBillingType === 'ONE_TIME' ? '#10b981' : 'var(--text-secondary)'
+                    }}
+                  >
+                    💳 One-Time Full Fee
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormBillingType('MONTHLY')}
+                    style={{
+                      padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                      border: formBillingType === 'MONTHLY' ? '1.5px solid var(--accent-blue)' : '1px solid var(--border)',
+                      background: formBillingType === 'MONTHLY' ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-card)',
+                      color: formBillingType === 'MONTHLY' ? 'var(--accent-blue)' : 'var(--text-secondary)'
+                    }}
+                  >
+                    📅 Monthly Recurring
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                  {formBillingType === 'ONE_TIME' ? 'One-Time Course Fee (Rs.)' : 'Default Monthly Fee (Rs.)'} <span style={{ color: 'var(--accent-red)' }}>*</span>
                 </label>
                 <input
                   type="number"
                   className="input-field"
                   style={{ width: '100%', fontWeight: 700, fontSize: 15 }}
-                  placeholder="1800"
+                  placeholder="2500"
                   value={formFee}
                   onChange={e => setFormFee(e.target.value)}
                   required
@@ -757,15 +973,28 @@ export default function CoursesManagerPage() {
                 </div>
               </div>
 
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                  Course Description (Optional)
+                </label>
+                <input
+                  className="input-field"
+                  style={{ width: '100%' }}
+                  placeholder="e.g. Comprehensive geometry concepts from Grade 6 to 11"
+                  value={formDesc}
+                  onChange={e => setFormDesc(e.target.value)}
+                />
+              </div>
+
               {!editingCode && (
                 <div style={{ marginBottom: 18 }}>
                   <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                    Custom Course Code (Optional)
+                    Custom Identifier Code (Optional)
                   </label>
                   <input
                     className="input-field"
                     style={{ width: '100%' }}
-                    placeholder={`e.g. GR${formGrade}_THEORY`}
+                    placeholder={isFormStandalone ? "e.g. GEOMETRY_FULL" : `e.g. GR${formGrade}_THEORY`}
                     value={formCode}
                     onChange={e => setFormCode(e.target.value)}
                   />

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, UserPlus, Plus, Trash2, Home, Sparkles, AlertTriangle, ExternalLink, Lock } from 'lucide-react'
 import { MONTH_NAMES } from '@/lib/types'
-import { DEFAULT_GRADE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
+import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES, CourseConfig, getAllCourseLabels, getAllCourseFees } from '@/lib/courses'
 
 const BANKS = ['BOC', 'Sampath', 'Commercial', 'HNB', 'People\'s Bank', 'NSB', 'Seylan', 'NTB', 'Other']
 
@@ -60,6 +60,10 @@ export default function NewStudentPage() {
     }
   ])
 
+  // Specialist / Standalone Courses Selection
+  const [standaloneCourses, setStandaloneCourses] = useState<CourseConfig[]>(DEFAULT_STANDALONE_COURSES)
+  const [selectedStandalone, setSelectedStandalone] = useState<Record<string, { fee: number; enabled: boolean }>>({})
+
   // User details
   const [createdBy, setCreatedBy] = useState('')
   const [currentUserEmail, setCurrentUserEmail] = useState('')
@@ -67,8 +71,8 @@ export default function NewStudentPage() {
 
   // Grade-aligned courses configuration
   const [gradeCourses, setGradeCourses] = useState<Record<number, CourseConfig[]>>(DEFAULT_GRADE_COURSES)
-  const [availableClasses, setAvailableClasses] = useState<Record<string, string>>(getAllCourseLabels(DEFAULT_GRADE_COURSES))
-  const [classDefaultFees, setClassDefaultFees] = useState<Record<string, number>>(getAllCourseFees(DEFAULT_GRADE_COURSES))
+  const [availableClasses, setAvailableClasses] = useState<Record<string, string>>(getAllCourseLabels(DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES))
+  const [classDefaultFees, setClassDefaultFees] = useState<Record<string, number>>(getAllCourseFees(DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES))
 
   // Instant Payment Recording Option
   const [recordImmediatePayment, setRecordImmediatePayment] = useState(false)
@@ -98,15 +102,24 @@ export default function NewStudentPage() {
     if (adminRecord?.notes) {
       try {
         const notesObj = JSON.parse(adminRecord.notes)
+        let gc = { ...DEFAULT_GRADE_COURSES }
+        let sc = [...DEFAULT_STANDALONE_COURSES]
+
         if (notesObj.grade_courses) {
-          const gc: Record<number, CourseConfig[]> = { ...DEFAULT_GRADE_COURSES }
+          gc = { ...DEFAULT_GRADE_COURSES }
           Object.entries(notesObj.grade_courses).forEach(([grStr, list]: [string, any]) => {
             gc[Number(grStr)] = list
           })
           setGradeCourses(gc)
-          setAvailableClasses(getAllCourseLabels(gc))
-          setClassDefaultFees(getAllCourseFees(gc))
         }
+
+        if (notesObj.standalone_courses && Array.isArray(notesObj.standalone_courses)) {
+          sc = notesObj.standalone_courses
+          setStandaloneCourses(sc)
+        }
+
+        setAvailableClasses(getAllCourseLabels(gc, sc))
+        setClassDefaultFees(getAllCourseFees(gc, sc))
       } catch (err) {
         console.error('Failed to parse custom courses & fees:', err)
       }
@@ -154,10 +167,13 @@ export default function NewStudentPage() {
     room
       .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => loadAdminCourses())
       .on('broadcast', { event: 'courses_updated' }, (payload: any) => {
-        if (payload?.payload?.grade_courses) {
-          setGradeCourses(payload.payload.grade_courses)
-          setAvailableClasses(getAllCourseLabels(payload.payload.grade_courses))
-          setClassDefaultFees(getAllCourseFees(payload.payload.grade_courses))
+        if (payload?.payload?.grade_courses || payload?.payload?.standalone_courses) {
+          const gc = payload.payload.grade_courses || gradeCourses
+          const sc = payload.payload.standalone_courses || standaloneCourses
+          if (payload.payload.grade_courses) setGradeCourses(gc)
+          if (payload.payload.standalone_courses) setStandaloneCourses(sc)
+          setAvailableClasses(getAllCourseLabels(gc, sc))
+          setClassDefaultFees(getAllCourseFees(gc, sc))
         }
       })
       .subscribe()
@@ -166,6 +182,30 @@ export default function NewStudentPage() {
       supabase.removeChannel(room)
     }
   }, [])
+
+  // Toggle Standalone Course Selection
+  function handleToggleStandalone(code: string, defaultFee: number) {
+    setSelectedStandalone(prev => {
+      const current = prev[code]
+      if (current?.enabled) {
+        const next = { ...prev }
+        delete next[code]
+        return next
+      } else {
+        return {
+          ...prev,
+          [code]: { fee: current?.fee !== undefined ? current.fee : defaultFee, enabled: true }
+        }
+      }
+    })
+  }
+
+  function handleStandaloneFeeChange(code: string, newFee: number) {
+    setSelectedStandalone(prev => ({
+      ...prev,
+      [code]: { ...prev[code], fee: newFee, enabled: true }
+    }))
+  }
 
   // Live Household Phone Duplication Check
   function handlePhoneChange(val: string) {
@@ -205,17 +245,26 @@ export default function NewStudentPage() {
 
   // Sync initial class amount paid and delivery defaults for payment section
   useEffect(() => {
-    const amounts: Record<string, string> = {}
-    const delivers: Record<string, boolean> = {}
+    const amounts: Record<string, string> = { ...classAmountPaid }
+    const delivers: Record<string, boolean> = { ...classDeliverTute }
+
     enrolledClasses.forEach(r => {
-      if (r.courseCode) {
+      if (r.courseCode && amounts[r.courseCode] === undefined) {
         amounts[r.courseCode] = String(r.fee)
         delivers[r.courseCode] = true
       }
     })
+
+    Object.entries(selectedStandalone).forEach(([code, data]) => {
+      if (data.enabled && amounts[code] === undefined) {
+        amounts[code] = String(data.fee)
+        delivers[code] = true
+      }
+    })
+
     setClassAmountPaid(amounts)
     setClassDeliverTute(delivers)
-  }, [enrolledClasses])
+  }, [enrolledClasses, selectedStandalone])
 
   // Change primary grade in Section 1 and update first class row
   function handlePrimaryGradeChange(g: number) {
@@ -250,8 +299,8 @@ export default function NewStudentPage() {
   }
 
   function handleRemoveClassRow(id: string) {
-    if (enrolledClasses.length === 1) {
-      alert('At least one class enrollment is required.')
+    if (enrolledClasses.length === 1 && Object.keys(selectedStandalone).length === 0) {
+      alert('At least one class or specialist course enrollment is required.')
       return
     }
     setEnrolledClasses(enrolledClasses.filter(r => r.id !== id))
@@ -275,10 +324,10 @@ export default function NewStudentPage() {
   }
 
   function handleClassCourseChange(id: string, newCourseCode: string) {
-    const fee = classDefaultFees[newCourseCode] || 1800
+    const defaultFee = classDefaultFees[newCourseCode] ?? 1800
     setEnrolledClasses(prev => prev.map(r => {
       if (r.id === id) {
-        return { ...r, courseCode: newCourseCode, fee }
+        return { ...r, courseCode: newCourseCode, fee: defaultFee }
       }
       return r
     }))
@@ -319,9 +368,17 @@ export default function NewStudentPage() {
       return
     }
 
-    const validClasses = enrolledClasses.filter(c => c.courseCode)
-    if (validClasses.length === 0) {
-      setError('Please select at least one class to enroll.')
+    const validGradeClasses = enrolledClasses.filter(c => c.courseCode)
+    const validStandaloneList = Object.entries(selectedStandalone)
+      .filter(([_, item]) => item.enabled)
+      .map(([code, item]) => ({
+        courseCode: code,
+        fee: item.fee,
+        isStandalone: true
+      }))
+
+    if (validGradeClasses.length === 0 && validStandaloneList.length === 0) {
+      setError('Please select at least one Grade Class or Specialist Course to enroll.')
       return
     }
 
@@ -356,8 +413,13 @@ export default function NewStudentPage() {
 
       if (stuErr) throw stuErr
 
-      // 3. Create all enrolled classes (subjects & sibling grades) under this student's ID
-      for (const cls of validClasses) {
+      // 3. Create all enrolled classes (grade courses + standalone courses)
+      const allToEnroll = [
+        ...validGradeClasses.map(c => ({ courseCode: c.courseCode, fee: c.fee })),
+        ...validStandaloneList.map(s => ({ courseCode: s.courseCode, fee: s.fee }))
+      ]
+
+      for (const cls of allToEnroll) {
         const { error: enrolErr } = await supabase.from('enrollments').insert({
           student_id: stuData.id,
           class_type: cls.courseCode,
@@ -370,7 +432,7 @@ export default function NewStudentPage() {
 
       // 4. Optional Immediate Payment for all enrolled classes
       if (recordImmediatePayment) {
-        for (const cls of validClasses) {
+        for (const cls of allToEnroll) {
           let paid = 0
           if (['FREE', 'IMS'].includes(paymentForm.payment_type)) {
             paid = 0
@@ -407,8 +469,20 @@ export default function NewStudentPage() {
     }
   }
 
-  const totalMonthlyFee = enrolledClasses.reduce((sum, c) => sum + c.fee, 0)
-  const totalAmountPaidNow = enrolledClasses.reduce((sum, c) => sum + (parseFloat(classAmountPaid[c.courseCode]) || 0), 0)
+  const activeStandaloneList = Object.entries(selectedStandalone)
+    .filter(([_, item]) => item.enabled)
+    .map(([code, item]) => ({ code, fee: item.fee }))
+
+  const totalGradeMonthlyFee = enrolledClasses.reduce((sum, c) => sum + c.fee, 0)
+  const totalStandaloneFee = activeStandaloneList.reduce((sum, s) => sum + s.fee, 0)
+  const totalMonthlyFee = totalGradeMonthlyFee + totalStandaloneFee
+
+  const allSelectedCourseCodes = [
+    ...enrolledClasses.map(c => c.courseCode),
+    ...activeStandaloneList.map(s => s.code)
+  ]
+
+  const totalAmountPaidNow = allSelectedCourseCodes.reduce((sum, code) => sum + (parseFloat(classAmountPaid[code]) || 0), 0)
 
   return (
     <div className="fade-in" style={{ paddingBottom: 60, minHeight: '100vh', width: '100%' }}>
@@ -706,7 +780,7 @@ export default function NewStudentPage() {
               </div>
 
               {/* Dynamic Class Rows */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 16 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 20 }}>
                 {enrolledClasses.map((row) => {
                   const coursesForThisGrade = gradeCourses[row.grade] || []
 
@@ -779,13 +853,13 @@ export default function NewStudentPage() {
                         <button
                           type="button"
                           onClick={() => handleRemoveClassRow(row.id)}
-                          disabled={enrolledClasses.length === 1}
+                          disabled={enrolledClasses.length === 1 && activeStandaloneList.length === 0}
                           style={{
                             background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.25)', borderRadius: 8,
-                            color: enrolledClasses.length === 1 ? 'var(--text-muted)' : '#ef4444',
-                            cursor: enrolledClasses.length === 1 ? 'not-allowed' : 'pointer',
+                            color: enrolledClasses.length === 1 && activeStandaloneList.length === 0 ? 'var(--text-muted)' : '#ef4444',
+                            cursor: enrolledClasses.length === 1 && activeStandaloneList.length === 0 ? 'not-allowed' : 'pointer',
                             width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            opacity: enrolledClasses.length === 1 ? 0.4 : 1
+                            opacity: enrolledClasses.length === 1 && activeStandaloneList.length === 0 ? 0.4 : 1
                           }}
                           title="Remove class"
                         >
@@ -797,17 +871,129 @@ export default function NewStudentPage() {
                 })}
               </div>
 
+              {/* Specialist / Standalone Courses Section */}
+              <div style={{
+                marginTop: 20,
+                padding: '16px 18px',
+                borderRadius: 14,
+                background: 'rgba(236, 72, 153, 0.04)',
+                border: '1.5px dashed rgba(236, 72, 153, 0.25)',
+                marginBottom: 20
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                  <div>
+                    <div style={{ fontSize: 13.5, fontWeight: 800, color: '#db2777', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      ⭐ Specialist / Standalone Courses ({standaloneCourses.length} available)
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 2 }}>
+                      Enroll student in non-grade special masterclasses (e.g. Geometry, BODMAS, Revision banks)
+                    </div>
+                  </div>
+                  {activeStandaloneList.length > 0 && (
+                    <span style={{ fontSize: 11.5, fontWeight: 800, padding: '3px 10px', borderRadius: 20, background: '#db2777', color: '#fff' }}>
+                      {activeStandaloneList.length} Selected
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 12 }}>
+                  {standaloneCourses.map(sc => {
+                    const isSelected = !!selectedStandalone[sc.code]?.enabled
+                    const currentFee = selectedStandalone[sc.code]?.fee !== undefined ? selectedStandalone[sc.code].fee : sc.defaultFee
+                    const isOneTime = sc.billingType === 'ONE_TIME'
+
+                    return (
+                      <div
+                        key={sc.code}
+                        onClick={() => handleToggleStandalone(sc.code, sc.defaultFee)}
+                        style={{
+                          padding: '12px 14px',
+                          borderRadius: 12,
+                          border: isSelected ? '2px solid #db2777' : '1px solid var(--border)',
+                          background: isSelected ? 'rgba(236, 72, 153, 0.08)' : 'var(--bg-card)',
+                          cursor: 'pointer',
+                          transition: 'all 0.15s ease',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 8
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => {}} // Handled by parent div
+                              style={{ width: 16, height: 16, accentColor: '#db2777', cursor: 'pointer' }}
+                            />
+                            <div>
+                              <div style={{ fontSize: 13, fontWeight: 800, color: isSelected ? '#db2777' : 'var(--text-primary)' }}>
+                                {sc.name}
+                              </div>
+                              {sc.description && (
+                                <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                                  {sc.description}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          <span style={{
+                            fontSize: 10,
+                            fontWeight: 800,
+                            padding: '2px 6px',
+                            borderRadius: 6,
+                            background: isOneTime ? 'rgba(16, 185, 129, 0.15)' : 'rgba(59, 130, 246, 0.15)',
+                            color: isOneTime ? '#059669' : '#2563eb',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            {isOneTime ? 'One-Time' : 'Monthly'}
+                          </span>
+                        </div>
+
+                        {isSelected && (
+                          <div
+                            onClick={e => e.stopPropagation()}
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              paddingTop: 8,
+                              marginTop: 4,
+                              borderTop: '1px dashed rgba(236, 72, 153, 0.3)'
+                            }}
+                          >
+                            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)' }}>
+                              Specialist Fee (Rs.):
+                            </label>
+                            <input
+                              type="number"
+                              className="input-field"
+                              value={currentFee}
+                              onChange={e => handleStandaloneFeeChange(sc.code, parseFloat(e.target.value) || 0)}
+                              style={{ width: 100, padding: '4px 8px', fontSize: 12.5, fontWeight: 800, color: '#db2777', height: 30, borderRadius: 6 }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+
               {/* Total Fee Summary */}
               <div style={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                padding: '12px 18px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: 10, border: '1px solid rgba(59, 130, 246, 0.25)'
+                display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10,
+                padding: '14px 18px', background: 'rgba(59, 130, 246, 0.1)', borderRadius: 12, border: '1px solid rgba(59, 130, 246, 0.25)'
               }}>
-                <span style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
-                  Total Enrolled Classes: <strong style={{ color: 'var(--accent-blue)' }}>{enrolledClasses.length}</strong>
-                </span>
-                <span style={{ fontSize: 15, fontWeight: 900, color: '#10b981' }}>
-                  Total Monthly Fee: Rs. {totalMonthlyFee.toLocaleString()}
-                </span>
+                <div style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 600 }}>
+                  Enrolled: <strong style={{ color: 'var(--accent-blue)' }}>{enrolledClasses.length} Grade Class(es)</strong>
+                  {activeStandaloneList.length > 0 && (
+                    <span> + <strong style={{ color: '#db2777' }}>{activeStandaloneList.length} Specialist Course(s)</strong></span>
+                  )}
+                </div>
+                <div style={{ fontSize: 15, fontWeight: 900, color: '#10b981' }}>
+                  Total Fee / Tuition: Rs. {totalMonthlyFee.toLocaleString()}
+                </div>
               </div>
             </div>
 
@@ -879,6 +1065,8 @@ export default function NewStudentPage() {
                     <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block' }}>
                       Enrolled Classes, Amounts &amp; Postal Delivery:
                     </label>
+
+                    {/* Grade Class Payment Rows */}
                     {enrolledClasses.map(c => (
                       <div key={c.id} style={{
                         display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap',
@@ -930,6 +1118,66 @@ export default function NewStudentPage() {
                         </div>
                       </div>
                     ))}
+
+                    {/* Specialist Standalone Course Payment Rows */}
+                    {activeStandaloneList.map(scItem => {
+                      const scConfig = standaloneCourses.find(c => c.code === scItem.code)
+                      return (
+                        <div key={scItem.code} style={{
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap',
+                          gap: 10, padding: '12px 14px', background: 'rgba(236, 72, 153, 0.05)', borderRadius: 10, border: '1px solid rgba(236, 72, 153, 0.25)'
+                        }}>
+                          <div>
+                            <div style={{ fontSize: 13, fontWeight: 800, color: '#db2777', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              ⭐ {scConfig?.name || scItem.code}
+                              <span style={{ fontSize: 10, padding: '1px 6px', borderRadius: 4, background: 'rgba(236, 72, 153, 0.15)', color: '#db2777' }}>
+                                {scConfig?.billingType === 'ONE_TIME' ? 'One-Time' : 'Monthly'}
+                              </span>
+                            </div>
+                            <div style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>
+                              Fee: Rs. {scItem.fee.toLocaleString()}
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                            {['BANK', 'CASH', 'PHYSICAL'].includes(paymentForm.payment_type) && (
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                <label style={{ fontSize: 12, fontWeight: 700, color: '#db2777' }}>Paid (Rs.):</label>
+                                <input
+                                  type="number"
+                                  className="input-field"
+                                  style={{ width: 110, padding: '4px 8px', fontWeight: 800, color: '#10b981', borderRadius: 8 }}
+                                  value={classAmountPaid[scItem.code] ?? ''}
+                                  onChange={e => setClassAmountPaid({ ...classAmountPaid, [scItem.code]: e.target.value })}
+                                />
+                              </div>
+                            )}
+
+                            <div style={{
+                              display: 'flex', alignItems: 'center', gap: 6,
+                              padding: '4px 10px', borderRadius: 8,
+                              background: classDeliverTute[scItem.code] ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                              border: `1px solid ${classDeliverTute[scItem.code] ? 'rgba(16, 185, 129, 0.3)' : 'var(--border)'}`
+                            }}>
+                              <input
+                                type="checkbox"
+                                id={`reg-tute-${scItem.code}`}
+                                checked={classDeliverTute[scItem.code] ?? true}
+                                onChange={e => setClassDeliverTute({ ...classDeliverTute, [scItem.code]: e.target.checked })}
+                                style={{ width: 15, height: 15, cursor: 'pointer', accentColor: '#10b981' }}
+                              />
+                              <label htmlFor={`reg-tute-${scItem.code}`} style={{
+                                fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                                color: classDeliverTute[scItem.code] ? '#10b981' : 'var(--text-secondary)'
+                              }}>
+                                📦 Deliver Tute
+                              </label>
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+
                     {['BANK', 'CASH', 'PHYSICAL'].includes(paymentForm.payment_type) && (
                       <div style={{ textAlign: 'right', fontSize: 14.5, fontWeight: 800, color: '#10b981', marginTop: 4 }}>
                         Total Slip Payment: Rs. {totalAmountPaidNow.toLocaleString()}

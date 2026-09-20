@@ -123,7 +123,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 'update_custom_courses') {
-      const { courses, fees, grade_courses } = body
+      const { courses, fees, grade_courses, standalone_courses } = body
 
       // Get current admin user metadata
       const { data: adminMem } = await supabaseAdmin
@@ -143,7 +143,8 @@ export async function POST(request: Request) {
         ...existingNotes,
         custom_courses: courses || {},
         class_fees: fees || {},
-        grade_courses: grade_courses || existingNotes?.grade_courses || {}
+        grade_courses: grade_courses || existingNotes?.grade_courses || {},
+        standalone_courses: standalone_courses || existingNotes?.standalone_courses || []
       })
 
       const { data: member, error: dbErr } = await supabaseAdmin
