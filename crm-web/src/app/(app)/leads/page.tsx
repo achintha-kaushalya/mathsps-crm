@@ -344,9 +344,12 @@ export default function MasterLeadsSpreadsheet() {
 
         if (existing && existing.length > 0) {
           // REUSE THE FIRST F-CODE EVER ENTERED FOR THIS PHONE NUMBER
-          targetFcode = existing[0].fcode
+          // Strip any legacy row suffix (e.g. _5120, _5637) from old spreadsheet imports
+          const rawPrev = (existing[0].fcode || '').trim()
+          const cleanCode = rawPrev.replace(/_\d+$/, '')
+          targetFcode = cleanCode
           isRepeat = true
-          prevFcodeStr = existing[0].fcode
+          prevFcodeStr = cleanCode
         }
       }
 
@@ -356,7 +359,9 @@ export default function MasterLeadsSpreadsheet() {
         let maxNum = 80000
         if (allFcodes) {
           allFcodes.forEach(f => {
-            const fc = (f.fcode || '').trim()
+            const rawFc = (f.fcode || '').trim()
+            // Strip any _ suffix if present
+            const fc = rawFc.replace(/_\d+$/, '')
             // Match strict standard 5-digit F-codes (F80000..F99999)
             if (/^F\d{5}$/i.test(fc)) {
               const n = parseInt(fc.slice(1), 10)
