@@ -44,6 +44,7 @@ interface DayEndSummaryTabProps {
   dayEndClassPaidMap: Record<string, { count: number; total: number }>
   dayEndAuditorMap: Record<string, { regCount: number; payCount: number; total: number }>
   courseLabels?: Record<string, string>
+  loading?: boolean
 }
 
 export default function DayEndSummaryTab({
@@ -73,7 +74,8 @@ export default function DayEndSummaryTab({
   dayEndGradePaidMap,
   dayEndClassPaidMap,
   dayEndAuditorMap,
-  courseLabels = {}
+  courseLabels = {},
+  loading = false
 }: DayEndSummaryTabProps) {
   const isSingleDay = startDate === endDate
   const periodLabel = isSingleDay ? startDate : `${startDate} to ${endDate}`
@@ -321,37 +323,45 @@ export default function DayEndSummaryTab({
       </div>
 
       {/* Top KPI Cards with Dashboard Colored Shadows & Left Borders */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
-        <div className="stat-card" style={{ borderLeft: '4px solid #38bdf8', boxShadow: '0 4px 20px -4px rgba(56, 189, 248, 0.25)' }}>
-          <div className="stat-card label">New Registered Students ({isSingleDay ? 'Today' : 'Period'})</div>
-          <div className="stat-card value" style={{ color: '#38bdf8', fontSize: 26 }}>
-            {dayEndRegisteredStudents.length} Students
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            Added into CRM during {periodLabel}
-          </div>
+      {loading ? (
+        <div style={{ padding: '50px 20px', textAlign: 'center', background: 'var(--bg-card)', borderRadius: 14, border: '1px solid var(--border)', marginBottom: 20 }}>
+          <div style={{ width: 36, height: 36, border: '3px solid rgba(56,189,248,0.2)', borderTopColor: 'var(--accent-blue)', borderRadius: '50%', margin: '0 auto 14px', animation: 'spin 0.8s linear infinite' }} />
+          <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)' }}>Loading Day-End Summaries &amp; Audit Logs...</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Calculating collections, registrations, and class matrices for {periodLabel}</div>
         </div>
+      ) : (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid #38bdf8', boxShadow: '0 4px 20px -4px rgba(56, 189, 248, 0.25)' }}>
+              <div className="stat-card label">New Registered Students ({isSingleDay ? 'Today' : 'Period'})</div>
+              <div className="stat-card value" style={{ color: '#38bdf8', fontSize: 26 }}>
+                {dayEndRegisteredStudents.length} Students
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Added into CRM during {periodLabel}
+              </div>
+            </div>
 
-        <div className="stat-card" style={{ borderLeft: '4px solid #4ade80', boxShadow: '0 4px 20px -4px rgba(74, 222, 128, 0.25)' }}>
-          <div className="stat-card label">Payment Slips Processed</div>
-          <div className="stat-card value" style={{ color: '#4ade80', fontSize: 26 }}>
-            {dailyPayments.length} Slips
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            Verified &amp; audited payments
-          </div>
-        </div>
+            <div className="stat-card" style={{ borderLeft: '4px solid #4ade80', boxShadow: '0 4px 20px -4px rgba(74, 222, 128, 0.25)' }}>
+              <div className="stat-card label">Payment Slips Processed</div>
+              <div className="stat-card value" style={{ color: '#4ade80', fontSize: 26 }}>
+                {dailyPayments.length} Slips
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Verified &amp; audited payments
+              </div>
+            </div>
 
-        <div className="stat-card" style={{ borderLeft: '4px solid #fcd34d', boxShadow: '0 4px 20px -4px rgba(245, 158, 11, 0.25)' }}>
-          <div className="stat-card label">Total Collections ({isSingleDay ? 'Day-End' : 'Period'})</div>
-          <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 26 }}>
-            Rs. {totalDailyRevenue.toLocaleString()}
+            <div className="stat-card" style={{ borderLeft: '4px solid #fcd34d', boxShadow: '0 4px 20px -4px rgba(245, 158, 11, 0.25)' }}>
+              <div className="stat-card label">Total Collections ({isSingleDay ? 'Day-End' : 'Period'})</div>
+              <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 26 }}>
+                Rs. {totalDailyRevenue.toLocaleString()}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Total collected across {periodLabel}
+              </div>
+            </div>
           </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            Total collected across {periodLabel}
-          </div>
-        </div>
-      </div>
 
       {/* SUB-VIEW 1: GRADE & CLASS MATRIX */}
       {dailySubTab === 'matrix' && (
@@ -739,6 +749,8 @@ export default function DayEndSummaryTab({
             </div>
           )}
         </div>
+      )}
+        </>
       )}
     </div>
   )

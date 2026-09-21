@@ -71,6 +71,7 @@ export default function ReportsPage() {
   const [bankFilter, setBankFilter] = useState('')
 
   const [loading, setLoading] = useState(true)
+  const [loadingDaily, setLoadingDaily] = useState(true)
 
   // 0. Day-End Registrations State
   const [dayEndRegisteredStudents, setDayEndRegisteredStudents] = useState<any[]>([])
@@ -225,312 +226,304 @@ export default function ReportsPage() {
     }
   }, [])
 
-  useEffect(() => {
-    loadAllReportData()
-  }, [month, year, trendYear, startDate, endDate, dateFilterType, tutorFilter])
-
-  async function loadAllReportData() {
-    setLoading(true)
-    try {
-      // Calculate start and end of the selected month
-      const startOfMonth = new Date(year, month - 1, 1).toISOString()
-      const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999).toISOString()
-      // Also look back 45 days before the selected month for any advance registrations targeting this month
-      const startOfAdvanceLookback = new Date(year, month - 2, 1).toISOString()
-
-      // Calculate start and end of the trend analysis year
-      const startOfTrendYear = new Date(trendYear, 0, 1).toISOString()
-      const endOfTrendYear = new Date(trendYear, 11, 31, 23, 59, 59, 999).toISOString()
-
-      // Calculate start and end bounds for the selected date range in UTC/ISO
-      const startOfRangeIso = `${startDate}T00:00:00.000Z`
-      const endOfRangeIso = `${endDate}T23:59:59.999Z`
-
-      // 1. Fetch daily/range audit payments with pagination to support large volume
-      let dailyList: any[] = []
-      let dailyFrom = 0
-      let hasMoreDaily = true
-      const CHUNK_SIZE = 1000
-
-      while (hasMoreDaily) {
-        let q = supabase
-          .from('payments')
-          .select('*, students(ps_code, full_name, grade, created_at, household:households(parent_name, parent_phone, address), enrollments(*))')
-          .range(dailyFrom, dailyFrom + CHUNK_SIZE - 1)
-          .order('created_at', { ascending: false })
-
-        if (dateFilterType === 'created_at') {
-          q = q.gte('created_at', startOfRangeIso).lte('created_at', endOfRangeIso)
-        } else {
-          q = q.gte('date_paid', startDate).lte('date_paid', endDate)
-        }
-
-        const { data: chunk, error: dErr } = await q
-        if (dErr) throw dErr
-
-        dailyList = dailyList.concat(chunk || [])
-        if (!chunk || chunk.length < CHUNK_SIZE) {
-          hasMoreDaily = false
-        } else {
-          dailyFrom += CHUNK_SIZE
-        }
+  // Helper function to fetch all rows beyond 1,000 limit with pagination
+  async function fetchAllPaginated(buildQuery: (from: number, to: number) => any) {
+    let results: any[] = []
+    let from = 0
+    let hasMore = true
+    const CHUNK = 1000
+    while (hasMore) {
+      const { data, error } = await buildQuery(from, from + CHUNK - 1)
+      if (error) throw error
+      results = results.concat(data || [])
+      if (!data || data.length < CHUNK) {
+        hasMore = false
+      } else {
+        from += CHUNK
       }
-
-      // Calculate previous and next month/year numbers
-      const prevMonthNum = month === 1 ? 12 : month - 1
-      const prevYearNum = month === 1 ? year - 1 : year
-      const nextMonthNum = month === 12 ? 1 : month + 1
-      const nextYearNum = month === 12 ? year + 1 : year
-
-      // Helper function to fetch all rows beyond 1,000 limit with pagination
-      async function fetchAllPaginated(buildQuery: (from: number, to: number) => any) {
-        let results: any[] = []
-        let from = 0
-        let hasMore = true
-        const CHUNK = 1000
-        while (hasMore) {
-          const { data, error } = await buildQuery(from, from + CHUNK - 1)
-          if (error) throw error
-          results = results.concat(data || [])
-          if (!data || data.length < CHUNK) {
-            hasMore = false
-          } else {
-            from += CHUNK
-          }
-        }
-        return results
-      }
-
-      // Fetch paginated payments in parallel
-      const [
-        monthlyPaymentsData,
-        prevMonthPaymentsData,
-        nextMonthPaymentsData,
-        trendYearPaymentsData,
-        { data: registeredData },
-        { data: dayEndRegisteredData },
-        { data: outData },
-        { data: trendYearStudentsData }
-      ] = await Promise.all([
-        // Payments in THIS month (paginated) - with students info, created_at, household & enrollments
-        fetchAllPaginated((from, to) =>
-          supabase
-            .from('payments')
-            .select('*, students(id, ps_code, full_name, grade, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(*))')
-            .eq('month', month)
-            .eq('year', year)
-            .range(from, to)
-        ),
-        // Payments in PREVIOUS month (paginated)
-        fetchAllPaginated((from, to) =>
-          supabase
-            .from('payments')
-            .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
-            .eq('month', prevMonthNum)
-            .eq('year', prevYearNum)
-            .range(from, to)
-        ),
-        // Payments in NEXT month (paginated) - to identify advance registrants belonging to next month
-        fetchAllPaginated((from, to) =>
-          supabase
-            .from('payments')
-            .select('month, year, student_id, students(ps_code)')
-            .eq('month', nextMonthNum)
-            .eq('year', nextYearNum)
-            .range(from, to)
-        ),
-        // Multi-Month Trends: All payments for the selected trend year (paginated)
-        fetchAllPaginated((from, to) =>
-          supabase
-            .from('payments')
-            .select('month, year, amount_paid, class_type, students(ps_code, full_name, grade, created_at)')
-            .eq('year', trendYear)
-            .range(from, to)
-        ),
-        // Real new registered students created in this month or advance window
-        supabase
-          .from('students')
-          .select('*, household:households(*), enrollments(*)')
-          .not('created_by', 'ilike', '%Auto-Pre-generated%')
-          .gte('created_at', startOfAdvanceLookback)
-          .lte('created_at', endOfMonth)
-          .order('created_at', { ascending: false }),
-        // Real new registered students specifically in selected date range
-        supabase
-          .from('students')
-          .select('*, household:households(*), enrollments(*)')
-          .not('created_by', 'ilike', '%Auto-Pre-generated%')
-          .gte('created_at', startOfRangeIso)
-          .lte('created_at', endOfRangeIso)
-          .order('created_at', { ascending: false }),
-        // Outstanding debts
-        supabase
-          .from('students_outstanding')
-          .select('*'),
-        // Multi-Month Trends: All new students registered in the selected trend year
-        supabase
-          .from('students')
-          .select('ps_code, created_at, grade')
-          .not('created_by', 'ilike', '%Auto-Pre-generated%')
-          .gte('created_at', startOfTrendYear)
-          .lte('created_at', endOfTrendYear)
-      ])
-
-      // Helper to check if a student or payment matches the selected tutorFilter
-      function matchesTutor(psCode: string | null | undefined): boolean {
-        if (!psCode || tutorFilter === 'all') return true
-        const clean = psCode.toUpperCase().trim()
-        if (tutorFilter === 'sm') {
-          return clean.startsWith('SM')
-        }
-        // tutorFilter === 'ps': anything starting with PS or standard digits
-        return clean.startsWith('PS') || (!clean.startsWith('SM'))
-      }
-
-      // Process Multi-Month Trend Year Datasets
-      const filteredTrendPayments = (trendYearPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
-      const filteredTrendStudents = (trendYearStudentsData || []).filter((s: any) => matchesTutor(s.ps_code))
-      setTrendPaymentsYear(filteredTrendPayments)
-      setTrendStudentsYear(filteredTrendStudents)
-
-      // 0. Process Day-End Registered Students (only real new registrations PS10500+ / SM101+ matching tutor)
-      const filteredDayEndRegistered = (dayEndRegisteredData || []).filter(s => matchesTutor(s.ps_code) && isNewRegistrationPsCode(s.ps_code))
-      setDayEndRegisteredStudents(filteredDayEndRegistered)
-
-      // 0.75. Process Previous Month Payments for Retention
-      const filteredPrevPayments = (prevMonthPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
-      setPrevMonthPayments(filteredPrevPayments)
-
-      // 1. Process New Registered Students & Grade Breakdown
-      const payList = (monthlyPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
-      setAllPaymentsMonth(payList)
-
-      const prevPaidPsCodes = new Set<string>()
-      filteredPrevPayments.forEach((p: any) => {
-        const ps = p.students?.ps_code || p.student_id
-        if (ps) prevPaidPsCodes.add(ps)
-      })
-
-      const thisPaidPsCodes = new Set<string>()
-      payList.forEach((p: any) => {
-        const ps = p.students?.ps_code || p.student_id
-        if (ps) thisPaidPsCodes.add(ps)
-      })
-
-      const nextPaidPsCodes = new Set<string>()
-      ;(nextMonthPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id)).forEach((p: any) => {
-        const ps = p.students?.ps_code || p.student_id
-        if (ps) nextPaidPsCodes.add(ps)
-      })
-
-      // Collect unique new registered students for this month
-      const newStuMap = new Map<string, any>()
-
-      // A. Add students directly registered in the current month bounds (strictly PS10500+ / SM101+)
-      ;(registeredData || []).filter(s => matchesTutor(s.ps_code)).forEach(s => {
-        const ps = s.ps_code || s.id
-        if (!isNewRegistrationPsCode(ps)) return
-
-        const sCreatedAt = s.created_at ? new Date(s.created_at).toISOString() : ''
-        if (sCreatedAt >= startOfMonth && sCreatedAt <= endOfMonth) {
-          // If this student has paid for next month (e.g. September) and didn't pay for this month (e.g. August),
-          // they belong to September, so do not include them in August!
-          if (nextPaidPsCodes.has(ps) && !thisPaidPsCodes.has(ps)) {
-            return
-          }
-          newStuMap.set(ps, s)
-        }
-      })
-
-      // B. Add students from payments for this month who registered in advance (e.g. late August for September)
-      // and who were not already paying students in previous months (strictly PS10500+ / SM101+)
-      payList.forEach((p: any) => {
-        const s = p.students
-        if (!s) return
-        const ps = s.ps_code || p.student_id
-        if (!ps || !isNewRegistrationPsCode(ps) || prevPaidPsCodes.has(ps)) return
-
-        const sCreatedAt = s.created_at ? new Date(s.created_at).toISOString() : ''
-        // If created before this month started (advance registration) up to end of this month
-        if (sCreatedAt && sCreatedAt <= endOfMonth) {
-          if (!newStuMap.has(ps)) {
-            newStuMap.set(ps, {
-              id: s.id || p.student_id,
-              ps_code: s.ps_code || ps,
-              full_name: s.full_name || '—',
-              grade: s.grade || 0,
-              created_at: s.created_at,
-              created_by: s.created_by || p.recorded_by || 'Admin',
-              household: s.household || {},
-              enrollments: s.enrollments || []
-            })
-          }
-        }
-      })
-
-      const stuList = Array.from(newStuMap.values())
-      setNewStudents(stuList)
-
-      const gMap: Record<number, number> = {}
-      stuList.forEach(s => {
-        const gr = s.grade || 0
-        gMap[gr] = (gMap[gr] || 0) + 1
-      })
-      setGradeStats(gMap)
-
-      const bMap: Record<string, { count: number; total: number }> = {}
-      const mMap: Record<string, { count: number; total: number }> = {}
-
-      payList.forEach((p: any) => {
-        const amt = Number(p.amount_paid) || 0
-        const method = p.payment_type || 'BANK'
-        const bank = p.bank_name || (method === 'BANK' ? 'Other Bank' : method)
-
-        if (!bMap[bank]) bMap[bank] = { count: 0, total: 0 }
-        bMap[bank].count += 1
-        bMap[bank].total += amt
-
-        if (!mMap[method]) mMap[method] = { count: 0, total: 0 }
-        mMap[method].count += 1
-        mMap[method].total += amt
-      })
-
-      setBankRevenue(
-        Object.entries(bMap)
-          .map(([bank, data]) => ({ bank, count: data.count, total: data.total }))
-          .sort((a, b) => b.total - a.total)
-      )
-
-      setMethodRevenue(
-        Object.entries(mMap)
-          .map(([method, data]) => ({ method, count: data.count, total: data.total }))
-          .sort((a, b) => b.total - a.total)
-      )
-
-      // 3. Process Date-Wise Daily Payment & Auditor Logs
-      const filteredDailyPaymentsList = dailyList.filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
-      setDailyPayments(filteredDailyPaymentsList)
-
-      const aMap: Record<string, { count: number; total: number }> = {}
-      filteredDailyPaymentsList.forEach((p: any) => {
-        const who = p.recorded_by || 'System User'
-        const amt = Number(p.amount_paid) || 0
-        if (!aMap[who]) aMap[who] = { count: 0, total: 0 }
-        aMap[who].count += 1
-        aMap[who].total += amt
-      })
-      setAuditorStats(aMap)
-
-      // 4. Debts
-      const filteredDebtsList = (outData || []).filter((d: any) => matchesTutor(d.ps_code))
-      setOutstandingList(filteredDebtsList)
-
-    } catch (e) {
-      console.error('Error loading report analytics:', e)
-    } finally {
-      setLoading(false)
     }
+    return results
   }
+
+  // Helper to check if a student or payment matches the selected tutorFilter
+  function matchesTutor(psCode: string | null | undefined): boolean {
+    if (!psCode || tutorFilter === 'all') return true
+    const clean = psCode.toUpperCase().trim()
+    if (tutorFilter === 'sm') {
+      return clean.startsWith('SM')
+    }
+    // tutorFilter === 'ps': anything starting with PS or standard digits
+    return clean.startsWith('PS') || (!clean.startsWith('SM'))
+  }
+
+  // 1. FAST LOADER: Daily Operations & Day-End Audit Data (<150ms)
+  useEffect(() => {
+    let isCancelled = false
+
+    async function loadDailyData() {
+      setLoadingDaily(true)
+      try {
+        const startOfRangeIso = `${startDate}T00:00:00.000Z`
+        const endOfRangeIso = `${endDate}T23:59:59.999Z`
+
+        const [dailyList, { data: dayEndRegisteredData }] = await Promise.all([
+          // Paginated daily payments for selected date range
+          fetchAllPaginated((from, to) => {
+            let q = supabase
+              .from('payments')
+              .select('*, students(ps_code, full_name, grade, created_at, household:households(parent_name, parent_phone, address), enrollments(*))')
+              .range(from, to)
+              .order('created_at', { ascending: false })
+
+            if (dateFilterType === 'created_at') {
+              return q.gte('created_at', startOfRangeIso).lte('created_at', endOfRangeIso)
+            } else {
+              return q.gte('date_paid', startDate).lte('date_paid', endDate)
+            }
+          }),
+          // Real new registered students specifically in selected date range
+          supabase
+            .from('students')
+            .select('*, household:households(*), enrollments(*)')
+            .not('created_by', 'ilike', '%Auto-Pre-generated%')
+            .gte('created_at', startOfRangeIso)
+            .lte('created_at', endOfRangeIso)
+            .order('created_at', { ascending: false })
+        ])
+
+        if (isCancelled) return
+
+        // Filter by tutor and new registration threshold
+        const filteredDailyPaymentsList = (dailyList || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
+        setDailyPayments(filteredDailyPaymentsList)
+
+        const aMap: Record<string, { count: number; total: number }> = {}
+        filteredDailyPaymentsList.forEach((p: any) => {
+          const who = p.recorded_by || 'System User'
+          const amt = Number(p.amount_paid) || 0
+          if (!aMap[who]) aMap[who] = { count: 0, total: 0 }
+          aMap[who].count += 1
+          aMap[who].total += amt
+        })
+        setAuditorStats(aMap)
+
+        const filteredDayEndRegistered = (dayEndRegisteredData || []).filter(s => matchesTutor(s.ps_code) && isNewRegistrationPsCode(s.ps_code))
+        setDayEndRegisteredStudents(filteredDayEndRegistered)
+      } catch (err) {
+        console.error('Error loading daily operations report:', err)
+      } finally {
+        if (!isCancelled) setLoadingDaily(false)
+      }
+    }
+
+    loadDailyData()
+    return () => {
+      isCancelled = true
+    }
+  }, [startDate, endDate, dateFilterType, tutorFilter])
+
+  // 2. COMPREHENSIVE LOADER: Monthly Matrix, Retention, Trends & Debts
+  useEffect(() => {
+    let isCancelled = false
+
+    async function loadMonthlyAndTrendData() {
+      setLoading(true)
+      try {
+        const startOfMonth = new Date(year, month - 1, 1).toISOString()
+        const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999).toISOString()
+        const startOfAdvanceLookback = new Date(year, month - 2, 1).toISOString()
+        const startOfTrendYear = new Date(trendYear, 0, 1).toISOString()
+        const endOfTrendYear = new Date(trendYear, 11, 31, 23, 59, 59, 999).toISOString()
+
+        const prevMonthNum = month === 1 ? 12 : month - 1
+        const prevYearNum = month === 1 ? year - 1 : year
+        const nextMonthNum = month === 12 ? 1 : month + 1
+        const nextYearNum = month === 12 ? year + 1 : year
+
+        const [
+          monthlyPaymentsData,
+          prevMonthPaymentsData,
+          nextMonthPaymentsData,
+          trendYearPaymentsData,
+          { data: registeredData },
+          { data: outData },
+          { data: trendYearStudentsData }
+        ] = await Promise.all([
+          fetchAllPaginated((from, to) =>
+            supabase
+              .from('payments')
+              .select('*, students(id, ps_code, full_name, grade, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(*))')
+              .eq('month', month)
+              .eq('year', year)
+              .range(from, to)
+          ),
+          fetchAllPaginated((from, to) =>
+            supabase
+              .from('payments')
+              .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+              .eq('month', prevMonthNum)
+              .eq('year', prevYearNum)
+              .range(from, to)
+          ),
+          fetchAllPaginated((from, to) =>
+            supabase
+              .from('payments')
+              .select('month, year, student_id, students(ps_code)')
+              .eq('month', nextMonthNum)
+              .eq('year', nextYearNum)
+              .range(from, to)
+          ),
+          fetchAllPaginated((from, to) =>
+            supabase
+              .from('payments')
+              .select('month, year, amount_paid, class_type, students(ps_code, full_name, grade, created_at)')
+              .eq('year', trendYear)
+              .range(from, to)
+          ),
+          supabase
+            .from('students')
+            .select('*, household:households(*), enrollments(*)')
+            .not('created_by', 'ilike', '%Auto-Pre-generated%')
+            .gte('created_at', startOfAdvanceLookback)
+            .lte('created_at', endOfMonth)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('students_outstanding')
+            .select('*'),
+          supabase
+            .from('students')
+            .select('ps_code, created_at, grade')
+            .not('created_by', 'ilike', '%Auto-Pre-generated%')
+            .gte('created_at', startOfTrendYear)
+            .lte('created_at', endOfTrendYear)
+        ])
+
+        if (isCancelled) return
+
+        // Process Multi-Month Trend Year Datasets
+        const filteredTrendPayments = (trendYearPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
+        const filteredTrendStudents = (trendYearStudentsData || []).filter((s: any) => matchesTutor(s.ps_code))
+        setTrendPaymentsYear(filteredTrendPayments)
+        setTrendStudentsYear(filteredTrendStudents)
+
+        // Process Previous Month Payments for Retention
+        const filteredPrevPayments = (prevMonthPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
+        setPrevMonthPayments(filteredPrevPayments)
+
+        // Process New Registered Students & Grade Breakdown
+        const payList = (monthlyPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
+        setAllPaymentsMonth(payList)
+
+        const prevPaidPsCodes = new Set<string>()
+        filteredPrevPayments.forEach((p: any) => {
+          const ps = p.students?.ps_code || p.student_id
+          if (ps) prevPaidPsCodes.add(ps)
+        })
+
+        const thisPaidPsCodes = new Set<string>()
+        payList.forEach((p: any) => {
+          const ps = p.students?.ps_code || p.student_id
+          if (ps) thisPaidPsCodes.add(ps)
+        })
+
+        const nextPaidPsCodes = new Set<string>()
+        ;(nextMonthPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id)).forEach((p: any) => {
+          const ps = p.students?.ps_code || p.student_id
+          if (ps) nextPaidPsCodes.add(ps)
+        })
+
+        const newStuMap = new Map<string, any>()
+        ;(registeredData || []).filter(s => matchesTutor(s.ps_code)).forEach(s => {
+          const ps = s.ps_code || s.id
+          if (!isNewRegistrationPsCode(ps)) return
+
+          const sCreatedAt = s.created_at ? new Date(s.created_at).toISOString() : ''
+          if (sCreatedAt >= startOfMonth && sCreatedAt <= endOfMonth) {
+            if (nextPaidPsCodes.has(ps) && !thisPaidPsCodes.has(ps)) {
+              return
+            }
+            newStuMap.set(ps, s)
+          }
+        })
+
+        payList.forEach((p: any) => {
+          const s = p.students
+          if (!s) return
+          const ps = s.ps_code || p.student_id
+          if (!ps || !isNewRegistrationPsCode(ps) || prevPaidPsCodes.has(ps)) return
+
+          const sCreatedAt = s.created_at ? new Date(s.created_at).toISOString() : ''
+          if (sCreatedAt && sCreatedAt <= endOfMonth) {
+            if (!newStuMap.has(ps)) {
+              newStuMap.set(ps, {
+                id: s.id || p.student_id,
+                ps_code: s.ps_code || ps,
+                full_name: s.full_name || '—',
+                grade: s.grade || 0,
+                created_at: s.created_at,
+                created_by: s.created_by || p.recorded_by || 'Admin',
+                household: s.household || {},
+                enrollments: s.enrollments || []
+              })
+            }
+          }
+        })
+
+        const stuList = Array.from(newStuMap.values())
+        setNewStudents(stuList)
+
+        const gMap: Record<number, number> = {}
+        stuList.forEach(s => {
+          const gr = s.grade || 0
+          gMap[gr] = (gMap[gr] || 0) + 1
+        })
+        setGradeStats(gMap)
+
+        const bMap: Record<string, { count: number; total: number }> = {}
+        const mMap: Record<string, { count: number; total: number }> = {}
+
+        payList.forEach((p: any) => {
+          const amt = Number(p.amount_paid) || 0
+          const method = p.payment_type || 'BANK'
+          const bank = p.bank_name || (method === 'BANK' ? 'Other Bank' : method)
+
+          if (!bMap[bank]) bMap[bank] = { count: 0, total: 0 }
+          bMap[bank].count += 1
+          bMap[bank].total += amt
+
+          if (!mMap[method]) mMap[method] = { count: 0, total: 0 }
+          mMap[method].count += 1
+          mMap[method].total += amt
+        })
+
+        setBankRevenue(
+          Object.entries(bMap)
+            .map(([bank, data]) => ({ bank, count: data.count, total: data.total }))
+            .sort((a, b) => b.total - a.total)
+        )
+
+        setMethodRevenue(
+          Object.entries(mMap)
+            .map(([method, data]) => ({ method, count: data.count, total: data.total }))
+            .sort((a, b) => b.total - a.total)
+        )
+
+        const filteredDebtsList = (outData || []).filter((d: any) => matchesTutor(d.ps_code))
+        setOutstandingList(filteredDebtsList)
+      } catch (err) {
+        console.error('Error loading monthly and trend report data:', err)
+      } finally {
+        if (!isCancelled) setLoading(false)
+      }
+    }
+
+    loadMonthlyAndTrendData()
+    return () => {
+      isCancelled = true
+    }
+  }, [month, year, trendYear, tutorFilter])
+
+
 
   // Filtered lists for simple tabs
   const filteredNewStudents = useMemo(() => {
@@ -1220,6 +1213,7 @@ export default function ReportsPage() {
             dayEndClassPaidMap={dayEndClassPaidMap}
             dayEndAuditorMap={dayEndAuditorMap}
             courseLabels={courseLabels}
+            loading={loadingDaily}
           />
         )}
 
