@@ -111,10 +111,12 @@ export default function DeliveryPage() {
         const cached = localStorage.getItem('MATHSPS_COURSES_CACHE')
         if (cached) {
           const parsed = JSON.parse(cached)
-          if (parsed.gradeCourses && parsed.standaloneCourses) {
-            setGradeCourses(parsed.gradeCourses)
-            setStandaloneCourses(parsed.standaloneCourses)
-            setCourseLabels(getAllCourseLabels(parsed.gradeCourses, parsed.standaloneCourses))
+          const gc = parsed.grade_courses || parsed.gradeCourses
+          const sc = parsed.standalone_courses || parsed.standaloneCourses
+          if (gc || sc) {
+            if (gc) setGradeCourses(gc)
+            if (sc) setStandaloneCourses(sc)
+            setCourseLabels(getAllCourseLabels(gc || DEFAULT_GRADE_COURSES, sc || DEFAULT_STANDALONE_COURSES))
           }
         }
       } catch (e) {
@@ -126,23 +128,35 @@ export default function DeliveryPage() {
 
     async function fetchServerCourses() {
       try {
-        const { data } = await supabase
-          .from('members')
-          .select('notes')
-          .ilike('notes', '%SYSTEM_COURSES_CONFIG%')
-          .limit(1)
+        let { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').maybeSingle()
+        if (!adminRecord) {
+          const res = await supabase.from('members').select('notes').eq('email', 'admin@mathsps.com').maybeSingle()
+          adminRecord = res.data
+        }
+        if (!adminRecord) {
+          const res = await supabase.from('members').select('notes').in('role', ['admin', 'owner']).limit(1).maybeSingle()
+          adminRecord = res.data
+        }
+        if (!adminRecord) {
+          const res = await supabase.from('members').select('notes').limit(1).maybeSingle()
+          adminRecord = res.data
+        }
 
-        if (data && data[0]?.notes) {
-          const match = data[0].notes.match(/\[SYSTEM_COURSES_CONFIG:\s*(\{.+?\})\]/)
-          if (match) {
-            const parsed = JSON.parse(match[1])
-            if (parsed.gradeCourses && parsed.standaloneCourses) {
-              setGradeCourses(parsed.gradeCourses)
-              setStandaloneCourses(parsed.standaloneCourses)
-              setCourseLabels(getAllCourseLabels(parsed.gradeCourses, parsed.standaloneCourses))
-              localStorage.setItem('MATHSPS_COURSES_CACHE', JSON.stringify(parsed))
+        if (adminRecord?.notes) {
+          try {
+            const notesObj = JSON.parse(adminRecord.notes)
+            const gc = notesObj.grade_courses || notesObj.gradeCourses
+            const sc = notesObj.standalone_courses || notesObj.standaloneCourses
+            if (gc || sc) {
+              if (gc) setGradeCourses(gc)
+              if (sc) setStandaloneCourses(sc)
+              setCourseLabels(getAllCourseLabels(gc || DEFAULT_GRADE_COURSES, sc || DEFAULT_STANDALONE_COURSES))
+              localStorage.setItem('MATHSPS_COURSES_CACHE', JSON.stringify({
+                grade_courses: gc || DEFAULT_GRADE_COURSES,
+                standalone_courses: sc || DEFAULT_STANDALONE_COURSES
+              }))
             }
-          }
+          } catch {}
         }
       } catch (err) {
         console.error('Error loading server courses:', err)
@@ -151,13 +165,18 @@ export default function DeliveryPage() {
 
     fetchServerCourses()
 
-    // Realtime channel listener for instant course updates
-    const channel = supabase.channel('delivery-courses-sync')
-      .on('broadcast', { event: 'courses-updated' }, (payload: any) => {
-        if (payload?.payload?.gradeCourses) {
-          setGradeCourses(payload.payload.gradeCourses)
-          setStandaloneCourses(payload.payload.standaloneCourses || [])
-          setCourseLabels(getAllCourseLabels(payload.payload.gradeCourses, payload.payload.standaloneCourses || []))
+    // Realtime channel listener for instant course updates across tabs
+    const channel = supabase.channel('mathsps-global-courses-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => {
+        fetchServerCourses()
+      })
+      .on('broadcast', { event: 'courses_updated' }, (payload: any) => {
+        const gc = payload?.payload?.grade_courses || payload?.payload?.gradeCourses
+        const sc = payload?.payload?.standalone_courses || payload?.payload?.standaloneCourses
+        if (gc || sc) {
+          if (gc) setGradeCourses(gc)
+          if (sc) setStandaloneCourses(sc || [])
+          setCourseLabels(getAllCourseLabels(gc || DEFAULT_GRADE_COURSES, sc || DEFAULT_STANDALONE_COURSES))
         }
       })
       .subscribe()
