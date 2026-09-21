@@ -29,6 +29,7 @@ import DayEndSummaryTab from './components/DayEndSummaryTab'
 import MonthlyMatrixTab from './components/MonthlyMatrixTab'
 import MultiMonthTrendsTab from './components/MultiMonthTrendsTab'
 import RetentionAnalyzerTab from './components/RetentionAnalyzerTab'
+import LmsBulkExporterTab from './components/LmsBulkExporterTab'
 
 export function isNewRegistrationPsCode(psCode: string | null | undefined): boolean {
   if (!psCode) return false
@@ -51,8 +52,8 @@ export default function ReportsPage() {
     getAllCourseLabels(DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES)
   )
 
-  // Primary 4 Categorized Tab selection
-  const [activeTab, setActiveTab] = useState<'daily_operations' | 'monthly_financials' | 'growth_retention' | 'debts'>('daily_operations')
+  // Primary 5 Categorized Tab selection
+  const [activeTab, setActiveTab] = useState<'daily_operations' | 'monthly_financials' | 'growth_retention' | 'lms_exporter' | 'debts'>('daily_operations')
 
   // Sub-view Tab Selections
   const [dailySubTab, setDailySubTab] = useState<'matrix' | 'ledger' | 'staff'>('matrix')
@@ -271,7 +272,7 @@ export default function ReportsPage() {
           fetchAllPaginated((from, to) => {
             let q = supabase
               .from('payments')
-              .select('id, student_id, amount_paid, payment_type, bank_name, recorded_by, created_at, date_paid, class_type, notes, tute_delivered, students(ps_code, full_name, grade)')
+              .select('id, student_id, amount_paid, payment_type, bank_name, recorded_by, created_at, date_paid, class_type, notes, tute_delivered, students(ps_code, full_name, grade, household:households(parent_name, parent_phone))')
               .range(from, to)
               .order('created_at', { ascending: false })
 
@@ -322,9 +323,9 @@ export default function ReportsPage() {
     }
   }, [startDate, endDate, dateFilterType, tutorFilter])
 
-  // 2. ON-DEMAND LAZY LOADER: Monthly Matrix & Financials (Only loaded when monthly_financials is active)
+  // 2. ON-DEMAND LAZY LOADER: Monthly Matrix & Financials (Loaded when monthly_financials or lms_exporter is active)
   useEffect(() => {
-    if (activeTab !== 'monthly_financials') return
+    if (activeTab !== 'monthly_financials' && activeTab !== 'lms_exporter') return
     let isCancelled = false
 
     async function loadMonthlyData() {
@@ -1234,6 +1235,22 @@ export default function ReportsPage() {
           </button>
 
           <button
+            onClick={() => setActiveTab('lms_exporter')}
+            className={activeTab === 'lms_exporter' ? 'btn-primary' : 'btn-secondary'}
+            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            <Sparkles size={16} style={{ color: '#38bdf8' }} />
+            🎓 LMS Bulk Exporter
+            <span style={{
+              background: activeTab === 'lms_exporter' ? 'rgba(255,255,255,0.2)' : 'rgba(56,189,248,0.15)',
+              color: activeTab === 'lms_exporter' ? '#fff' : '#38bdf8',
+              padding: '2px 8px', borderRadius: 12, fontSize: 11
+            }}>
+              name,mobile
+            </span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('debts')}
             className={activeTab === 'debts' ? 'btn-primary' : 'btn-secondary'}
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
@@ -1310,6 +1327,22 @@ export default function ReportsPage() {
             searchStu={searchStu}
             setSearchStu={setSearchStu}
             courseLabels={courseLabels}
+          />
+        )}
+
+        {/* ========================================================================= */}
+        {/* CATEGORY 3: LMS BULK EXPORTER                                             */}
+        {/* ========================================================================= */}
+        {activeTab === 'lms_exporter' && (
+          <LmsBulkExporterTab
+            dailyPayments={dailyPayments}
+            allPaymentsMonth={allPaymentsMonth}
+            newStudents={newStudents}
+            courseLabels={courseLabels}
+            month={month}
+            year={year}
+            startDate={startDate}
+            endDate={endDate}
           />
         )}
 

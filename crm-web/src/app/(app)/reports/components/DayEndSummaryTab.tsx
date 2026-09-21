@@ -11,10 +11,11 @@ import {
   Search,
   CheckCircle2,
   Clock,
-  Package
+  Package,
+  Download
 } from 'lucide-react'
 import { CLASS_LABELS } from '@/lib/types'
-import { exportTableToCsv } from '@/lib/reports-analytics'
+import { exportTableToCsv, exportLmsBulkCsv } from '@/lib/reports-analytics'
 
 interface DayEndSummaryTabProps {
   dateRangePreset: 'today' | 'yesterday' | 'last7' | 'this_month' | 'last_month' | 'custom'
@@ -382,6 +383,7 @@ export default function DayEndSummaryTab({
                     <th style={{ textAlign: 'center' }}>Students Paid / Slips</th>
                     <th style={{ textAlign: 'right' }}>Total Collections (Rs.)</th>
                     <th style={{ textAlign: 'right' }}>% Revenue Share</th>
+                    <th style={{ textAlign: 'center', width: 150 }}>LMS Export</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -389,6 +391,14 @@ export default function DayEndSummaryTab({
                     const newCount = dayEndGradeNewMap[g] || 0
                     const paidData = dayEndGradePaidMap[g] || { count: 0, total: 0 }
                     const share = totalDailyRevenue > 0 ? ((paidData.total / totalDailyRevenue) * 100).toFixed(1) : '0.0'
+
+                    // Extract paid students in this grade for LMS export
+                    const gradePaidStudents = dailyPayments
+                      .filter(p => (p.students?.grade || 0) === g)
+                      .map(p => ({
+                        name: p.students?.full_name || 'Student',
+                        mobile: p.students?.household?.parent_phone || ''
+                      }))
 
                     return (
                       <tr key={g}>
@@ -419,6 +429,20 @@ export default function DayEndSummaryTab({
                         <td style={{ textAlign: 'right', fontSize: 12, color: 'var(--accent-blue)', fontWeight: 600 }}>
                           {share}%
                         </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            disabled={gradePaidStudents.length === 0}
+                            onClick={() => {
+                              exportLmsBulkCsv(`LMS_Billing_Bulk_Grade_${g}_${periodLabel.replace(/[\s\:]+/g, '_')}`, gradePaidStudents)
+                            }}
+                            className="btn-secondary"
+                            style={{ padding: '3px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            title="Export assign-billing-bulk-sample.csv (name,mobile)"
+                          >
+                            <Download size={12} style={{ color: '#10b981' }} /> LMS CSV
+                          </button>
+                        </td>
                       </tr>
                     )
                   })}
@@ -428,7 +452,7 @@ export default function DayEndSummaryTab({
                     <td style={{ color: 'var(--text-primary)', fontSize: 14 }}>
                       TOTAL SUMMARY
                     </td>
-                    <td style={{ textAlign: 'center', color: 'var(--accent-blue)', fontSize: 14 }}>
+                    <td style={{ textAlign: 'center', color: 'var(--text-blue)', fontSize: 14 }}>
                       {dayEndRegisteredStudents.length} Students
                     </td>
                     <td style={{ textAlign: 'center', color: '#10b981', fontSize: 14 }}>
@@ -439,6 +463,23 @@ export default function DayEndSummaryTab({
                     </td>
                     <td style={{ textAlign: 'right', color: 'var(--text-primary)', fontSize: 13 }}>
                       100.0%
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        disabled={dailyPayments.length === 0}
+                        onClick={() => {
+                          const allPaid = dailyPayments.map(p => ({
+                            name: p.students?.full_name || 'Student',
+                            mobile: p.students?.household?.parent_phone || ''
+                          }))
+                          exportLmsBulkCsv(`LMS_Billing_Bulk_AllGrades_${periodLabel.replace(/[\s\:]+/g, '_')}`, allPaid)
+                        }}
+                        className="btn-primary"
+                        style={{ padding: '3px 8px', fontSize: 11, background: '#10b981', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <Download size={12} /> All LMS
+                      </button>
                     </td>
                   </tr>
                 </tbody>
@@ -459,22 +500,49 @@ export default function DayEndSummaryTab({
                   <th>Class / Subject</th>
                   <th style={{ textAlign: 'center' }}>Students Paid</th>
                   <th style={{ textAlign: 'right' }}>Amount (Rs.)</th>
+                  <th style={{ textAlign: 'center', width: 150 }}>LMS Export</th>
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(dayEndClassPaidMap).map(([cls, data]) => (
-                  <tr key={cls}>
-                    <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {courseLabels[cls] || CLASS_LABELS[cls] || cls}
-                    </td>
-                    <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-                      {data.count}
-                    </td>
-                    <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
-                      Rs. {data.total.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
+                {Object.entries(dayEndClassPaidMap).map(([cls, data]) => {
+                  const classPaidStudents = dailyPayments
+                    .filter(p => p.class_type === cls)
+                    .map(p => ({
+                      name: p.students?.full_name || 'Student',
+                      mobile: p.students?.household?.parent_phone || ''
+                    }))
+
+                  const cName = courseLabels[cls] || CLASS_LABELS[cls] || cls
+
+                  return (
+                    <tr key={cls}>
+                      <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {cName}
+                      </td>
+                      <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                        {data.count}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)' }}>
+                        Rs. {data.total.toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          disabled={classPaidStudents.length === 0}
+                          onClick={() => {
+                            const safeCourse = cName.replace(/[\s\(\)\/\:]+/g, '_')
+                            exportLmsBulkCsv(`LMS_Billing_Bulk_${safeCourse}_${periodLabel.replace(/[\s\:]+/g, '_')}`, classPaidStudents)
+                          }}
+                          className="btn-secondary"
+                          style={{ padding: '3px 8px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                          title="Export assign-billing-bulk-sample.csv (name,mobile)"
+                        >
+                          <Download size={12} style={{ color: '#10b981' }} /> LMS CSV
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
 

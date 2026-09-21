@@ -32,10 +32,45 @@ export function sanitizePhoneForWhatsApp(phone?: string | null): string {
 }
 
 /**
- * Reusable CSV Exporter
+ * Reusable Standard CSV Exporter
  */
 export function exportTableToCsv(filename: string, headers: string[], rows: string[][]): void {
   const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n')
+  const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${filename}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
+/**
+ * Format phone number to standard 10-digit 07XXXXXXXX format for LMS billing
+ */
+export function formatMobileForLms(phone?: string | null): string {
+  if (!phone) return ''
+  let digits = phone.replace(/[^0-9]/g, '')
+  if (digits.startsWith('94') && digits.length === 11) {
+    digits = '0' + digits.slice(2)
+  } else if (digits.length === 9 && !digits.startsWith('0')) {
+    digits = '0' + digits
+  }
+  return digits
+}
+
+/**
+ * Reusable LMS Bulk Assign CSV Exporter (Format matching assign-billing-bulk-sample.csv: name,mobile)
+ */
+export function exportLmsBulkCsv(filename: string, students: { name: string; mobile: string }[]): void {
+  const headers = ['name', 'mobile']
+  const rows = students
+    .filter(s => s.mobile && s.mobile.trim().length >= 9)
+    .map(s => `"${(s.name || '').replace(/"/g, '""')}",${formatMobileForLms(s.mobile)}`)
+
+  const csvContent = [headers.join(','), ...rows].join('\r\n')
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
