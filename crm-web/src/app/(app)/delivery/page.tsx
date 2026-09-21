@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import {
   Truck,
@@ -21,9 +21,22 @@ import {
   Sparkles,
   Layers,
   Send,
-  Download
+  Download,
+  Filter,
+  X,
+  ChevronDown,
+  GraduationCap,
+  BookOpen,
+  CheckSquare,
+  Square
 } from 'lucide-react'
 import { CLASS_LABELS, MONTH_NAMES } from '@/lib/types'
+import {
+  DEFAULT_GRADE_COURSES,
+  DEFAULT_STANDALONE_COURSES,
+  CourseConfig,
+  getAllCourseLabels
+} from '@/lib/courses'
 
 interface DeliveryStudentItem {
   paymentId: string
@@ -51,6 +64,8 @@ interface DeliveryGroup {
   students: DeliveryStudentItem[]
 }
 
+const AVAILABLE_GRADES = [5, 6, 7, 8, 9, 10, 11, 12, 13]
+
 export default function DeliveryPage() {
   const supabase = createClient()
 
@@ -61,10 +76,24 @@ export default function DeliveryPage() {
   const [loading, setLoading] = useState(true)
   const [month, setMonth] = useState(new Date().getMonth() + 1)
   const [year, setYear] = useState(new Date().getFullYear())
-  const [classFilter, setClassFilter] = useState('')
+
+  // Dynamic Course Config & Labels State
+  const [gradeCourses, setGradeCourses] = useState<Record<number, CourseConfig[]>>(DEFAULT_GRADE_COURSES)
+  const [standaloneCourses, setStandaloneCourses] = useState<CourseConfig[]>(DEFAULT_STANDALONE_COURSES)
+  const [courseLabels, setCourseLabels] = useState<Record<string, string>>(() => getAllCourseLabels(DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES))
+
+  // Multi-Choice Filters
+  const [selectedGrades, setSelectedGrades] = useState<number[]>([])
+  const [selectedCourses, setSelectedCourses] = useState<string[]>([])
+  const [includeStandaloneOnly, setIncludeStandaloneOnly] = useState(false)
   const [areaFilter, setAreaFilter] = useState('')
   const [areas, setAreas] = useState<string[]>([])
   const [search, setSearch] = useState('')
+
+  // Popover state for Course dropdown filter
+  const [isCourseDropdownOpen, setIsCourseDropdownOpen] = useState(false)
+  const [courseSearch, setCourseSearch] = useState('')
+  const courseDropdownRef = useRef<HTMLDivElement>(null)
 
   // Pagination State for high performance (solves browser DOM lag with 2,300+ items)
   const [currentPage, setCurrentPage] = useState(1)
@@ -75,14 +104,86 @@ export default function DeliveryPage() {
   const [marking, setMarking] = useState(false)
   const [actionMessage, setActionMessage] = useState('')
 
+  // Load Admin Course Configuration (localStorage + Supabase + Realtime)
+  useEffect(() => {
+    function hydrateCoursesFromCache() {
+      try {
+        const cached = localStorage.getItem('MATHSPS_COURSES_CACHE')
+        if (cached) {
+          const parsed = JSON.parse(cached)
+          if (parsed.gradeCourses && parsed.standaloneCourses) {
+            setGradeCourses(parsed.gradeCourses)
+            setStandaloneCourses(parsed.standaloneCourses)
+            setCourseLabels(getAllCourseLabels(parsed.gradeCourses, parsed.standaloneCourses))
+          }
+        }
+      } catch (e) {
+        console.error('Error hydrating courses cache:', e)
+      }
+    }
+
+    hydrateCoursesFromCache()
+
+    async function fetchServerCourses() {
+      try {
+        const { data } = await supabase
+          .from('members')
+          .select('notes')
+          .ilike('notes', '%SYSTEM_COURSES_CONFIG%')
+          .limit(1)
+
+        if (data && data[0]?.notes) {
+          const match = data[0].notes.match(/\[SYSTEM_COURSES_CONFIG:\s*(\{.+?\})\]/)
+          if (match) {
+            const parsed = JSON.parse(match[1])
+            if (parsed.gradeCourses && parsed.standaloneCourses) {
+              setGradeCourses(parsed.gradeCourses)
+              setStandaloneCourses(parsed.standaloneCourses)
+              setCourseLabels(getAllCourseLabels(parsed.gradeCourses, parsed.standaloneCourses))
+              localStorage.setItem('MATHSPS_COURSES_CACHE', JSON.stringify(parsed))
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Error loading server courses:', err)
+      }
+    }
+
+    fetchServerCourses()
+
+    // Realtime channel listener for instant course updates
+    const channel = supabase.channel('delivery-courses-sync')
+      .on('broadcast', { event: 'courses-updated' }, (payload: any) => {
+        if (payload?.payload?.gradeCourses) {
+          setGradeCourses(payload.payload.gradeCourses)
+          setStandaloneCourses(payload.payload.standaloneCourses || [])
+          setCourseLabels(getAllCourseLabels(payload.payload.gradeCourses, payload.payload.standaloneCourses || []))
+        }
+      })
+      .subscribe()
+
+    // Close course dropdown on outside click
+    function handleClickOutside(e: MouseEvent) {
+      if (courseDropdownRef.current && !courseDropdownRef.current.contains(e.target as Node)) {
+        setIsCourseDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+
+    return () => {
+      supabase.removeChannel(channel)
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   useEffect(() => {
     loadDeliveryList()
-  }, [month, year, classFilter, areaFilter])
+  }, [month, year])
 
   // Reset to page 1 on filter or tab change
   useEffect(() => {
     setCurrentPage(1)
-  }, [activeTab, search, classFilter, areaFilter, pageSize])
+  }, [activeTab, search, selectedGrades, selectedCourses, includeStandaloneOnly, areaFilter, pageSize])
 
   async function loadDeliveryList() {
     setLoading(true)
@@ -94,7 +195,7 @@ export default function DeliveryPage() {
       let hasMore = true
 
       while (hasMore) {
-        let q = supabase
+        const { data, error } = await supabase
           .from('payments')
           .select(`
             id, student_id, class_type, month, year, amount_paid, payment_type, tute_delivered, date_paid, notes,
@@ -108,9 +209,6 @@ export default function DeliveryPage() {
           .eq('tute_delivered', true)
           .range(from, from + CHUNK_SIZE - 1)
 
-        if (classFilter) q = q.eq('class_type', classFilter)
-
-        const { data, error } = await q
         if (error) throw error
 
         allRows = allRows.concat(data || [])
@@ -187,11 +285,7 @@ export default function DeliveryPage() {
         group.isDispatched = !hasPendingItems
       })
 
-      let result = Object.values(groupedMap)
-      if (areaFilter) {
-        result = result.filter(g => g.area === areaFilter)
-      }
-
+      const result = Object.values(groupedMap)
       setAreas(Array.from(areaSet).sort())
       setAllGroups(result)
 
@@ -206,25 +300,107 @@ export default function DeliveryPage() {
     }
   }
 
-  // Filter based on active tab ('unexported' vs 'dispatched') + search
+  // Get all available course options across gradeCourses, standaloneCourses, and existing student payments
+  const allCourseOptions = useMemo(() => {
+    const list: { code: string; name: string; grade?: number; isStandalone?: boolean }[] = []
+    const seenCodes = new Set<string>()
+
+    // 1. Grade courses
+    Object.entries(gradeCourses).forEach(([gr, courses]) => {
+      courses.forEach(c => {
+        if (!seenCodes.has(c.code)) {
+          seenCodes.add(c.code)
+          list.push({ code: c.code, name: c.name, grade: parseInt(gr), isStandalone: false })
+        }
+      })
+    })
+
+    // 2. Standalone courses
+    standaloneCourses.forEach(c => {
+      if (!seenCodes.has(c.code)) {
+        seenCodes.add(c.code)
+        list.push({ code: c.code, name: c.name, isStandalone: true })
+      }
+    })
+
+    // 3. Fallback from CLASS_LABELS and active groups
+    allGroups.forEach(g => {
+      g.students.forEach(st => {
+        if (!seenCodes.has(st.class_type)) {
+          seenCodes.add(st.class_type)
+          list.push({
+            code: st.class_type,
+            name: courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type,
+            grade: st.grade,
+            isStandalone: st.grade === 0
+          })
+        }
+      })
+    })
+
+    return list
+  }, [gradeCourses, standaloneCourses, allGroups, courseLabels])
+
+  // Filter based on active tab + multi-grade + multi-course + standalone + area + search
   const visibleGroups = useMemo(() => {
     return allGroups
       .filter(g => (activeTab === 'unexported' ? !g.isDispatched : g.isDispatched))
       .filter(g => {
-        if (!search.trim()) return true
-        const s = search.toLowerCase()
+        // Area Filter
+        if (areaFilter && g.area !== areaFilter) {
+          return false
+        }
+
         const targetStudents = activeTab === 'unexported'
           ? g.students.filter(st => !st.dispatched)
           : g.students
-        return (
-          g.parent_name.toLowerCase().includes(s) ||
-          g.address.toLowerCase().includes(s) ||
-          g.area.toLowerCase().includes(s) ||
-          g.parent_phone.toLowerCase().includes(s) ||
-          targetStudents.some(st => st.ps_code.toLowerCase().includes(s) || st.full_name.toLowerCase().includes(s))
-        )
+
+        // If target students list is empty for this tab, skip
+        if (targetStudents.length === 0) return false
+
+        // Multi-Select Grade Filter
+        if (selectedGrades.length > 0) {
+          const hasMatchingGrade = targetStudents.some(st => selectedGrades.includes(st.grade))
+          if (!hasMatchingGrade) return false
+        }
+
+        // Multi-Select Course Filter
+        if (selectedCourses.length > 0) {
+          const hasMatchingCourse = targetStudents.some(st => selectedCourses.includes(st.class_type))
+          if (!hasMatchingCourse) return false
+        }
+
+        // Standalone Courses Filter Toggle
+        if (includeStandaloneOnly) {
+          const hasStandalone = targetStudents.some(st => {
+            const isStandaloneCode = standaloneCourses.some(sc => sc.code === st.class_type)
+            return isStandaloneCode || st.grade === 0
+          })
+          if (!hasStandalone) return false
+        }
+
+        // Text Search
+        if (search.trim()) {
+          const s = search.toLowerCase()
+          const matchesSearch =
+            g.parent_name.toLowerCase().includes(s) ||
+            g.address.toLowerCase().includes(s) ||
+            g.area.toLowerCase().includes(s) ||
+            g.parent_phone.toLowerCase().includes(s) ||
+            targetStudents.some(st => {
+              const label = (courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type).toLowerCase()
+              return (
+                st.ps_code.toLowerCase().includes(s) ||
+                st.full_name.toLowerCase().includes(s) ||
+                label.includes(s)
+              )
+            })
+          if (!matchesSearch) return false
+        }
+
+        return true
       })
-  }, [allGroups, activeTab, search])
+  }, [allGroups, activeTab, areaFilter, selectedGrades, selectedCourses, includeStandaloneOnly, search, standaloneCourses, courseLabels])
 
   // Count summaries
   const unexportedCount = useMemo(() => allGroups.filter(g => !g.isDispatched).length, [allGroups])
@@ -312,6 +488,7 @@ export default function DeliveryPage() {
 
       itemsToExport.forEach(st => {
         paymentIdsToUpdate.push(st.paymentId)
+        const courseName = courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type
         rows.push([
           `"${batchTag}"`,
           `"${humanTime}"`,
@@ -322,7 +499,7 @@ export default function DeliveryPage() {
           `"${(g.parent_phone || '').replace(/"/g, '""')}"`,
           `"${(g.address || '').replace(/"/g, '""')}"`,
           `"${(g.area || '').replace(/"/g, '""')}"`,
-          `"${CLASS_LABELS[st.class_type] || st.class_type}"`,
+          `"${courseName.replace(/"/g, '""')}"`,
           `"${MONTH_NAMES[month - 1]} ${year}"`,
         ])
       })
@@ -438,11 +615,13 @@ export default function DeliveryPage() {
                 </div>
                 <div class="pack-list">
                   <div class="pack-title">TUTES INSIDE THIS ENVELOPE:</div>
-                  ${studentsToPrint.map(st => `
+                  ${studentsToPrint.map(st => {
+                    const cName = courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type
+                    return `
                     <div class="item">
-                      ✔ <b>[${st.ps_code}]</b> ${st.full_name} (Gr ${st.grade}) — ${CLASS_LABELS[st.class_type] || st.class_type}
+                      ✔ <b>[${st.ps_code}]</b> ${st.full_name} (Gr ${st.grade}) — ${cName}
                     </div>
-                  `).join('')}
+                  `}).join('')}
                 </div>
               </div>
             `}).join('')}
@@ -656,85 +835,399 @@ export default function DeliveryPage() {
         <div style={{
           padding: '16px 20px',
           background: 'var(--bg-card)',
-          borderRadius: 12,
+          borderRadius: 14,
           border: '1px solid var(--border)',
           marginBottom: 18,
           display: 'flex',
-          gap: 14,
-          flexWrap: 'wrap',
-          alignItems: 'center'
+          flexDirection: 'column',
+          gap: 14
         }}>
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-              Month
-            </label>
-            <select
-              className="input-field"
-              style={{ width: 140, fontWeight: 600 }}
-              value={month}
-              onChange={e => setMonth(parseInt(e.target.value))}
-            >
-              {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-              Year
-            </label>
-            <select
-              className="input-field"
-              style={{ width: 100, fontWeight: 600 }}
-              value={year}
-              onChange={e => setYear(parseInt(e.target.value))}
-            >
-              {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-              Class Type
-            </label>
-            <select
-              className="input-field"
-              style={{ width: 190, fontWeight: 500 }}
-              value={classFilter}
-              onChange={e => setClassFilter(e.target.value)}
-            >
-              <option value="">All Classes</option>
-              {Object.entries(CLASS_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-              Area / Route
-            </label>
-            <select
-              className="input-field"
-              style={{ width: 170, fontWeight: 500 }}
-              value={areaFilter}
-              onChange={e => setAreaFilter(e.target.value)}
-            >
-              <option value="">All Areas ({areas.length})</option>
-              {areas.map(a => <option key={a} value={a}>{a}</option>)}
-            </select>
-          </div>
-
-          <div style={{ flex: 1, minWidth: 240 }}>
-            <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-              Search Recipient / PS Code / Address
-            </label>
-            <div style={{ position: 'relative' }}>
-              <Search size={16} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-              <input
+          {/* Top Row: Month, Year, Course Filter, Area, and Search */}
+          <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+            {/* Month */}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                Month
+              </label>
+              <select
                 className="input-field"
-                style={{ paddingLeft: 36, width: '100%' }}
-                placeholder="Type name, phone, address, or PS code..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
+                style={{ width: 135, fontWeight: 600 }}
+                value={month}
+                onChange={e => setMonth(parseInt(e.target.value))}
+              >
+                {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+              </select>
+            </div>
+
+            {/* Year */}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                Year
+              </label>
+              <select
+                className="input-field"
+                style={{ width: 95, fontWeight: 600 }}
+                value={year}
+                onChange={e => setYear(parseInt(e.target.value))}
+              >
+                {[2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
+
+            {/* Multi-Select Course Popover */}
+            <div style={{ position: 'relative' }} ref={courseDropdownRef}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                Courses ({selectedCourses.length > 0 ? selectedCourses.length : 'All'})
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsCourseDropdownOpen(prev => !prev)}
+                className="input-field"
+                style={{
+                  width: 210,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  background: selectedCourses.length > 0 ? 'rgba(249, 115, 22, 0.08)' : 'var(--bg-base)',
+                  borderColor: selectedCourses.length > 0 ? '#f97316' : 'var(--border)',
+                  color: selectedCourses.length > 0 ? '#f97316' : 'var(--text-primary)',
+                  fontWeight: selectedCourses.length > 0 ? 600 : 500,
+                  padding: '8px 12px'
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <BookOpen size={14} style={{ flexShrink: 0, color: selectedCourses.length > 0 ? '#f97316' : 'var(--text-muted)' }} />
+                  <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {selectedCourses.length === 0
+                      ? 'All Courses'
+                      : `${selectedCourses.length} selected`}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {selectedCourses.length > 0 && (
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setSelectedCourses([])
+                      }}
+                      style={{
+                        padding: '1px 5px',
+                        borderRadius: 4,
+                        background: 'rgba(249,115,22,0.2)',
+                        fontSize: 10,
+                        fontWeight: 700
+                      }}
+                      title="Clear course selection"
+                    >
+                      ✕
+                    </span>
+                  )}
+                  <ChevronDown size={14} style={{ color: 'var(--text-muted)' }} />
+                </div>
+              </button>
+
+              {/* Course Dropdown Popover */}
+              {isCourseDropdownOpen && (
+                <div style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  marginTop: 6,
+                  width: 340,
+                  maxHeight: 380,
+                  background: 'var(--bg-card)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 12,
+                  boxShadow: '0 10px 30px rgba(0,0,0,0.3)',
+                  zIndex: 100,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden'
+                }}>
+                  {/* Popover Header with Search */}
+                  <div style={{ padding: 10, borderBottom: '1px solid var(--border)', background: 'var(--bg-card-hover)' }}>
+                    <div style={{ position: 'relative', marginBottom: 8 }}>
+                      <Search size={13} style={{ position: 'absolute', left: 8, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                      <input
+                        className="input-field"
+                        style={{ paddingLeft: 28, fontSize: 12, width: '100%', height: 32 }}
+                        placeholder="Search courses..."
+                        value={courseSearch}
+                        onChange={e => setCourseSearch(e.target.value)}
+                        autoFocus
+                      />
+                    </div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11 }}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const allCodes = allCourseOptions.map(c => c.code)
+                          setSelectedCourses(allCodes)
+                        }}
+                        style={{ background: 'none', border: 'none', color: '#f97316', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                      >
+                        Select All
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCourses([])}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontWeight: 600, padding: 0 }}
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Popover Course List */}
+                  <div style={{ padding: '6px 0', overflowY: 'auto', flex: 1, maxHeight: 260 }}>
+                    {allCourseOptions
+                      .filter(c => {
+                        if (!courseSearch.trim()) return true
+                        const q = courseSearch.toLowerCase()
+                        return c.name.toLowerCase().includes(q) || c.code.toLowerCase().includes(q)
+                      })
+                      .map(c => {
+                        const isChecked = selectedCourses.includes(c.code)
+                        return (
+                          <div
+                            key={c.code}
+                            onClick={() => {
+                              setSelectedCourses(prev =>
+                                prev.includes(c.code)
+                                  ? prev.filter(x => x !== c.code)
+                                  : [...prev, c.code]
+                              )
+                            }}
+                            style={{
+                              padding: '7px 12px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: 8,
+                              cursor: 'pointer',
+                              background: isChecked ? 'rgba(249, 115, 22, 0.08)' : 'transparent',
+                              borderLeft: isChecked ? '3px solid #f97316' : '3px solid transparent',
+                              transition: 'background 0.15s'
+                            }}
+                          >
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={() => {}} // handled by parent div click
+                                style={{ cursor: 'pointer', accentColor: '#f97316' }}
+                              />
+                              <div style={{ fontSize: 12, color: isChecked ? '#f97316' : 'var(--text-primary)', fontWeight: isChecked ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {c.name}
+                              </div>
+                            </div>
+                            {c.grade ? (
+                              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'var(--bg-base)', color: 'var(--text-muted)', border: '1px solid var(--border)', flexShrink: 0 }}>
+                                Gr {c.grade}
+                              </span>
+                            ) : c.isStandalone ? (
+                              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)', border: '1px solid rgba(56, 189, 248, 0.3)', flexShrink: 0 }}>
+                                Course
+                              </span>
+                            ) : null}
+                          </div>
+                        )
+                      })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Area Filter */}
+            <div>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                Area / Route
+              </label>
+              <select
+                className="input-field"
+                style={{ width: 160, fontWeight: 500 }}
+                value={areaFilter}
+                onChange={e => setAreaFilter(e.target.value)}
+              >
+                <option value="">All Areas ({areas.length})</option>
+                {areas.map(a => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </div>
+
+            {/* Search Input */}
+            <div style={{ flex: 1, minWidth: 220 }}>
+              <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                Search Recipient / PS Code / Address
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <input
+                  className="input-field"
+                  style={{ paddingLeft: 34, width: '100%' }}
+                  placeholder="Type name, phone, address, course, or PS code..."
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Row: Multi-Choice Grade Pills & Presets */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            flexWrap: 'wrap',
+            gap: 10,
+            paddingTop: 12,
+            borderTop: '1px dashed var(--border)'
+          }}>
+            {/* Grade Pills Multi-Select */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginRight: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <GraduationCap size={14} /> Grades:
+              </div>
+
+              {/* "All" button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGrades([])
+                  setIncludeStandaloneOnly(false)
+                }}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 20,
+                  fontSize: 12,
+                  fontWeight: selectedGrades.length === 0 && !includeStandaloneOnly ? 700 : 500,
+                  cursor: 'pointer',
+                  border: selectedGrades.length === 0 && !includeStandaloneOnly ? '1px solid #f97316' : '1px solid var(--border)',
+                  background: selectedGrades.length === 0 && !includeStandaloneOnly ? '#f97316' : 'var(--bg-base)',
+                  color: selectedGrades.length === 0 && !includeStandaloneOnly ? '#fff' : 'var(--text-secondary)',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                All
+              </button>
+
+              {/* Grade Buttons (5 through 13) */}
+              {AVAILABLE_GRADES.map(gr => {
+                const isSelected = selectedGrades.includes(gr)
+                return (
+                  <button
+                    key={gr}
+                    type="button"
+                    onClick={() => {
+                      setIncludeStandaloneOnly(false)
+                      setSelectedGrades(prev =>
+                        prev.includes(gr)
+                          ? prev.filter(g => g !== gr)
+                          : [...prev, gr]
+                      )
+                    }}
+                    style={{
+                      padding: '4px 9px',
+                      borderRadius: 20,
+                      fontSize: 12,
+                      fontWeight: isSelected ? 700 : 500,
+                      cursor: 'pointer',
+                      border: isSelected ? '1px solid #f97316' : '1px solid var(--border)',
+                      background: isSelected ? 'rgba(249, 115, 22, 0.15)' : 'var(--bg-base)',
+                      color: isSelected ? '#f97316' : 'var(--text-secondary)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 4,
+                      transition: 'all 0.15s ease'
+                    }}
+                  >
+                    {isSelected && <Check size={11} />} Gr {gr}
+                  </button>
+                )
+              })}
+
+              {/* Standalone Courses Only Pill */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIncludeStandaloneOnly(prev => !prev)
+                  setSelectedGrades([])
+                }}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 20,
+                  fontSize: 12,
+                  fontWeight: includeStandaloneOnly ? 700 : 500,
+                  cursor: 'pointer',
+                  border: includeStandaloneOnly ? '1px solid var(--accent-blue)' : '1px solid var(--border)',
+                  background: includeStandaloneOnly ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-base)',
+                  color: includeStandaloneOnly ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 4,
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {includeStandaloneOnly && <Check size={11} />} Standalone Courses
+              </button>
+            </div>
+
+            {/* Quick Presets & Clear All */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11 }}>
+              <span style={{ color: 'var(--text-muted)' }}>Presets:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGrades([10, 11])
+                  setIncludeStandaloneOnly(false)
+                }}
+                className="btn-secondary"
+                style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6 }}
+              >
+                O/L (10–11)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGrades([6, 7, 8, 9])
+                  setIncludeStandaloneOnly(false)
+                }}
+                className="btn-secondary"
+                style={{ padding: '3px 8px', fontSize: 11, borderRadius: 6 }}
+              >
+                Middle (6–9)
+              </button>
+
+              {(selectedGrades.length > 0 || selectedCourses.length > 0 || includeStandaloneOnly || areaFilter || search) && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedGrades([])
+                    setSelectedCourses([])
+                    setIncludeStandaloneOnly(false)
+                    setAreaFilter('')
+                    setSearch('')
+                  }}
+                  style={{
+                    marginLeft: 6,
+                    padding: '3px 8px',
+                    fontSize: 11,
+                    borderRadius: 6,
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.3)',
+                    color: '#ef4444',
+                    cursor: 'pointer',
+                    fontWeight: 600,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 3
+                  }}
+                >
+                  <X size={11} /> Reset Filters
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -966,7 +1459,7 @@ export default function DeliveryPage() {
                               <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
                                 <Package size={13} style={{ color: isPending ? '#f97316' : '#10b981', flexShrink: 0 }} />
                                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>
-                                  <strong style={{ color: 'var(--accent-blue)' }}>{st.ps_code}</strong> · {st.full_name} <span style={{ color: 'var(--text-secondary)' }}>(Gr {st.grade})</span> — {CLASS_LABELS[st.class_type] || st.class_type}
+                                  <strong style={{ color: 'var(--accent-blue)' }}>{st.ps_code}</strong> · {st.full_name} <span style={{ color: 'var(--text-secondary)' }}>(Gr {st.grade})</span> — {courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type}
                                 </span>
                               </div>
 
