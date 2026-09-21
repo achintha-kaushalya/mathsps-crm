@@ -256,7 +256,7 @@ export default function ReportsPage() {
     return clean.startsWith('PS') || (!clean.startsWith('SM'))
   }
 
-  // 1. FAST LOADER: Daily Operations & Day-End Audit Data (<150ms)
+  // 1. FAST LEAN LOADER: Daily Operations & Day-End Audit Data (<100ms)
   useEffect(() => {
     let isCancelled = false
 
@@ -267,11 +267,11 @@ export default function ReportsPage() {
         const endOfRangeIso = `${endDate}T23:59:59.999Z`
 
         const [dailyList, { data: dayEndRegisteredData }] = await Promise.all([
-          // Paginated daily payments for selected date range
+          // Lean daily payments query - only fetch necessary columns
           fetchAllPaginated((from, to) => {
             let q = supabase
               .from('payments')
-              .select('*, students(ps_code, full_name, grade, created_at, household:households(parent_name, parent_phone, address), enrollments(*))')
+              .select('id, student_id, amount_paid, payment_type, bank_name, recorded_by, created_at, date_paid, class_type, notes, tute_delivered, students(ps_code, full_name, grade)')
               .range(from, to)
               .order('created_at', { ascending: false })
 
@@ -281,10 +281,10 @@ export default function ReportsPage() {
               return q.gte('date_paid', startDate).lte('date_paid', endDate)
             }
           }),
-          // Real new registered students specifically in selected date range
+          // Real new registered students in date range
           supabase
             .from('students')
-            .select('*, household:households(*), enrollments(*)')
+            .select('id, ps_code, full_name, grade, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(class_type)')
             .not('created_by', 'ilike', '%Auto-Pre-generated%')
             .gte('created_at', startOfRangeIso)
             .lte('created_at', endOfRangeIso)
@@ -322,18 +322,17 @@ export default function ReportsPage() {
     }
   }, [startDate, endDate, dateFilterType, tutorFilter])
 
-  // 2. COMPREHENSIVE LOADER: Monthly Matrix, Retention, Trends & Debts
+  // 2. ON-DEMAND LAZY LOADER: Monthly Matrix & Financials (Only loaded when monthly_financials is active)
   useEffect(() => {
+    if (activeTab !== 'monthly_financials') return
     let isCancelled = false
 
-    async function loadMonthlyAndTrendData() {
+    async function loadMonthlyData() {
       setLoading(true)
       try {
         const startOfMonth = new Date(year, month - 1, 1).toISOString()
         const endOfMonth = new Date(year, month, 0, 23, 59, 59, 999).toISOString()
         const startOfAdvanceLookback = new Date(year, month - 2, 1).toISOString()
-        const startOfTrendYear = new Date(trendYear, 0, 1).toISOString()
-        const endOfTrendYear = new Date(trendYear, 11, 31, 23, 59, 59, 999).toISOString()
 
         const prevMonthNum = month === 1 ? 12 : month - 1
         const prevYearNum = month === 1 ? year - 1 : year
@@ -344,15 +343,12 @@ export default function ReportsPage() {
           monthlyPaymentsData,
           prevMonthPaymentsData,
           nextMonthPaymentsData,
-          trendYearPaymentsData,
-          { data: registeredData },
-          { data: outData },
-          { data: trendYearStudentsData }
+          { data: registeredData }
         ] = await Promise.all([
           fetchAllPaginated((from, to) =>
             supabase
               .from('payments')
-              .select('*, students(id, ps_code, full_name, grade, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(*))')
+              .select('id, student_id, amount_paid, payment_type, bank_name, recorded_by, created_at, date_paid, class_type, students(id, ps_code, full_name, grade, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(class_type))')
               .eq('month', month)
               .eq('year', year)
               .range(from, to)
@@ -360,7 +356,7 @@ export default function ReportsPage() {
           fetchAllPaginated((from, to) =>
             supabase
               .from('payments')
-              .select('*, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+              .select('student_id, students(ps_code)')
               .eq('month', prevMonthNum)
               .eq('year', prevYearNum)
               .range(from, to)
@@ -373,49 +369,22 @@ export default function ReportsPage() {
               .eq('year', nextYearNum)
               .range(from, to)
           ),
-          fetchAllPaginated((from, to) =>
-            supabase
-              .from('payments')
-              .select('month, year, amount_paid, class_type, students(ps_code, full_name, grade, created_at)')
-              .eq('year', trendYear)
-              .range(from, to)
-          ),
           supabase
             .from('students')
-            .select('*, household:households(*), enrollments(*)')
+            .select('id, ps_code, full_name, grade, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(class_type)')
             .not('created_by', 'ilike', '%Auto-Pre-generated%')
             .gte('created_at', startOfAdvanceLookback)
             .lte('created_at', endOfMonth)
-            .order('created_at', { ascending: false }),
-          supabase
-            .from('students_outstanding')
-            .select('*'),
-          supabase
-            .from('students')
-            .select('ps_code, created_at, grade')
-            .not('created_by', 'ilike', '%Auto-Pre-generated%')
-            .gte('created_at', startOfTrendYear)
-            .lte('created_at', endOfTrendYear)
+            .order('created_at', { ascending: false })
         ])
 
         if (isCancelled) return
 
-        // Process Multi-Month Trend Year Datasets
-        const filteredTrendPayments = (trendYearPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
-        const filteredTrendStudents = (trendYearStudentsData || []).filter((s: any) => matchesTutor(s.ps_code))
-        setTrendPaymentsYear(filteredTrendPayments)
-        setTrendStudentsYear(filteredTrendStudents)
-
-        // Process Previous Month Payments for Retention
-        const filteredPrevPayments = (prevMonthPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
-        setPrevMonthPayments(filteredPrevPayments)
-
-        // Process New Registered Students & Grade Breakdown
         const payList = (monthlyPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
         setAllPaymentsMonth(payList)
 
         const prevPaidPsCodes = new Set<string>()
-        filteredPrevPayments.forEach((p: any) => {
+        ;(prevMonthPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id)).forEach((p: any) => {
           const ps = p.students?.ps_code || p.student_id
           if (ps) prevPaidPsCodes.add(ps)
         })
@@ -507,21 +476,121 @@ export default function ReportsPage() {
             .map(([method, data]) => ({ method, count: data.count, total: data.total }))
             .sort((a, b) => b.total - a.total)
         )
-
-        const filteredDebtsList = (outData || []).filter((d: any) => matchesTutor(d.ps_code))
-        setOutstandingList(filteredDebtsList)
       } catch (err) {
-        console.error('Error loading monthly and trend report data:', err)
+        console.error('Error loading monthly report:', err)
       } finally {
         if (!isCancelled) setLoading(false)
       }
     }
 
-    loadMonthlyAndTrendData()
+    loadMonthlyData()
     return () => {
       isCancelled = true
     }
-  }, [month, year, trendYear, tutorFilter])
+  }, [activeTab, month, year, tutorFilter])
+
+  // 3. ON-DEMAND LAZY LOADER: Growth, Retention & Multi-Month Trends (Only loaded when growth_retention is active)
+  useEffect(() => {
+    if (activeTab !== 'growth_retention') return
+    let isCancelled = false
+
+    async function loadGrowthData() {
+      setLoading(true)
+      try {
+        const startOfTrendYear = new Date(trendYear, 0, 1).toISOString()
+        const endOfTrendYear = new Date(trendYear, 11, 31, 23, 59, 59, 999).toISOString()
+
+        const prevMonthNum = month === 1 ? 12 : month - 1
+        const prevYearNum = month === 1 ? year - 1 : year
+
+        const [
+          trendYearPaymentsData,
+          prevMonthPaymentsData,
+          monthlyPaymentsData,
+          { data: trendYearStudentsData }
+        ] = await Promise.all([
+          fetchAllPaginated((from, to) =>
+            supabase
+              .from('payments')
+              .select('month, year, amount_paid, class_type, students(ps_code, full_name, grade, created_at)')
+              .eq('year', trendYear)
+              .range(from, to)
+          ),
+          fetchAllPaginated((from, to) =>
+            supabase
+              .from('payments')
+              .select('amount_paid, class_type, date_paid, created_at, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+              .eq('month', prevMonthNum)
+              .eq('year', prevYearNum)
+              .range(from, to)
+          ),
+          fetchAllPaginated((from, to) =>
+            supabase
+              .from('payments')
+              .select('amount_paid, class_type, date_paid, created_at, students(ps_code, full_name, grade, household:households(parent_name, parent_phone, address))')
+              .eq('month', month)
+              .eq('year', year)
+              .range(from, to)
+          ),
+          supabase
+            .from('students')
+            .select('ps_code, created_at, grade')
+            .not('created_by', 'ilike', '%Auto-Pre-generated%')
+            .gte('created_at', startOfTrendYear)
+            .lte('created_at', endOfTrendYear)
+        ])
+
+        if (isCancelled) return
+
+        const filteredTrendPayments = (trendYearPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
+        const filteredTrendStudents = (trendYearStudentsData || []).filter((s: any) => matchesTutor(s.ps_code))
+        setTrendPaymentsYear(filteredTrendPayments)
+        setTrendStudentsYear(filteredTrendStudents)
+
+        const filteredPrevPayments = (prevMonthPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
+        setPrevMonthPayments(filteredPrevPayments)
+
+        const payList = (monthlyPaymentsData || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
+        setAllPaymentsMonth(payList)
+      } catch (err) {
+        console.error('Error loading growth and retention data:', err)
+      } finally {
+        if (!isCancelled) setLoading(false)
+      }
+    }
+
+    loadGrowthData()
+    return () => {
+      isCancelled = true
+    }
+  }, [activeTab, trendYear, month, year, tutorFilter])
+
+  // 4. ON-DEMAND LAZY LOADER: Outstanding Debts (Only loaded when debts tab is active)
+  useEffect(() => {
+    if (activeTab !== 'debts') return
+    let isCancelled = false
+
+    async function loadDebtsData() {
+      setLoading(true)
+      try {
+        const { data: outData, error } = await supabase.from('students_outstanding').select('*')
+        if (error) throw error
+        if (isCancelled) return
+
+        const filteredDebtsList = (outData || []).filter((d: any) => matchesTutor(d.ps_code))
+        setOutstandingList(filteredDebtsList)
+      } catch (err) {
+        console.error('Error loading outstanding debts:', err)
+      } finally {
+        if (!isCancelled) setLoading(false)
+      }
+    }
+
+    loadDebtsData()
+    return () => {
+      isCancelled = true
+    }
+  }, [activeTab, tutorFilter])
 
 
 
