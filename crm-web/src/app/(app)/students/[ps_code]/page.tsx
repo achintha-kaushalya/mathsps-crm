@@ -356,7 +356,8 @@ export default function StudentDetailPage() {
   }
 
   async function handleDeletePayment(payment: Payment) {
-    if (!confirm(`Are you sure you want to delete payment record for ${MONTH_NUM_TO_NAME(payment.month)} ${payment.year} (${CLASS_LABELS[payment.class_type] || payment.class_type})?`)) return
+    const cName = courseLabels[payment.class_type] || CLASS_LABELS[payment.class_type] || payment.class_type
+    if (!confirm(`Are you sure you want to delete payment record for ${MONTH_NUM_TO_NAME(payment.month)} ${payment.year} (${cName})?`)) return
 
     try {
       const { error: err } = await supabase.from('payments').delete().eq('id', payment.id)
@@ -407,7 +408,7 @@ export default function StudentDetailPage() {
 
   async function handleRemoveEnrollment(classType: string) {
     if (!student) return
-    const cLabel = CLASS_LABELS[classType] || classType
+    const cLabel = courseLabels[classType] || CLASS_LABELS[classType] || classType
     if (!confirm(`Are you sure you want to remove ${cLabel} enrollment for ${student.full_name || student.ps_code}?`)) return
 
     try {
@@ -883,7 +884,7 @@ export default function StudentDetailPage() {
                   Class Type
                 </label>
                 <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--accent-blue)' }}>
-                  {CLASS_LABELS[editingPayment.class_type] || editingPayment.class_type}
+                  {courseLabels[editingPayment.class_type] || CLASS_LABELS[editingPayment.class_type] || editingPayment.class_type}
                 </div>
               </div>
 

@@ -19,6 +19,12 @@ import {
 } from 'lucide-react'
 import { MONTH_NAMES, CLASS_LABELS } from '@/lib/types'
 import { exportTableToCsv, TARGET_GRADES, getGradeFromPayment } from '@/lib/reports-analytics'
+import {
+  DEFAULT_GRADE_COURSES,
+  DEFAULT_STANDALONE_COURSES,
+  CourseConfig,
+  getAllCourseLabels
+} from '@/lib/courses'
 import DayEndSummaryTab from './components/DayEndSummaryTab'
 import MonthlyMatrixTab from './components/MonthlyMatrixTab'
 import MultiMonthTrendsTab from './components/MultiMonthTrendsTab'
@@ -39,6 +45,11 @@ export function isNewRegistrationPsCode(psCode: string | null | undefined): bool
 
 export default function ReportsPage() {
   const supabase = createClient()
+
+  // Dynamic Course Labels State
+  const [courseLabels, setCourseLabels] = useState<Record<string, string>>(() =>
+    getAllCourseLabels(DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES)
+  )
 
   // Primary 4 Categorized Tab selection
   const [activeTab, setActiveTab] = useState<'daily_operations' | 'monthly_financials' | 'growth_retention' | 'debts'>('daily_operations')
@@ -150,6 +161,67 @@ export default function ReportsPage() {
     if (typeof window !== 'undefined') {
       const active = localStorage.getItem('mathsps_active_tutor') || 'prabuddha'
       setTutorFilter(active === 'sanduni' ? 'sm' : 'ps')
+    }
+
+    function hydrateCoursesFromCache() {
+      try {
+        const cached = localStorage.getItem('MATHSPS_COURSES_CACHE')
+        if (cached) {
+          const parsed = JSON.parse(cached)
+          const gc = parsed.grade_courses || parsed.gradeCourses
+          const sc = parsed.standalone_courses || parsed.standaloneCourses
+          if (gc || sc) {
+            setCourseLabels(getAllCourseLabels(gc || DEFAULT_GRADE_COURSES, sc || DEFAULT_STANDALONE_COURSES))
+          }
+        }
+      } catch (e) {
+        console.error('Error hydrating courses in reports:', e)
+      }
+    }
+    hydrateCoursesFromCache()
+
+    async function fetchServerCourses() {
+      try {
+        let { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').maybeSingle()
+        if (!adminRecord) {
+          const res = await supabase.from('members').select('notes').eq('email', 'admin@mathsps.com').maybeSingle()
+          adminRecord = res.data
+        }
+        if (!adminRecord) {
+          const res = await supabase.from('members').select('notes').in('role', ['admin', 'owner']).limit(1).maybeSingle()
+          adminRecord = res.data
+        }
+        if (adminRecord?.notes) {
+          try {
+            const notesObj = JSON.parse(adminRecord.notes)
+            const gc = notesObj.grade_courses || notesObj.gradeCourses
+            const sc = notesObj.standalone_courses || notesObj.standaloneCourses
+            if (gc || sc) {
+              setCourseLabels(getAllCourseLabels(gc || DEFAULT_GRADE_COURSES, sc || DEFAULT_STANDALONE_COURSES))
+            }
+          } catch {}
+        }
+      } catch (err) {
+        console.error('Error loading server courses in reports:', err)
+      }
+    }
+    fetchServerCourses()
+
+    const channel = supabase.channel('reports-courses-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'members' }, () => {
+        fetchServerCourses()
+      })
+      .on('broadcast', { event: 'courses_updated' }, (payload: any) => {
+        const gc = payload?.payload?.grade_courses || payload?.payload?.gradeCourses
+        const sc = payload?.payload?.standalone_courses || payload?.payload?.standaloneCourses
+        if (gc || sc) {
+          setCourseLabels(getAllCourseLabels(gc || DEFAULT_GRADE_COURSES, sc || DEFAULT_STANDALONE_COURSES))
+        }
+      })
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
     }
   }, [])
 
@@ -1147,6 +1219,7 @@ export default function ReportsPage() {
             dayEndGradePaidMap={dayEndGradePaidMap}
             dayEndClassPaidMap={dayEndClassPaidMap}
             dayEndAuditorMap={dayEndAuditorMap}
+            courseLabels={courseLabels}
           />
         )}
 
@@ -1173,6 +1246,7 @@ export default function ReportsPage() {
             gradeStats={gradeStats}
             searchStu={searchStu}
             setSearchStu={setSearchStu}
+            courseLabels={courseLabels}
           />
         )}
 
@@ -1307,7 +1381,7 @@ export default function ReportsPage() {
                       `"${d.ps_code}"`,
                       `"${(d.full_name || '').replace(/"/g, '""')}"`,
                       `"Grade ${d.grade || '?'}"`,
-                      `"${CLASS_LABELS[d.class_type] || d.class_type}"`,
+                      `"${courseLabels[d.class_type] || CLASS_LABELS[d.class_type] || d.class_type}"`,
                       `"${Math.abs(d.current_balance || 0)}"`,
                       `"${(d.address || '').replace(/"/g, '""')}"`
                     ])
@@ -1358,7 +1432,7 @@ export default function ReportsPage() {
                         </td>
                         <td style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{item.full_name || '—'}</td>
                         <td>Gr {item.grade || '—'}</td>
-                        <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{CLASS_LABELS[item.class_type] || item.class_type}</td>
+                        <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{courseLabels[item.class_type] || CLASS_LABELS[item.class_type] || item.class_type}</td>
                         <td style={{ color: '#f87171', fontWeight: 800, fontSize: 14 }}>Rs. {Math.abs(item.current_balance).toLocaleString()}</td>
                         <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.address || '—'}</td>
                       </tr>

@@ -31,6 +31,7 @@ interface MonthlyMatrixTabProps {
   gradeStats: Record<number, number>
   searchStu: string
   setSearchStu: (s: string) => void
+  courseLabels?: Record<string, string>
 }
 
 export default function MonthlyMatrixTab({
@@ -51,7 +52,8 @@ export default function MonthlyMatrixTab({
   filteredNewStudents,
   gradeStats,
   searchStu,
-  setSearchStu
+  setSearchStu,
+  courseLabels = {}
 }: MonthlyMatrixTabProps) {
   const matrixTargetGrades = TARGET_GRADES
 
@@ -206,7 +208,7 @@ export default function MonthlyMatrixTab({
                     `"${(s.household?.parent_name || '').replace(/"/g, '""')}"`,
                     `"${(s.household?.parent_phone || '').replace(/"/g, '""')}"`,
                     `"${(s.household?.address || '').replace(/"/g, '""')}"`,
-                    `"${(s.enrollments || []).map((e: any) => CLASS_LABELS[e.class_type] || e.class_type).join('; ')}"`,
+                    `"${(s.enrollments || []).map((e: any) => courseLabels[e.class_type] || CLASS_LABELS[e.class_type] || e.class_type).join('; ')}"`,
                     `"${new Date(s.created_at).toLocaleDateString()}"`,
                     `"${s.created_by || 'System'}"`
                   ])
@@ -603,7 +605,7 @@ export default function MonthlyMatrixTab({
                           <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             {(s.enrollments || []).map((e: any) => (
                               <span key={e.id} style={{ color: 'var(--text-secondary)' }}>
-                              • {CLASS_LABELS[e.class_type] || e.class_type}
+                              • {courseLabels[e.class_type] || CLASS_LABELS[e.class_type] || e.class_type}
                               </span>
                             ))}
                           </div>

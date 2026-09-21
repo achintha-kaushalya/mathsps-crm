@@ -43,6 +43,7 @@ interface DayEndSummaryTabProps {
   dayEndGradePaidMap: Record<number, { count: number; total: number }>
   dayEndClassPaidMap: Record<string, { count: number; total: number }>
   dayEndAuditorMap: Record<string, { regCount: number; payCount: number; total: number }>
+  courseLabels?: Record<string, string>
 }
 
 export default function DayEndSummaryTab({
@@ -71,7 +72,8 @@ export default function DayEndSummaryTab({
   dayEndGradeNewMap,
   dayEndGradePaidMap,
   dayEndClassPaidMap,
-  dayEndAuditorMap
+  dayEndAuditorMap,
+  courseLabels = {}
 }: DayEndSummaryTabProps) {
   const isSingleDay = startDate === endDate
   const periodLabel = isSingleDay ? startDate : `${startDate} to ${endDate}`
@@ -225,7 +227,7 @@ export default function DayEndSummaryTab({
                 Object.entries(dayEndClassPaidMap).forEach(([cls, data]) => {
                   rows.push([
                     'CLASS WISE',
-                    `${CLASS_LABELS[cls] || cls}`,
+                    `${courseLabels[cls] || CLASS_LABELS[cls] || cls}`,
                     `${data.count}`,
                     `${data.total}`
                   ])
@@ -453,7 +455,7 @@ export default function DayEndSummaryTab({
                 {Object.entries(dayEndClassPaidMap).map(([cls, data]) => (
                   <tr key={cls}>
                     <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {CLASS_LABELS[cls] || cls}
+                      {courseLabels[cls] || CLASS_LABELS[cls] || cls}
                     </td>
                     <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
                       {data.count}
@@ -524,7 +526,7 @@ export default function DayEndSummaryTab({
                     const rows = filteredDailyPayments.map(p => [
                       `"${p.students?.ps_code || ''}"`,
                       `"${(p.students?.full_name || '').replace(/"/g, '""')}"`,
-                      `"${CLASS_LABELS[p.class_type] || p.class_type}"`,
+                      `"${courseLabels[p.class_type] || CLASS_LABELS[p.class_type] || p.class_type}"`,
                       `"${p.amount_paid || 0}"`,
                       `"${p.payment_type || 'BANK'}"`,
                       `"${p.bank_name || ''}"`,
@@ -593,7 +595,7 @@ export default function DayEndSummaryTab({
                         {p.students?.full_name || '—'}
                       </td>
                       <td style={{ fontSize: 12 }}>
-                        {CLASS_LABELS[p.class_type] || p.class_type} (Gr {p.students?.grade || '?'})
+                        {courseLabels[p.class_type] || CLASS_LABELS[p.class_type] || p.class_type} (Gr {p.students?.grade || '?'})
                       </td>
                       <td style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
                         Rs. {Number(p.amount_paid || 0).toLocaleString()}
@@ -723,7 +725,7 @@ export default function DayEndSummaryTab({
                           <div style={{ color: 'var(--text-muted)' }}>{s.household?.parent_phone || '—'}</div>
                         </td>
                         <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                          {(s.enrollments || []).map((e: any) => CLASS_LABELS[e.class_type] || e.class_type).join(', ') || 'None'}
+                          {(s.enrollments || []).map((e: any) => courseLabels[e.class_type] || CLASS_LABELS[e.class_type] || e.class_type).join(', ') || 'None'}
                         </td>
                         <td style={{ fontSize: 12 }}>{s.created_by || 'System'}</td>
                         <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>
