@@ -20,7 +20,8 @@ import {
   RotateCw
 } from 'lucide-react'
 import { CLASS_LABELS, MONTH_NAMES } from '@/lib/types'
-import { exportLmsBulkCsv, formatMobileForLms } from '@/lib/reports-analytics'
+import { exportLmsBulkCsv, formatMobileForLms, getGradeFromPayment } from '@/lib/reports-analytics'
+import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES } from '@/lib/courses'
 import { createClient } from '@/lib/supabase/client'
 
 interface LmsBulkExporterTabProps {
@@ -155,33 +156,86 @@ export default function LmsBulkExporterTab({
     }
   }, [sourceType, dailyPayments, fetchedMonthPayments, allPaymentsMonth, newStudents, selectedMonth, selectedYear, month, year])
 
-  // Extract distinct grades and distinct courses available in the active dataset
+  // Extract distinct grades available in the active dataset + standard catalog grades (5-11)
   const availableGrades = useMemo(() => {
-    const set = new Set<number>()
+    const set = new Set<number>([5, 6, 7, 8, 9, 10, 11])
     rawList.forEach((item: any) => {
-      const gr = item.students?.grade || item.grade
+      const gr = getGradeFromPayment(item) || item.students?.grade || item.grade
       if (gr) set.add(Number(gr))
     })
     return Array.from(set).sort((a, b) => a - b)
   }, [rawList])
 
+  // Extract distinct courses available in the active dataset PLUS all registered standalone & grade catalog courses
   const availableCourses = useMemo(() => {
-    const map = new Map<string, string>()
+    const map = new Map<string, { label: string; grade?: number; isStandalone?: boolean }>()
+
+    // 1. Add all configured standalone courses (Geometry, BODMAS, Short Qns, etc.)
+    DEFAULT_STANDALONE_COURSES.forEach(c => {
+      map.set(c.code, {
+        label: courseLabels[c.code] || c.name,
+        isStandalone: true
+      })
+    })
+
+    // 2. Add all configured grade courses
+    Object.entries(DEFAULT_GRADE_COURSES).forEach(([gStr, list]) => {
+      const gNum = Number(gStr)
+      list.forEach(c => {
+        map.set(c.code, {
+          label: courseLabels[c.code] || c.name,
+          grade: gNum
+        })
+      })
+    })
+
+    // 3. Add dynamic custom courseLabels passed in or found in rawList
+    Object.entries(courseLabels).forEach(([code, label]) => {
+      if (!map.has(code)) {
+        map.set(code, { label })
+      }
+    })
+
     rawList.forEach((item: any) => {
-      if (item.class_type) {
+      if (item.class_type && !map.has(item.class_type)) {
         const lbl = courseLabels[item.class_type] || CLASS_LABELS[item.class_type] || item.class_type
-        map.set(item.class_type, lbl)
+        map.set(item.class_type, {
+          label: lbl,
+          grade: getGradeFromPayment(item) || item.students?.grade
+        })
       } else if (item.enrollments && Array.isArray(item.enrollments)) {
         item.enrollments.forEach((e: any) => {
-          if (e.class_type) {
+          if (e.class_type && !map.has(e.class_type)) {
             const lbl = courseLabels[e.class_type] || CLASS_LABELS[e.class_type] || e.class_type
-            map.set(e.class_type, lbl)
+            map.set(e.class_type, {
+              label: lbl,
+              grade: item.students?.grade || item.grade
+            })
           }
         })
       }
     })
-    return Array.from(map.entries())
-  }, [rawList, courseLabels])
+
+    // Filter courses if a specific grade is selected (keep standalone courses accessible across all grades)
+    const list: { code: string; label: string; group: string }[] = []
+    map.forEach((data, code) => {
+      if (selectedGrade !== 'ALL') {
+        const selG = Number(selectedGrade)
+        // If course is tied to a different grade and not standalone, exclude it
+        if (data.grade && data.grade !== selG && !data.isStandalone) {
+          return
+        }
+      }
+
+      list.push({
+        code,
+        label: data.label,
+        group: data.isStandalone ? 'Specialist / Standalone Courses' : data.grade ? `Grade ${data.grade} Classes` : 'Other Classes'
+      })
+    })
+
+    return list
+  }, [rawList, courseLabels, selectedGrade])
 
   // Deduplicate and filter students to LMS export item: { name, mobile, ps_code, grade, class_type }
   const filteredStudents = useMemo(() => {
@@ -190,13 +244,17 @@ export default function LmsBulkExporterTab({
     rawList.forEach((item: any) => {
       const ps = item.students?.ps_code || item.ps_code || item.student_id || ''
       const name = item.students?.full_name || item.full_name || 'Student'
-      const gr = Number(item.students?.grade || item.grade || 0)
+      const gr = getGradeFromPayment(item) || Number(item.students?.grade || item.grade || 0)
       const phone = item.students?.household?.parent_phone || item.household?.parent_phone || item.parent_phone || ''
       const cls = item.class_type || (item.enrollments && item.enrollments[0]?.class_type) || 'GENERAL'
 
-      // Apply Grade Filter
+      // Apply Grade Filter (unless standalone course is specifically selected)
       if (selectedGrade !== 'ALL' && String(gr) !== selectedGrade) {
-        return
+        // If user specifically picked a standalone course (e.g. Geometry), allow cross-grade matching
+        const isStandaloneMatch = selectedClassType !== 'ALL' && (cls === selectedClassType || (item.enrollments && item.enrollments.some((e: any) => e.class_type === selectedClassType)))
+        if (!isStandaloneMatch) {
+          return
+        }
       }
 
       // Apply Course Filter
@@ -443,15 +501,21 @@ export default function LmsBulkExporterTab({
             </label>
             <select
               className="select-input"
-              style={{ padding: '6px 12px', minWidth: 220 }}
+              style={{ padding: '6px 12px', minWidth: 260 }}
               value={selectedClassType}
               onChange={e => setSelectedClassType(e.target.value)}
             >
-              <option value="ALL">All Courses / Subjects</option>
-              {availableCourses.map(([cKey, cLabel]) => (
-                <option key={cKey} value={cKey}>
-                  {cLabel}
-                </option>
+              <option value="ALL">All Courses &amp; Subjects</option>
+              {Array.from(new Set(availableCourses.map(c => c.group))).map(groupName => (
+                <optgroup key={groupName} label={groupName}>
+                  {availableCourses
+                    .filter(c => c.group === groupName)
+                    .map(c => (
+                      <option key={c.code} value={c.code}>
+                        {c.label}
+                      </option>
+                    ))}
+                </optgroup>
               ))}
             </select>
           </div>
