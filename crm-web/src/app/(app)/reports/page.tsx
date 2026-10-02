@@ -1341,8 +1341,11 @@ export default function ReportsPage() {
             courseLabels={courseLabels}
             month={month}
             year={year}
+            setMonth={setMonth}
+            setYear={setYear}
             startDate={startDate}
             endDate={endDate}
+            tutorFilter={tutorFilter}
           />
         )}
 

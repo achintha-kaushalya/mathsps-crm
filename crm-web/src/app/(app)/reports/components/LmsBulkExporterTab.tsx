@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import {
   Download,
   Copy,
@@ -13,10 +13,15 @@ import {
   Search,
   Phone,
   Sparkles,
-  Layers
+  Layers,
+  Calendar,
+  Video,
+  History,
+  RotateCw
 } from 'lucide-react'
-import { CLASS_LABELS } from '@/lib/types'
+import { CLASS_LABELS, MONTH_NAMES } from '@/lib/types'
 import { exportLmsBulkCsv, formatMobileForLms } from '@/lib/reports-analytics'
+import { createClient } from '@/lib/supabase/client'
 
 interface LmsBulkExporterTabProps {
   dailyPayments: any[]
@@ -25,8 +30,11 @@ interface LmsBulkExporterTabProps {
   courseLabels: Record<string, string>
   month: number
   year: number
+  setMonth?: (m: number) => void
+  setYear?: (y: number) => void
   startDate: string
   endDate: string
+  tutorFilter?: 'ps' | 'sm' | 'all'
 }
 
 export default function LmsBulkExporterTab({
@@ -36,11 +44,24 @@ export default function LmsBulkExporterTab({
   courseLabels,
   month,
   year,
+  setMonth,
+  setYear,
   startDate,
-  endDate
+  endDate,
+  tutorFilter = 'ps'
 }: LmsBulkExporterTabProps) {
-  // Source dataset: 'daily' (today/date range) | 'monthly' (selected month) | 'registrations'
-  const [sourceType, setSourceType] = useState<'daily' | 'monthly' | 'registrations'>('daily')
+  const supabase = createClient()
+
+  // Source dataset: 'monthly' (specific month for recording access) | 'daily' (today/date range) | 'registrations' | 'custom_month'
+  const [sourceType, setSourceType] = useState<'monthly' | 'daily' | 'registrations'>('monthly')
+
+  // Selected Month & Year for Previous Month Recording Access
+  const [selectedMonth, setSelectedMonth] = useState<number>(month)
+  const [selectedYear, setSelectedYear] = useState<number>(year)
+
+  // Local state for fetched previous month recordings payments if different from parent month
+  const [fetchedMonthPayments, setFetchedMonthPayments] = useState<any[]>([])
+  const [loadingCustomMonth, setLoadingCustomMonth] = useState<boolean>(false)
 
   // Filters
   const [selectedGrade, setSelectedGrade] = useState<string>('ALL')
@@ -48,16 +69,91 @@ export default function LmsBulkExporterTab({
   const [searchQuery, setSearchQuery] = useState('')
   const [copied, setCopied] = useState(false)
 
+  // Keep selectedMonth/Year in sync when parent month/year changes if user hasn't changed them
+  useEffect(() => {
+    if (month && year && sourceType !== 'monthly') {
+      setSelectedMonth(month)
+      setSelectedYear(year)
+    }
+  }, [month, year])
+
+  // Helper function to check tutor filter
+  function matchesTutor(psCode: string | null | undefined): boolean {
+    if (!psCode || tutorFilter === 'all') return true
+    const clean = psCode.toUpperCase().trim()
+    if (tutorFilter === 'sm') {
+      return clean.startsWith('SM')
+    }
+    return clean.startsWith('PS') || (!clean.startsWith('SM'))
+  }
+
+  // Fetch payments for the selected month/year whenever it differs from current page props or changes
+  useEffect(() => {
+    let isCancelled = false
+
+    async function fetchMonthRecordingsData() {
+      if (sourceType !== 'monthly') return
+      
+      // If selected month/year matches parent's active month/year and we have allPaymentsMonth, use it
+      if (selectedMonth === month && selectedYear === year && allPaymentsMonth.length > 0) {
+        setFetchedMonthPayments(allPaymentsMonth)
+        return
+      }
+
+      setLoadingCustomMonth(true)
+      try {
+        let results: any[] = []
+        let from = 0
+        let hasMore = true
+        const CHUNK = 1000
+
+        while (hasMore) {
+          const { data, error } = await supabase
+            .from('payments')
+            .select('id, student_id, amount_paid, payment_type, bank_name, recorded_by, created_at, date_paid, class_type, students(id, ps_code, full_name, grade, household:households(parent_name, parent_phone))')
+            .eq('month', selectedMonth)
+            .eq('year', selectedYear)
+            .range(from, from + CHUNK - 1)
+
+          if (error) throw error
+          results = results.concat(data || [])
+          if (!data || data.length < CHUNK) {
+            hasMore = false
+          } else {
+            from += CHUNK
+          }
+        }
+
+        if (isCancelled) return
+
+        const filtered = results.filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
+        setFetchedMonthPayments(filtered)
+      } catch (err) {
+        console.error('Error fetching month recordings payments:', err)
+      } finally {
+        if (!isCancelled) setLoadingCustomMonth(false)
+      }
+    }
+
+    fetchMonthRecordingsData()
+
+    return () => {
+      isCancelled = true
+    }
+  }, [sourceType, selectedMonth, selectedYear, month, year, allPaymentsMonth, tutorFilter])
+
   // Determine active raw dataset
   const rawList = useMemo(() => {
     if (sourceType === 'daily') {
       return dailyPayments
     } else if (sourceType === 'monthly') {
-      return allPaymentsMonth
+      return fetchedMonthPayments.length > 0 || (selectedMonth !== month || selectedYear !== year)
+        ? fetchedMonthPayments
+        : allPaymentsMonth
     } else {
       return newStudents
     }
-  }, [sourceType, dailyPayments, allPaymentsMonth, newStudents])
+  }, [sourceType, dailyPayments, fetchedMonthPayments, allPaymentsMonth, newStudents, selectedMonth, selectedYear, month, year])
 
   // Extract distinct grades and distinct courses available in the active dataset
   const availableGrades = useMemo(() => {
@@ -165,11 +261,20 @@ export default function LmsBulkExporterTab({
   function handleExportCsv() {
     const gradeLabel = selectedGrade === 'ALL' ? 'AllGrades' : `Grade_${selectedGrade}`
     const courseLabel = selectedClassType === 'ALL' ? 'AllCourses' : (courseLabels[selectedClassType] || selectedClassType).replace(/[\s\(\)\/\:]+/g, '_')
-    const sourceLabel = sourceType === 'daily' ? `${startDate}_to_${endDate}` : `${month}_${year}`
+    const sourceLabel = sourceType === 'daily'
+      ? `${startDate}_to_${endDate}`
+      : sourceType === 'monthly'
+        ? `${MONTH_NAMES[selectedMonth - 1]}_${selectedYear}_Recordings`
+        : `NewRegistrations_${selectedYear}`
+    
     const filename = `LMS_Billing_Bulk_${gradeLabel}_${courseLabel}_${sourceLabel}`
 
     exportLmsBulkCsv(filename, filteredStudents)
   }
+
+  // Generate Year options (current year down to past 3 years, plus next year)
+  const currentActualYear = new Date().getFullYear()
+  const yearOptions = [currentActualYear + 1, currentActualYear, currentActualYear - 1, currentActualYear - 2, currentActualYear - 3]
 
   return (
     <div className="fade-in">
@@ -177,11 +282,11 @@ export default function LmsBulkExporterTab({
       <div className="glass-card" style={{ padding: 20, marginBottom: 20, borderLeft: '4px solid var(--accent-blue)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
         <div>
           <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Sparkles size={20} style={{ color: 'var(--accent-blue)' }} />
-            LMS Bulk Billing &amp; Numbers Exporter (assign-billing-bulk-sample.csv)
+            <Video size={20} style={{ color: 'var(--accent-blue)' }} />
+            LMS Bulk Billing &amp; Past Recording Access Exporter
           </div>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4 }}>
-            Generate and export <code style={{ color: '#38bdf8' }}>name,mobile</code> templates per grade, course, or verified payment batches for instant LMS profile auto-linking.
+            Filter paid students from any <strong>Previous Month (e.g. August, July, January)</strong> or today&apos;s verified batches, and export in <code style={{ color: '#38bdf8' }}>name,mobile</code> format for LMS video access.
           </div>
         </div>
 
@@ -211,42 +316,107 @@ export default function LmsBulkExporterTab({
 
       {/* Control & Filter Center */}
       <div className="glass-card" style={{ padding: 20, marginBottom: 20 }}>
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between' }}>
           
-          {/* Source Dataset Toggle */}
+          {/* 1. Source Dataset Toggle */}
           <div>
             <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6, fontWeight: 700 }}>
-              1. Payment / Student Source
+              1. Access Period / Source
             </label>
-            <div style={{ display: 'flex', gap: 6 }}>
-              <button
-                type="button"
-                onClick={() => setSourceType('daily')}
-                className={sourceType === 'daily' ? 'btn-primary' : 'btn-secondary'}
-                style={{ padding: '6px 14px', fontSize: 12 }}
-              >
-                📅 Day-End / Range ({startDate === endDate ? startDate : `${startDate} to ${endDate}`})
-              </button>
+            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
               <button
                 type="button"
                 onClick={() => setSourceType('monthly')}
                 className={sourceType === 'monthly' ? 'btn-primary' : 'btn-secondary'}
-                style={{ padding: '6px 14px', fontSize: 12 }}
+                style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
               >
-                📆 Monthly Matrix ({month}/{year})
+                <Video size={14} />
+                📹 Monthly / Previous Month Recording
+              </button>
+              <button
+                type="button"
+                onClick={() => setSourceType('daily')}
+                className={sourceType === 'daily' ? 'btn-primary' : 'btn-secondary'}
+                style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <Calendar size={14} />
+                📅 Day-End / Range ({startDate === endDate ? startDate : `${startDate} to ${endDate}`})
               </button>
               <button
                 type="button"
                 onClick={() => setSourceType('registrations')}
                 className={sourceType === 'registrations' ? 'btn-primary' : 'btn-secondary'}
-                style={{ padding: '6px 14px', fontSize: 12 }}
+                style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 🎓 New Registrations
               </button>
             </div>
           </div>
 
-          {/* Grade Selector */}
+          {/* 1.5. Previous Month & Year Selectors (Active when sourceType is 'monthly') */}
+          {sourceType === 'monthly' && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'rgba(56,189,248,0.08)',
+              padding: '6px 12px',
+              borderRadius: 10,
+              border: '1px solid rgba(56,189,248,0.25)'
+            }}>
+              <div>
+                <label style={{ fontSize: 10, color: 'var(--accent-blue)', textTransform: 'uppercase', display: 'block', marginBottom: 2, fontWeight: 800 }}>
+                  Select Month
+                </label>
+                <select
+                  className="select-input"
+                  style={{ padding: '4px 8px', fontSize: 12, fontWeight: 700, minWidth: 120 }}
+                  value={selectedMonth}
+                  onChange={e => {
+                    const newM = Number(e.target.value)
+                    setSelectedMonth(newM)
+                    if (setMonth) setMonth(newM)
+                  }}
+                >
+                  {MONTH_NAMES.map((mName, idx) => (
+                    <option key={idx + 1} value={idx + 1}>
+                      {mName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: 10, color: 'var(--accent-blue)', textTransform: 'uppercase', display: 'block', marginBottom: 2, fontWeight: 800 }}>
+                  Year
+                </label>
+                <select
+                  className="select-input"
+                  style={{ padding: '4px 8px', fontSize: 12, fontWeight: 700, minWidth: 80 }}
+                  value={selectedYear}
+                  onChange={e => {
+                    const newY = Number(e.target.value)
+                    setSelectedYear(newY)
+                    if (setYear) setYear(newY)
+                  }}
+                >
+                  {yearOptions.map(y => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {loadingCustomMonth && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: 'var(--accent-blue)', marginLeft: 4 }}>
+                  <RotateCw size={12} style={{ animation: 'spin 1s linear infinite' }} /> Loading...
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 2. Grade Selector */}
           <div>
             <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6, fontWeight: 700 }}>
               2. Filter Grade
@@ -266,7 +436,7 @@ export default function LmsBulkExporterTab({
             </select>
           </div>
 
-          {/* Class / Subject Selector */}
+          {/* 3. Class / Subject Selector */}
           <div>
             <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6, fontWeight: 700 }}>
               3. Filter Course / Subject
@@ -286,7 +456,7 @@ export default function LmsBulkExporterTab({
             </select>
           </div>
 
-          {/* Search Bar */}
+          {/* 4. Search Filter */}
           <div style={{ flex: '1 1 200px' }}>
             <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6, fontWeight: 700 }}>
               Search Filter
@@ -319,12 +489,16 @@ export default function LmsBulkExporterTab({
         </div>
 
         <div className="stat-card" style={{ borderLeft: '4px solid #38bdf8', boxShadow: '0 4px 20px -4px rgba(56, 189, 248, 0.25)' }}>
-          <div className="stat-card label">Active Grade Scope</div>
-          <div className="stat-card value" style={{ color: '#38bdf8', fontSize: 24 }}>
-            {selectedGrade === 'ALL' ? 'All Grades' : `Grade ${selectedGrade}`}
+          <div className="stat-card label">Active Recording Scope</div>
+          <div className="stat-card value" style={{ color: '#38bdf8', fontSize: 22 }}>
+            {sourceType === 'monthly'
+              ? `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`
+              : sourceType === 'daily'
+                ? startDate
+                : 'Registrations'}
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-            {selectedClassType === 'ALL' ? 'All Subjects' : (courseLabels[selectedClassType] || selectedClassType)}
+            {selectedGrade === 'ALL' ? 'All Grades' : `Grade ${selectedGrade}`} • {selectedClassType === 'ALL' ? 'All Subjects' : (courseLabels[selectedClassType] || selectedClassType)}
           </div>
         </div>
 
@@ -344,7 +518,7 @@ export default function LmsBulkExporterTab({
         <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 10 }}>
           <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
             <Users size={16} style={{ color: 'var(--accent-blue)' }} />
-            LMS Bulk Batch Preview ({filteredStudents.length} Records)
+            LMS Bulk Batch Preview ({filteredStudents.length} Records for {sourceType === 'monthly' ? `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}` : 'Selected Filter'})
           </div>
 
           <div style={{ display: 'flex', gap: 8 }}>
@@ -399,10 +573,19 @@ export default function LmsBulkExporterTab({
                 </tr>
               ))}
 
-              {filteredStudents.length === 0 && (
+              {filteredStudents.length === 0 && !loadingCustomMonth && (
                 <tr>
                   <td colSpan={6} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-                    No students with valid phone numbers found for the selected grade / course criteria.
+                    No paid students found for {sourceType === 'monthly' ? `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}` : 'the selected criteria'}.
+                  </td>
+                </tr>
+              )}
+
+              {loadingCustomMonth && (
+                <tr>
+                  <td colSpan={6} style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
+                    <div style={{ width: 24, height: 24, border: '2px solid rgba(56,189,248,0.2)', borderTopColor: 'var(--accent-blue)', borderRadius: '50%', margin: '0 auto 8px', animation: 'spin 0.8s linear infinite' }} />
+                    Loading paid student records for {MONTH_NAMES[selectedMonth - 1]} {selectedYear}...
                   </td>
                 </tr>
               )}
