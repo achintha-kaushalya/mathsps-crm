@@ -126,11 +126,12 @@ export default function StudentsPage() {
         if (raw) {
           orClauses.push(`ps_code.ilike.${cleanCode}%`)
           orClauses.push(`full_name.ilike.%${raw}%`)
-          orClauses.push(`school.ilike.%${raw}%`)
+          orClauses.push(`lms_number.ilike.%${raw}%`)
         }
         if (cleanDigits) {
           orClauses.push(`ps_code.ilike.PS${cleanDigits}%`)
           orClauses.push(`ps_code.ilike.SM${cleanDigits}%`)
+          orClauses.push(`lms_number.ilike.%${cleanDigits}%`)
         }
 
         let q = supabase.from('students').select(`
@@ -392,7 +393,7 @@ export default function StudentsPage() {
                 fontSize: 13,
                 height: 38
               }}
-              placeholder="Search PS code, student name, school, or phone..."
+              placeholder="Search PS code, student name, LMS number, or phone..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -463,7 +464,7 @@ export default function StudentsPage() {
               <th style={{ padding: '12px 16px', width: 110 }}>PS Code</th>
               <th style={{ padding: '12px 16px', minWidth: 220 }}>Student Name</th>
               <th style={{ padding: '12px 12px', width: 90, textAlign: 'center' }}>Grade</th>
-              <th style={{ padding: '12px 14px', minWidth: 160 }}>School</th>
+              <th style={{ padding: '12px 14px', minWidth: 160 }}>LMS Number</th>
               <th style={{ padding: '12px 14px', minWidth: 130 }}>Area</th>
               <th style={{ padding: '12px 14px', minWidth: 220 }}>Address / Parent Phone</th>
               <th style={{ padding: '12px 12px', width: 100, textAlign: 'center' }}>CRM Ref</th>
@@ -564,9 +565,15 @@ export default function StudentsPage() {
                       )}
                     </td>
 
-                    {/* School */}
-                    <td style={{ padding: '10px 14px', fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                      {s.school || <span style={{ color: 'var(--text-muted)' }}>—</span>}
+                    {/* LMS Mobile Number */}
+                    <td style={{ padding: '10px 14px', fontSize: 12.5 }}>
+                      {s.lms_number ? (
+                        <span style={{ color: '#10b981', fontWeight: 700, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                          <Phone size={11} /> {s.lms_number}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+                      )}
                     </td>
 
                     {/* Area */}
@@ -755,8 +762,12 @@ export default function StudentsPage() {
                   <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: '#090d16' }}>
                     {selectedStudent.full_name || 'Pending Registration'}
                   </h3>
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                    Grade {selectedStudent.grade || '—'} · {selectedStudent.school || 'Institute Student'}
+                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <span>Grade {selectedStudent.grade || '—'}</span>
+                    <span>·</span>
+                    <span style={{ color: selectedStudent.lms_number ? '#059669' : '#64748b', fontWeight: 600 }}>
+                      📱 LMS: {selectedStudent.lms_number || 'Not Set'}
+                    </span>
                   </div>
                 </div>
               </div>

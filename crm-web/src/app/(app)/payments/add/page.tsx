@@ -91,6 +91,7 @@ function AddPaymentForm() {
   const [editingStudent, setEditingStudent] = useState(false)
   const [editName, setEditName] = useState('')
   const [editGrade, setEditGrade] = useState<number | ''>(11)
+  const [editLmsNumber, setEditLmsNumber] = useState('')
   const [savingStudent, setSavingStudent] = useState(false)
 
   // Household & Delivery Verification / Live Edit State
@@ -534,6 +535,7 @@ function AddPaymentForm() {
       const { error: err } = await supabase.from('students').update({
         full_name: editName.trim() || null,
         grade: editGrade ? parseInt(String(editGrade)) : null,
+        lms_number: editLmsNumber.trim() || null,
       }).eq('id', student.id)
 
       if (err) throw err
@@ -542,6 +544,7 @@ function AddPaymentForm() {
         ...student,
         full_name: editName.trim(),
         grade: editGrade ? parseInt(String(editGrade)) : null,
+        lms_number: editLmsNumber.trim() || null,
       } as any)
       setEditingStudent(false)
     } catch (e: any) {
@@ -879,6 +882,7 @@ function AddPaymentForm() {
                     onClick={() => {
                       setEditName(student.full_name || '')
                       setEditGrade(student.grade || 11)
+                      setEditLmsNumber(student.lms_number || '')
                       setEditingStudent(true)
                     }}
                     className="btn-secondary"
@@ -910,13 +914,19 @@ function AddPaymentForm() {
               </div>
 
               {!editingStudent ? (
-                <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginTop: 10 }}>
+                <div style={{ fontSize: 13.5, color: 'var(--text-secondary)', marginTop: 10, display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: 700, color: student.full_name ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                     {student.full_name || '⚠ Student Name not registered'}
-                  </span> · <span style={{ color: 'var(--accent-blue)', fontWeight: 800 }}>Grade {student.grade || '—'}</span>
+                  </span>
+                  <span>·</span>
+                  <span style={{ color: 'var(--accent-blue)', fontWeight: 800 }}>Grade {student.grade || '—'}</span>
+                  <span>·</span>
+                  <span style={{ fontSize: 12, padding: '2px 8px', borderRadius: 6, background: student.lms_number ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.12)', color: student.lms_number ? '#10b981' : '#ef4444', fontWeight: 700, border: `1px solid ${student.lms_number ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)'}` }}>
+                    📱 LMS No: {student.lms_number || 'Not Set'}
+                  </span>
                 </div>
               ) : (
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 140px', gap: 12, marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 110px 1fr', gap: 12, marginTop: 14, borderTop: '1px solid var(--border)', paddingTop: 14 }}>
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Student Full Name</label>
                     <input
@@ -939,6 +949,16 @@ function AddPaymentForm() {
                         <option key={g} value={g}>Grade {g}</option>
                       ))}
                     </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>LMS Mobile Number</label>
+                    <input
+                      className="input-field"
+                      placeholder="e.g. 07XXXXXXXX"
+                      value={editLmsNumber}
+                      onChange={e => setEditLmsNumber(e.target.value)}
+                      style={{ borderRadius: 8, height: 38 }}
+                    />
                   </div>
                 </div>
               )}

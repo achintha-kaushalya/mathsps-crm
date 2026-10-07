@@ -43,7 +43,7 @@ export default function NewStudentPage() {
   const [psCode, setPsCode] = useState('')
   const [studentName, setStudentName] = useState('') // OPTIONAL
   const [primaryGrade, setPrimaryGrade] = useState<number>(10)
-  const [school, setSchool] = useState('')
+  const [lmsNumber, setLmsNumber] = useState('')
   const [fcodeRef, setFcodeRef] = useState('')
 
   // Household Contact & Delivery Details (REQUIRED)
@@ -452,7 +452,8 @@ export default function NewStudentPage() {
         ps_code: psCode.trim().toUpperCase(),
         full_name: finalStudentName,
         grade: primaryGrade,
-        school: school.trim() || null,
+        lms_number: lmsNumber.trim() || null,
+        school: null,
         household_id: householdId,
         fcode_ref: fcodeRef.trim() || null,
         created_by: createdBy.trim() || 'Admin / System User',
@@ -678,13 +679,13 @@ export default function NewStudentPage() {
                 </div>
                 <div>
                   <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
-                    School (Optional)
+                    LMS Mobile Number (LMS No)
                   </label>
                   <input
                     className="input-field"
-                    placeholder="e.g. Royal College"
-                    value={school}
-                    onChange={e => setSchool(e.target.value)}
+                    placeholder="e.g. 07XXXXXXXX (Signed LMS Phone)"
+                    value={lmsNumber}
+                    onChange={e => setLmsNumber(e.target.value)}
                     style={{ borderRadius: 10, height: 42 }}
                   />
                 </div>

@@ -63,6 +63,7 @@ export interface Student {
   full_name: string | null
   grade: number | null
   school: string | null
+  lms_number?: string | null
   notes: string | null
   fcode_ref: string | null
   created_by: string | null

@@ -184,7 +184,8 @@ export default function StudentDetailPage() {
       const { error: err } = await supabase.from('students').update({
         full_name: form.full_name?.trim() || null,
         grade: form.grade ? parseInt(String(form.grade)) : null,
-        school: form.school?.trim() || null,
+        lms_number: form.lms_number?.trim() || null,
+        school: null,
         notes: form.notes?.trim() || null,
         fcode_ref: form.fcode_ref?.trim() || null,
       }).eq('id', student.id)
@@ -486,8 +487,12 @@ export default function StudentDetailPage() {
               {student.ps_code}
               {student.full_name && <span style={{ fontWeight: 400, color: 'var(--text-secondary)', marginLeft: 8 }}>· {student.full_name}</span>}
             </h1>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-              {student.grade ? `Grade ${student.grade}` : 'Grade not set'} · {student.school || 'School not set'}
+            <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span>{student.grade ? `Grade ${student.grade}` : 'Grade not set'}</span>
+              <span>·</span>
+              <span style={{ color: student.lms_number ? '#10b981' : 'var(--text-muted)', fontWeight: 600 }}>
+                📱 LMS: {student.lms_number || 'Not Set'}
+              </span>
             </div>
           </div>
         </div>
@@ -567,7 +572,7 @@ export default function StudentDetailPage() {
                       ))}
                     </select>
                   </div>
-                  <Input label="School" value={form.school || ''} onChange={v => setForm(f => ({ ...f, school: v }))} placeholder="e.g. Royal College" />
+                  <Input label="LMS Mobile Number" value={form.lms_number || ''} onChange={v => setForm(f => ({ ...f, lms_number: v }))} placeholder="e.g. 07XXXXXXXX (LMS Phone)" />
                   <Input label="Notes" value={form.notes || ''} onChange={v => setForm(f => ({ ...f, notes: v }))} placeholder="Internal student notes..." />
                 </>
               ) : (
@@ -575,7 +580,7 @@ export default function StudentDetailPage() {
                   <Info label="PS Code" value={student.ps_code} />
                   <Info label="Full Name" value={student.full_name || 'Not set'} />
                   <Info label="Grade" value={student.grade ? `Grade ${student.grade}` : 'Not set'} />
-                  <Info label="School" value={student.school || 'Not set'} />
+                  <Info label="LMS Mobile Number" value={student.lms_number || 'Not set'} />
                   {student.notes && <Info label="Notes" value={student.notes} />}
                 </>
               )}
