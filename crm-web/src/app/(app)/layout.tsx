@@ -5,8 +5,6 @@ import TutorProfileModal from '@/components/TutorProfileModal'
 import PageTransition from '@/components/PageTransition'
 import SessionTimeoutManager from '@/components/SessionTimeoutManager'
 import VirtualOfficePresenceBroadcaster from '@/components/VirtualOfficePresenceBroadcaster'
-import ReleaseGuideModal2 from '@/components/ReleaseGuideModal2'
-
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ClientOnly>
@@ -19,7 +17,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
       <BottomFloatingDock />
       <LoginGreeting />
-      <ReleaseGuideModal2 />
       <TutorProfileModal />
       <SessionTimeoutManager />
       <VirtualOfficePresenceBroadcaster />

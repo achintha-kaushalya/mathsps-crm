@@ -59,14 +59,15 @@ export async function GET(request: Request) {
     const includeCsv = dbSettings.includeCsv !== undefined ? dbSettings.includeCsv : true
 
     // Check if dynamic time checker mode or direct reportType
-    let typesToDispatch: ('morning' | 'evening' | 'weekly' | 'monthly' | 'yearly')[] = []
+    let typesToDispatch: ('morning' | 'evening' | 'weekly' | 'monthly' | 'yearly' | 'at_risk')[] = []
 
     if (
       reportTypeParam === 'morning' ||
       reportTypeParam === 'evening' ||
       reportTypeParam === 'weekly' ||
       reportTypeParam === 'monthly' ||
-      reportTypeParam === 'yearly'
+      reportTypeParam === 'yearly' ||
+      reportTypeParam === 'at_risk'
     ) {
       typesToDispatch.push(reportTypeParam)
     } else {
@@ -84,6 +85,8 @@ export async function GET(request: Request) {
 
       const morningTime = dbSettings.morningTime || '07:00'
       const eveningTime = dbSettings.eveningTime || '21:00'
+      const atRiskDate = dbSettings.atRiskDate !== undefined ? Number(dbSettings.atRiskDate) : 15 // Default 15th of the month
+      const atRiskTime = dbSettings.atRiskTime || '08:30' // 8:30 AM on 15th
       const weeklyDay = dbSettings.weeklyDay !== undefined ? Number(dbSettings.weeklyDay) : 0 // 0 = Sunday
       const weeklyTime = dbSettings.weeklyTime || '21:30'
       const monthlyDate = dbSettings.monthlyDate !== undefined ? Number(dbSettings.monthlyDate) : 1 // 1st of month
@@ -94,6 +97,7 @@ export async function GET(request: Request) {
 
       const morningEnabled = dbSettings.morningSchedule !== undefined ? dbSettings.morningSchedule : true
       const eveningEnabled = dbSettings.eveningSchedule !== undefined ? dbSettings.eveningSchedule : true
+      const atRiskEnabled = dbSettings.atRiskSchedule !== undefined ? dbSettings.atRiskSchedule : true
       const weeklyEnabled = dbSettings.weeklySchedule !== undefined ? dbSettings.weeklySchedule : true
       const monthlyEnabled = dbSettings.monthlySchedule !== undefined ? dbSettings.monthlySchedule : true
       const yearlyEnabled = dbSettings.yearlySchedule !== undefined ? dbSettings.yearlySchedule : true
@@ -112,6 +116,9 @@ export async function GET(request: Request) {
       if (eveningEnabled && isWithinWindow(eveningTime, currentTimeStr)) {
         typesToDispatch.push('evening')
       }
+      if (atRiskEnabled && currentDateNum === atRiskDate && isWithinWindow(atRiskTime, currentTimeStr)) {
+        typesToDispatch.push('at_risk')
+      }
       if (weeklyEnabled && currentDayOfWeek === weeklyDay && isWithinWindow(weeklyTime, currentTimeStr)) {
         typesToDispatch.push('weekly')
       }
@@ -129,6 +136,7 @@ export async function GET(request: Request) {
         serverTimeSL: new Date(new Date().getTime() + (new Date().getTimezoneOffset() * 60000) + (5.5 * 3600000)).toTimeString().slice(0, 8),
         configuredMorning: dbSettings.morningTime || '07:00',
         configuredEvening: dbSettings.eveningTime || '21:00',
+        configuredAtRisk: `Day ${dbSettings.atRiskDate ?? 15} @ ${dbSettings.atRiskTime || '08:30'}`,
         configuredWeekly: `${dbSettings.weeklyDay ?? 0} @ ${dbSettings.weeklyTime || '21:30'}`,
         configuredMonthly: `Day ${dbSettings.monthlyDate ?? 1} @ ${dbSettings.monthlyTime || '08:00'}`
       })
@@ -174,7 +182,7 @@ export async function POST(request: Request) {
 }
 
 async function dispatchReportEmail(params: {
-  reportType?: 'morning' | 'evening' | 'weekly' | 'monthly' | 'yearly'
+  reportType?: 'morning' | 'evening' | 'weekly' | 'monthly' | 'yearly' | 'at_risk'
   provider?: 'smtp' | 'resend'
   recipients: string[]
   targetDate?: string
@@ -777,9 +785,28 @@ async function dispatchReportEmail(params: {
 
   if (reportType === 'morning') {
     // =========================================================================
-    // ☀️ MORNING STRATEGIC BRIEF TEMPLATE
+    // ☀️ MORNING DAILY OPERATIONS BRIEFING TEMPLATE (Daily Briefing)
     // =========================================================================
-    emailSubject = `☀️ MathsPS Morning Strategic Brief — ${targetDate} (Retention: ${overallRetentionRate}%)`
+    const regProgressionTotal = cumulativeRegMatrixRows[cumulativeRegMatrixRows.length - 1]?.cumulativeTotal || 0
+    const payProgressionTotal = cumulativePayMatrixRows[cumulativePayMatrixRows.length - 1]?.cumulativeTotal || 0
+
+    const matrix1Html = renderProgressionMatrixHtml(
+      `📅 ${MONTH_NAMES[targetMonth - 1]} ${targetYear} — Grade-Wise Cumulative Progression Sheet (Registrations)`,
+      'Daily and cumulative count of new registered students across Grades 5–11',
+      regProgressionTotal,
+      cumulativeRegMatrixRows,
+      'linear-gradient(135deg, #15803d 0%, #166534 100%)'
+    )
+
+    const matrix2Html = renderProgressionMatrixHtml(
+      `💳 ${MONTH_NAMES[targetMonth - 1]} ${targetYear} — Grade-Wise Cumulative Progression Sheet (Fee Slips)`,
+      'Daily and cumulative count of students paying fees across Grades 5–11',
+      payProgressionTotal,
+      cumulativePayMatrixRows,
+      'linear-gradient(135deg, #047857 0%, #065f46 100%)'
+    )
+
+    emailSubject = `☀️ MathsPS Morning Operations Brief — ${targetDate} (Yesterday: Rs. ${totalDailyRevenue.toLocaleString()})`
     emailHtml = `
       <!DOCTYPE html>
       <html>
@@ -787,17 +814,218 @@ async function dispatchReportEmail(params: {
       <body>
         <div class="container">
           <div class="header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #3b82f6 100%);">
-            <h1>☀️ MathsPS Executive Morning Strategic Brief</h1>
-            <p>Performance Momentum, Retention Analytics &amp; Daily Action Items (${targetDate})</p>
+            <h1>☀️ MathsPS Executive Morning Brief</h1>
+            <p>Daily Operations, Yesterday's Audit &amp; Month Cumulative Progression (${targetDate})</p>
           </div>
 
           <div class="content">
             <div class="kpi-grid">
               <div class="kpi-cell">
+                <div class="kpi-card" style="border-left: 4px solid #3b82f6;">
+                  <div class="kpi-label">Yesterday Collection</div>
+                  <div class="kpi-value" style="color: #2563eb;">Rs. ${totalDailyRevenue.toLocaleString()}</div>
+                  <div style="font-size: 11px; color: #64748b; margin-top: 2px;">${paymentsList.length} slips processed</div>
+                </div>
+              </div>
+              <div class="kpi-cell">
                 <div class="kpi-card" style="border-left: 4px solid #10b981;">
-                  <div class="kpi-label">${MONTH_NAMES[targetMonth - 1]} Total Revenue</div>
-                  <div class="kpi-value" style="color: #059669;">Rs. ${totalMonthRevenue.toLocaleString()}</div>
+                  <div class="kpi-label">New Registrations</div>
+                  <div class="kpi-value" style="color: #059669;">+${regList.length}</div>
+                  <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Yesterday intake</div>
+                </div>
+              </div>
+              <div class="kpi-cell">
+                <div class="kpi-card" style="border-left: 4px solid #8b5cf6;">
+                  <div class="kpi-label">${MONTH_NAMES[targetMonth - 1]} Month-to-Date</div>
+                  <div class="kpi-value" style="color: #7c3aed;">Rs. ${totalMonthRevenue.toLocaleString()}</div>
                   <div style="font-size: 11px; color: #64748b; margin-top: 2px;">${totalCurrPaidStudents} paying students</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="action-box">
+              <strong style="color: #1e40af; display: block; margin-bottom: 6px; font-size: 14px;">🎯 Daily Operations Summary:</strong>
+              <ul style="margin: 0; padding-left: 18px; color: #1e293b; display: flex; flex-direction: column; gap: 4px;">
+                <li><strong>Yesterday's Collection:</strong> Processed Rs. ${totalDailyRevenue.toLocaleString()} across ${paymentsList.length} audited slips.</li>
+                <li><strong>Month-to-Date Performance:</strong> Rs. ${totalMonthRevenue.toLocaleString()} collected with ${regProgressionTotal} new registrations this month.</li>
+                <li><strong>Pending Debts Overview:</strong> Rs. ${totalDebtAmount.toLocaleString()} outstanding across ${outstandingList.length} student records.</li>
+              </ul>
+            </div>
+
+            <div class="section-title">📊 Yesterday's Grade-Wise Intake &amp; Revenue Breakdown</div>
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Grade</th>
+                  <th style="text-align: center;">New Registered</th>
+                  <th style="text-align: center;">Paid Slips</th>
+                  <th style="text-align: right;">Amount Collected</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${targetGrades.map(g => {
+                  const pays = paymentsList.filter(p => getGradeFromPayment(p) === g)
+                  const regs = regList.filter(s => s.grade === g)
+                  const rev = pays.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
+                  return `
+                    <tr>
+                      <td><strong>Grade ${g}</strong></td>
+                      <td style="text-align: center;">${regs.length}</td>
+                      <td style="text-align: center;">${pays.length}</td>
+                      <td style="text-align: right; font-weight: 700;">Rs. ${rev.toLocaleString()}</td>
+                    </tr>
+                  `
+                }).join('')}
+                <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid #cbd5e1;">
+                  <td>TOTAL</td>
+                  <td style="text-align: center;">${regList.length}</td>
+                  <td style="text-align: center;">${paymentsList.length}</td>
+                  <td style="text-align: right; color: #2563eb;">Rs. ${totalDailyRevenue.toLocaleString()}</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div class="section-title">👥 Progression Report 1: New Registrations (Cumulative)</div>
+            ${matrix1Html}
+
+            <div class="section-title">💳 Progression Report 2: Paid Students / Slips (Cumulative)</div>
+            ${matrix2Html}
+
+            <div class="section-title">🏦 Bank &amp; Payment Method Breakdown</div>
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Bank / Channel</th>
+                  <th style="text-align: center;">Transactions</th>
+                  <th style="text-align: right;">Collections (Rs.)</th>
+                  <th style="text-align: right;">Share</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${Object.entries(bankDailyRevenueMap).sort((a, b) => b[1].total - a[1].total).map(([bank, data]) => {
+                  const share = totalDailyRevenue > 0 ? ((data.total / totalDailyRevenue) * 100).toFixed(1) : '0.0'
+                  return `
+                    <tr>
+                      <td><strong>${bank}</strong></td>
+                      <td style="text-align: center;">${data.count}</td>
+                      <td style="text-align: right; font-weight: 700; color: #0f172a;">Rs. ${data.total.toLocaleString()}</td>
+                      <td style="text-align: right; color: #64748b;">${share}%</td>
+                    </tr>
+                  `
+                }).join('')}
+                ${Object.keys(bankDailyRevenueMap).length === 0 ? '<tr><td colspan="4" style="text-align:center;color:#64748b;">No bank collections recorded yesterday.</td></tr>' : ''}
+              </tbody>
+            </table>
+
+            <div class="section-title">👤 Staff Performance &amp; Audit Activity</div>
+            <table class="data">
+              <thead>
+                <tr>
+                  <th>Staff / Auditor</th>
+                  <th style="text-align: center;">New Reg</th>
+                  <th style="text-align: center;">Slips Audited</th>
+                  <th style="text-align: right;">Total Verified (Rs.)</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${Object.entries(auditorDailyRevenueMap).sort((a, b) => b[1].total - a[1].total).map(([who, data]) => `
+                  <tr>
+                    <td><strong>🔒 ${who}</strong></td>
+                    <td style="text-align: center;">${data.regCount}</td>
+                    <td style="text-align: center;">${data.count}</td>
+                    <td style="text-align: right; font-weight: 700; color: #2563eb;">Rs. ${data.total.toLocaleString()}</td>
+                  </tr>
+                `).join('')}
+                ${Object.keys(auditorDailyRevenueMap).length === 0 ? '<tr><td colspan="4" style="text-align:center;color:#64748b;">No staff activity logged yesterday.</td></tr>' : ''}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="footer">
+            Generated automatically by <strong>MathsPS CRM &amp; Admin Suite</strong>.<br>
+            Attached: <code>Day_End_Audit_${targetDate}.csv</code>, <code>Cumulative_Registrations_${targetDate}.csv</code>, <code>Cumulative_Paid_Students_${targetDate}.csv</code>
+          </div>
+        </div>
+      </body>
+      </html>
+    `
+
+    if (paymentsList.length > 0) {
+      csvFilename = `Day_End_Audit_${targetDate}.csv`
+      const csvHeader = 'PS Code,Student Name,Grade,Class,Amount Paid,Method,Bank,Auditor,Time,Notes\n'
+      const csvRows = paymentsList.map(p => {
+        const ps = `"${p.students?.ps_code || ''}"`
+        const name = `"${(p.students?.full_name || '').replace(/"/g, '""')}"`
+        const grade = `"${p.students?.grade || ''}"`
+        const cls = `"${p.class_type || ''}"`
+        const amt = `"${p.amount_paid || 0}"`
+        const method = `"${p.payment_type || 'BANK'}"`
+        const bank = `"${(p.bank_name || '').replace(/"/g, '""')}"`
+        const auditor = `"${(p.recorded_by || 'System').replace(/"/g, '""')}"`
+        const time = `"${new Date(p.created_at).toLocaleTimeString()}"`
+        const notes = `"${(p.notes || '').replace(/"/g, '""')}"`
+        return [ps, name, grade, cls, amt, method, bank, auditor, time, notes].join(',')
+      }).join('\n')
+      csvContent = `${csvHeader}${csvRows}`
+    }
+
+    const regMatrixCsvHeader = 'Date,Grade 5,Grade 6,Grade 7,Grade 8,Grade 9,Grade 10,Grade 11,Cumulative Total\n'
+    const regMatrixCsvRows = cumulativeRegMatrixRows.map(r => [
+      `"${r.dateStr}"`,
+      r.counts[5] || 0,
+      r.counts[6] || 0,
+      r.counts[7] || 0,
+      r.counts[8] || 0,
+      r.counts[9] || 0,
+      r.counts[10] || 0,
+      r.counts[11] || 0,
+      r.cumulativeTotal
+    ].join(',')).join('\n')
+    additionalCsvFiles.push({
+      filename: `Cumulative_Registrations_${targetDate}.csv`,
+      content: `${regMatrixCsvHeader}${regMatrixCsvRows}`
+    })
+
+    const payMatrixCsvHeader = 'Date,Grade 5,Grade 6,Grade 7,Grade 8,Grade 9,Grade 10,Grade 11,Cumulative Total\n'
+    const payMatrixCsvRows = cumulativePayMatrixRows.map(r => [
+      `"${r.dateStr}"`,
+      r.counts[5] || 0,
+      r.counts[6] || 0,
+      r.counts[7] || 0,
+      r.counts[8] || 0,
+      r.counts[9] || 0,
+      r.counts[10] || 0,
+      r.counts[11] || 0,
+      r.cumulativeTotal
+    ].join(',')).join('\n')
+    additionalCsvFiles.push({
+      filename: `Cumulative_Paid_Students_${targetDate}.csv`,
+      content: `${payMatrixCsvHeader}${payMatrixCsvRows}`
+    })
+
+  } else if (reportType === 'at_risk') {
+    // =========================================================================
+    // 🚨 MID-MONTH AT-RISK & RETENTION STRATEGIC AUDIT (15th of Month)
+    // =========================================================================
+    emailSubject = `🚨 MathsPS Mid-Month At-Risk & Retention Audit — ${MONTH_NAMES[targetMonth - 1]} ${targetYear} (Retention: ${overallRetentionRate}%)`
+    emailHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head><meta charset="utf-8"><style>${baseEmailCss}</style></head>
+      <body>
+        <div class="container">
+          <div class="header" style="background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #dc2626 100%);">
+            <h1>🚨 MathsPS Mid-Month Retention &amp; At-Risk Audit</h1>
+            <p>Monthly Mid-Term Student Retention Analytics &amp; Follow-up Register (${MONTH_NAMES[targetMonth - 1]} ${targetYear})</p>
+          </div>
+
+          <div class="content">
+            <div class="kpi-grid">
+              <div class="kpi-cell">
+                <div class="kpi-card" style="border-left: 4px solid #ef4444;">
+                  <div class="kpi-label">At-Risk / Unpaid</div>
+                  <div class="kpi-value" style="color: #dc2626;">${droppedCount}</div>
+                  <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Lost ~Rs. ${potentialLostRevenue.toLocaleString()}</div>
                 </div>
               </div>
               <div class="kpi-cell">
@@ -808,20 +1036,20 @@ async function dispatchReportEmail(params: {
                 </div>
               </div>
               <div class="kpi-cell">
-                <div class="kpi-card" style="border-left: 4px solid #ef4444;">
-                  <div class="kpi-label">At-Risk / Dropped</div>
-                  <div class="kpi-value" style="color: #dc2626;">${droppedCount}</div>
-                  <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Lost ~Rs. ${potentialLostRevenue.toLocaleString()}</div>
+                <div class="kpi-card" style="border-left: 4px solid #10b981;">
+                  <div class="kpi-label">${MONTH_NAMES[targetMonth - 1]} Mid Total</div>
+                  <div class="kpi-value" style="color: #059669;">Rs. ${totalMonthRevenue.toLocaleString()}</div>
+                  <div style="font-size: 11px; color: #64748b; margin-top: 2px;">${totalCurrPaidStudents} paying students</div>
                 </div>
               </div>
             </div>
 
-            <div class="action-box">
-              <strong style="color: #1e40af; display: block; margin-bottom: 6px; font-size: 14px;">🎯 Priority Focus Areas for Today's Team:</strong>
+            <div class="action-box" style="background: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid #ef4444;">
+              <strong style="color: #991b1b; display: block; margin-bottom: 6px; font-size: 14px;">🎯 Mid-Month Retention Action Plan:</strong>
               <ul style="margin: 0; padding-left: 18px; color: #1e293b; display: flex; flex-direction: column; gap: 4px;">
-                <li><strong>Follow up on ${droppedCount} dropped students</strong> from last month (Check attached CSV for parent phone numbers).</li>
-                <li><strong>Outstanding debts check:</strong> Rs. ${totalDebtAmount.toLocaleString()} pending across ${outstandingList.length} accounts.</li>
-                <li><strong>Yesterday's Collection:</strong> Processed Rs. ${totalDailyRevenue.toLocaleString()} (${paymentsList.length} slips).</li>
+                <li><strong>Urgent Call List:</strong> ${droppedCount} students who paid in ${MONTH_NAMES[prevMonthNum - 1]} have not yet paid for ${MONTH_NAMES[targetMonth - 1]}.</li>
+                <li><strong>Action:</strong> Open the attached Excel sheet (<code>At_Risk_Unpaid_Students_${MONTH_NAMES[targetMonth - 1]}_${targetYear}.csv</code>) to directly call parents.</li>
+                <li><strong>Outstanding Debts:</strong> Rs. ${totalDebtAmount.toLocaleString()} pending across ${outstandingList.length} accounts.</li>
               </ul>
             </div>
 
@@ -833,10 +1061,10 @@ async function dispatchReportEmail(params: {
               <thead>
                 <tr>
                   <th>Grade</th>
-                  <th style="text-align: center;">Last Month</th>
-                  <th style="text-align: center;">This Month</th>
+                  <th style="text-align: center;">Last Month (${MONTH_NAMES[prevMonthNum - 1].slice(0, 3)})</th>
+                  <th style="text-align: center;">This Month (${MONTH_NAMES[targetMonth - 1].slice(0, 3)})</th>
                   <th style="text-align: center;">Retained</th>
-                  <th style="text-align: center;">Dropped</th>
+                  <th style="text-align: center;">Dropped / Unpaid</th>
                   <th style="text-align: right;">Retention %</th>
                 </tr>
               </thead>
@@ -862,7 +1090,7 @@ async function dispatchReportEmail(params: {
 
           <div class="footer">
             Generated by <strong>MathsPS Executive Analytics Suite</strong>.<br>
-            Direct follow-up list attached as: <code>At_Risk_Unpaid_Students_${MONTH_NAMES[targetMonth - 1]}_${targetYear}.csv</code>
+            Direct parent follow-up contact list attached as: <code>At_Risk_Unpaid_Students_${MONTH_NAMES[targetMonth - 1]}_${targetYear}.csv</code>
           </div>
         </div>
       </body>
@@ -1613,8 +1841,9 @@ async function dispatchReportEmail(params: {
   }
 
   const reportNames: Record<string, string> = {
-    morning: 'Morning Strategic Brief',
+    morning: 'Morning Operations Brief',
     evening: 'Evening Day-End Summary',
+    at_risk: 'Mid-Month At-Risk Retention Report',
     weekly: 'Weekly Velocity Digest',
     monthly: 'Monthly Financial Close',
     yearly: 'Annual Strategic Review'

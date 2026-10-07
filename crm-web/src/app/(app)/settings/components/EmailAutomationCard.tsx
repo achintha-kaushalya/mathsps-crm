@@ -34,11 +34,16 @@ export default function EmailAutomationCard() {
   const [recipients, setRecipients] = useState<string[]>([])
   const [recipientInput, setRecipientInput] = useState('')
   
-  // Dual Schedules (Morning Strategy vs Evening Day-End) + Weekly + Monthly + Yearly
+  // Daily Morning Operations vs Evening Day-End
   const [morningSchedule, setMorningSchedule] = useState(true)
   const [morningTime, setMorningTime] = useState('07:00') // 7:00 AM
   const [eveningSchedule, setEveningSchedule] = useState(true)
   const [eveningTime, setEveningTime] = useState('21:00') // 9:00 PM
+
+  // Mid-Month (15th) At-Risk Unpaid Students Schedule
+  const [atRiskSchedule, setAtRiskSchedule] = useState(true)
+  const [atRiskDate, setAtRiskDate] = useState(15) // 15th of the month
+  const [atRiskTime, setAtRiskTime] = useState('08:30') // 8:30 AM
 
   // Weekly Schedule
   const [weeklySchedule, setWeeklySchedule] = useState(true)
@@ -58,7 +63,7 @@ export default function EmailAutomationCard() {
 
   const [includeCsv, setIncludeCsv] = useState(true)
   
-  const [testingType, setTestingType] = useState<'morning' | 'evening' | 'weekly' | 'monthly' | 'yearly' | null>(null)
+  const [testingType, setTestingType] = useState<'morning' | 'evening' | 'at_risk' | 'weekly' | 'monthly' | 'yearly' | null>(null)
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [savedSuccess, setSavedSuccess] = useState(false)
 
@@ -94,6 +99,10 @@ export default function EmailAutomationCard() {
           if (dbSettings.eveningSchedule !== undefined) setEveningSchedule(dbSettings.eveningSchedule)
           if (dbSettings.eveningTime) setEveningTime(dbSettings.eveningTime)
 
+          if (dbSettings.atRiskSchedule !== undefined) setAtRiskSchedule(dbSettings.atRiskSchedule)
+          if (dbSettings.atRiskDate !== undefined) setAtRiskDate(Number(dbSettings.atRiskDate))
+          if (dbSettings.atRiskTime) setAtRiskTime(dbSettings.atRiskTime)
+
           if (dbSettings.weeklySchedule !== undefined) setWeeklySchedule(dbSettings.weeklySchedule)
           if (dbSettings.weeklyDay !== undefined) setWeeklyDay(Number(dbSettings.weeklyDay))
           if (dbSettings.weeklyTime) setWeeklyTime(dbSettings.weeklyTime)
@@ -126,6 +135,9 @@ export default function EmailAutomationCard() {
         const savedMorningTime = localStorage.getItem('MATHSPS_MORNING_TIME')
         const savedEvening = localStorage.getItem('MATHSPS_EVENING_SCHEDULE')
         const savedEveningTime = localStorage.getItem('MATHSPS_EVENING_TIME')
+        const savedAtRisk = localStorage.getItem('MATHSPS_AT_RISK_SCHEDULE')
+        const savedAtRiskDate = localStorage.getItem('MATHSPS_AT_RISK_DATE')
+        const savedAtRiskTime = localStorage.getItem('MATHSPS_AT_RISK_TIME')
         const savedIncludeCsv = localStorage.getItem('MATHSPS_EMAIL_INCLUDE_CSV')
 
         setProvider(savedProvider)
@@ -143,6 +155,9 @@ export default function EmailAutomationCard() {
         if (savedMorningTime) setMorningTime(savedMorningTime)
         if (savedEvening !== null) setEveningSchedule(savedEvening === 'true')
         if (savedEveningTime) setEveningTime(savedEveningTime)
+        if (savedAtRisk !== null) setAtRiskSchedule(savedAtRisk === 'true')
+        if (savedAtRiskDate) setAtRiskDate(Number(savedAtRiskDate))
+        if (savedAtRiskTime) setAtRiskTime(savedAtRiskTime)
         if (savedIncludeCsv !== null) setIncludeCsv(savedIncludeCsv === 'true')
       } catch (e) {
         console.error(e)
@@ -165,6 +180,9 @@ export default function EmailAutomationCard() {
         morningTime,
         eveningSchedule,
         eveningTime,
+        atRiskSchedule,
+        atRiskDate,
+        atRiskTime,
         weeklySchedule,
         weeklyDay,
         weeklyTime,
@@ -189,6 +207,9 @@ export default function EmailAutomationCard() {
       localStorage.setItem('MATHSPS_MORNING_TIME', morningTime)
       localStorage.setItem('MATHSPS_EVENING_SCHEDULE', String(eveningSchedule))
       localStorage.setItem('MATHSPS_EVENING_TIME', eveningTime)
+      localStorage.setItem('MATHSPS_AT_RISK_SCHEDULE', String(atRiskSchedule))
+      localStorage.setItem('MATHSPS_AT_RISK_DATE', String(atRiskDate))
+      localStorage.setItem('MATHSPS_AT_RISK_TIME', atRiskTime)
       localStorage.setItem('MATHSPS_EMAIL_INCLUDE_CSV', String(includeCsv))
 
       // Persist to Supabase Database (Admin User record notes) so cloud server crons can access it 24/7
@@ -236,7 +257,7 @@ export default function EmailAutomationCard() {
     localStorage.setItem('MATHSPS_REPORT_RECIPIENTS', JSON.stringify(updated))
   }
 
-  async function handleSendTestDigest(type: 'morning' | 'evening' | 'weekly' | 'monthly' | 'yearly') {
+  async function handleSendTestDigest(type: 'morning' | 'evening' | 'at_risk' | 'weekly' | 'monthly' | 'yearly') {
     if (provider === 'smtp') {
       if (!smtpUser.trim() || !smtpPass.trim()) {
         setTestResult({
@@ -267,8 +288,9 @@ export default function EmailAutomationCard() {
     setTestResult(null)
 
     const labelMap: Record<string, string> = {
-      morning: 'Morning Strategic Brief',
+      morning: 'Morning Operations Brief',
       evening: 'Evening Day-End Summary',
+      at_risk: 'Mid-Month At-Risk Retention Report',
       weekly: 'Weekly Velocity Digest',
       monthly: 'Monthly Financial Close',
       yearly: 'Annual Strategic Review'
@@ -540,7 +562,7 @@ export default function EmailAutomationCard() {
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-              {/* 1. Morning Strategy Brief Schedule */}
+              {/* 1. Morning Daily Operations Brief Schedule */}
               <div style={{ padding: 12, background: 'rgba(59,130,246,0.06)', borderRadius: 6, border: '1px solid rgba(59,130,246,0.15)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
                   <input
@@ -548,7 +570,7 @@ export default function EmailAutomationCard() {
                     checked={morningSchedule}
                     onChange={e => setMorningSchedule(e.target.checked)}
                   />
-                  <span>☀️ Daily Morning Strategic Brief &amp; Action Items</span>
+                  <span>☀️ Daily Morning Operations &amp; Progression Brief</span>
                 </label>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24 }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Send Time:</span>
@@ -559,11 +581,45 @@ export default function EmailAutomationCard() {
                     value={morningTime}
                     onChange={e => setMorningTime(e.target.value)}
                   />
-                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Retention + Chart + Follow-up CSV</span>
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Yesterday collections + cumulative progression matrices</span>
                 </div>
               </div>
 
-              {/* 2. Evening Day-End Cash Summary Schedule */}
+              {/* 2. Mid-Month (15th) At-Risk Unpaid Students Audit */}
+              <div style={{ padding: 12, background: 'rgba(239,68,68,0.06)', borderRadius: 6, border: '1px solid rgba(239,68,68,0.15)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+                  <input
+                    type="checkbox"
+                    checked={atRiskSchedule}
+                    onChange={e => setAtRiskSchedule(e.target.checked)}
+                  />
+                  <span>🚨 Mid-Month At-Risk &amp; Retention Audit (Once a Month)</span>
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Day:</span>
+                  <select
+                    className="input-field"
+                    style={{ width: 80, padding: '3px 8px', fontSize: 12 }}
+                    value={atRiskDate}
+                    onChange={e => setAtRiskDate(Number(e.target.value))}
+                  >
+                    <option value={10}>10th</option>
+                    <option value={15}>15th</option>
+                    <option value={20}>20th</option>
+                  </select>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>@</span>
+                  <input
+                    type="time"
+                    className="input-field"
+                    style={{ width: 110, padding: '3px 8px', fontSize: 12 }}
+                    value={atRiskTime}
+                    onChange={e => setAtRiskTime(e.target.value)}
+                  />
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Dropped/unpaid follow-up register + parent phone CSV</span>
+                </div>
+              </div>
+
+              {/* 3. Evening Day-End Cash Summary Schedule */}
               <div style={{ padding: 12, background: 'rgba(16,185,129,0.06)', borderRadius: 6, border: '1px solid rgba(16,185,129,0.15)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
                   <input
@@ -586,7 +642,7 @@ export default function EmailAutomationCard() {
                 </div>
               </div>
 
-              {/* 3. Weekly Velocity & Intake Schedule */}
+              {/* 4. Weekly Velocity & Intake Schedule */}
               <div style={{ padding: 12, background: 'rgba(99,102,241,0.06)', borderRadius: 6, border: '1px solid rgba(99,102,241,0.15)' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
                   <input
@@ -747,11 +803,40 @@ export default function EmailAutomationCard() {
               >
                 {testingType === 'morning' ? (
                   <>
-                    <RefreshCw size={14} className="spin" /> Dispatching Morning Strategic Brief...
+                    <RefreshCw size={14} className="spin" /> Dispatching Morning Operations Brief...
                   </>
                 ) : (
                   <>
-                    <Send size={14} /> ☀️ Test Morning Strategic Brief (Trends + Retention)
+                    <Send size={14} /> ☀️ Test Morning Operations Brief (Daily Briefing)
+                  </>
+                )}
+              </button>
+
+              {/* Mid-Month At-Risk Test Button */}
+              <button
+                type="button"
+                onClick={() => handleSendTestDigest('at_risk')}
+                disabled={testingType !== null}
+                className="btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '9px 14px',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 8,
+                  background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #dc2626 100%)'
+                }}
+              >
+                {testingType === 'at_risk' ? (
+                  <>
+                    <RefreshCw size={14} className="spin" /> Dispatching Mid-Month At-Risk Audit...
+                  </>
+                ) : (
+                  <>
+                    <Send size={14} /> 🚨 Test Mid-Month At-Risk Report (15th of Month)
                   </>
                 )}
               </button>
