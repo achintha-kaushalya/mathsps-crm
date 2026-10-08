@@ -102,7 +102,10 @@ export async function GET(request: Request) {
       const monthlyEnabled = dbSettings.monthlySchedule !== undefined ? dbSettings.monthlySchedule : true
       const yearlyEnabled = dbSettings.yearlySchedule !== undefined ? dbSettings.yearlySchedule : true
 
-      // Match within 12-minute window of scheduled time
+      const lastDispatched: Record<string, string> = dbSettings.last_dispatched || {}
+      const todayDateStr = slTime.toISOString().slice(0, 10)
+
+      // Match within 12-minute window of scheduled time (only if NOT already sent today)
       function isWithinWindow(schedTime: string, currTime: string) {
         const [sh, sm] = schedTime.split(':').map(Number)
         const [ch, cm] = currTime.split(':').map(Number)
@@ -110,22 +113,22 @@ export async function GET(request: Request) {
         return diff >= 0 && diff <= 12
       }
 
-      if (morningEnabled && isWithinWindow(morningTime, currentTimeStr)) {
+      if (morningEnabled && lastDispatched.morning !== todayDateStr && isWithinWindow(morningTime, currentTimeStr)) {
         typesToDispatch.push('morning')
       }
-      if (eveningEnabled && isWithinWindow(eveningTime, currentTimeStr)) {
+      if (eveningEnabled && lastDispatched.evening !== todayDateStr && isWithinWindow(eveningTime, currentTimeStr)) {
         typesToDispatch.push('evening')
       }
-      if (atRiskEnabled && currentDateNum === atRiskDate && isWithinWindow(atRiskTime, currentTimeStr)) {
+      if (atRiskEnabled && currentDateNum === atRiskDate && lastDispatched.at_risk !== todayDateStr && isWithinWindow(atRiskTime, currentTimeStr)) {
         typesToDispatch.push('at_risk')
       }
-      if (weeklyEnabled && currentDayOfWeek === weeklyDay && isWithinWindow(weeklyTime, currentTimeStr)) {
+      if (weeklyEnabled && currentDayOfWeek === weeklyDay && lastDispatched.weekly !== todayDateStr && isWithinWindow(weeklyTime, currentTimeStr)) {
         typesToDispatch.push('weekly')
       }
-      if (monthlyEnabled && currentDateNum === monthlyDate && isWithinWindow(monthlyTime, currentTimeStr)) {
+      if (monthlyEnabled && currentDateNum === monthlyDate && lastDispatched.monthly !== todayDateStr && isWithinWindow(monthlyTime, currentTimeStr)) {
         typesToDispatch.push('monthly')
       }
-      if (yearlyEnabled && currentMonthNum === yearlyMonth && currentDateNum === yearlyDate && isWithinWindow(yearlyTime, currentTimeStr)) {
+      if (yearlyEnabled && currentMonthNum === yearlyMonth && currentDateNum === yearlyDate && lastDispatched.yearly !== todayDateStr && isWithinWindow(yearlyTime, currentTimeStr)) {
         typesToDispatch.push('yearly')
       }
     }
@@ -143,12 +146,15 @@ export async function GET(request: Request) {
     }
 
     const results = []
+    const nowSlStr = new Date(new Date().getTime() + (new Date().getTimezoneOffset() * 60000) + (5.5 * 3600000)).toISOString().slice(0, 10)
+    const updatedLastDispatched = { ...(dbSettings.last_dispatched || {}) }
+
     for (const rType of typesToDispatch) {
       const res = await dispatchReportEmail({
         reportType: rType,
         provider,
         recipients,
-        targetDate: new Date().toISOString().slice(0, 10),
+        targetDate: nowSlStr,
         includeCsv,
         smtpUser,
         smtpPass,
@@ -157,7 +163,29 @@ export async function GET(request: Request) {
         senderApiKey,
         fromEmail
       })
+      if (res?.success) {
+        updatedLastDispatched[rType] = nowSlStr
+      }
       results.push({ type: rType, ...res })
+    }
+
+    // Persist updated last_dispatched dates to avoid duplicate sends if cron fires multiple times
+    try {
+      const { data: adminUser } = await supabase.from('members').select('id, notes').eq('name', 'Admin User').single()
+      if (adminUser) {
+        let existing = {}
+        try { existing = JSON.parse(adminUser.notes || '{}') } catch {}
+        const updatedNotes = {
+          ...existing,
+          email_settings: {
+            ...((existing as any).email_settings || {}),
+            last_dispatched: updatedLastDispatched
+          }
+        }
+        await supabase.from('members').update({ notes: JSON.stringify(updatedNotes) }).eq('id', adminUser.id)
+      }
+    } catch (e) {
+      console.warn('Could not save last_dispatched state:', e)
     }
 
     return NextResponse.json({ success: true, results })
