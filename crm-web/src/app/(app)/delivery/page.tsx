@@ -30,7 +30,7 @@ import {
   CheckSquare,
   Square
 } from 'lucide-react'
-import { CLASS_LABELS, MONTH_NAMES } from '@/lib/types'
+import { CLASS_LABELS, MONTH_NAMES, extractLmsNumber } from '@/lib/types'
 import {
   DEFAULT_GRADE_COURSES,
   DEFAULT_STANDALONE_COURSES,
@@ -220,7 +220,7 @@ export default function DeliveryPage() {
           .select(`
             id, student_id, class_type, month, year, amount_paid, payment_type, tute_delivered, date_paid, notes,
             students!inner(
-              id, ps_code, full_name, grade, lms_number, household_id,
+              id, ps_code, full_name, grade, notes, household_id,
               households(id, parent_name, address, area, parent_phone)
             )
           `)
@@ -288,7 +288,7 @@ export default function DeliveryPage() {
             ps_code: stu.ps_code,
             full_name: stu.full_name || 'Student',
             grade: stu.grade || 0,
-            lms_number: stu.lms_number || '',
+            lms_number: extractLmsNumber(stu),
             class_type: item.class_type,
             date_paid: item.date_paid || '',
             notes: item.notes || '',

@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense, useRef } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, Search, Plus, Trash2, CreditCard, Home, Phone, User, MapPin, CheckCircle, Edit3, ShieldAlert } from 'lucide-react'
-import { MONTH_NAMES, Student, Enrollment, StudentBalance } from '@/lib/types'
+import { MONTH_NAMES, Student, Enrollment, StudentBalance, extractLmsNumber, formatNotesWithLms } from '@/lib/types'
 import {
   DEFAULT_GRADE_COURSES,
   DEFAULT_STANDALONE_COURSES,
@@ -278,7 +278,15 @@ function AddPaymentForm() {
   }, [psSearch])
 
   function selectStudent(selectedStu: any) {
-    setStudent(selectedStu)
+    const extractedLms = extractLmsNumber(selectedStu)
+    const cleanNotes = (selectedStu.notes || '').replace(/\[LMS:[^\]]*\]/gi, '').trim()
+    const enhancedStu = {
+      ...selectedStu,
+      lms_number: extractedLms,
+      notes: cleanNotes || null,
+    }
+
+    setStudent(enhancedStu)
     setPsSearch(selectedStu.ps_code)
     setShowDropdown(false)
     setError('')
@@ -288,6 +296,7 @@ function AddPaymentForm() {
 
     setEditName(selectedStu.full_name || '')
     setEditGrade(selectedStu.grade || 11)
+    setEditLmsNumber(extractedLms)
 
     const hh = selectedStu.household || {}
     setParentNameInput(hh.parent_name || '')
@@ -295,7 +304,7 @@ function AddPaymentForm() {
     setAddressInput(hh.address || '')
     setAreaInput(hh.area || '')
 
-    loadStudentClasses(selectedStu)
+    loadStudentClasses(enhancedStu)
   }
 
   function inferGradeFromCourse(courseCode: string, fallbackGrade: number): number | 'standalone' {
@@ -532,10 +541,12 @@ function AddPaymentForm() {
     if (!student) return
     setSavingStudent(true)
     try {
+      const finalNotes = formatNotesWithLms(student.notes, editLmsNumber)
+
       const { error: err } = await supabase.from('students').update({
         full_name: editName.trim() || null,
         grade: editGrade ? parseInt(String(editGrade)) : null,
-        lms_number: editLmsNumber.trim() || null,
+        notes: finalNotes,
       }).eq('id', student.id)
 
       if (err) throw err
@@ -545,6 +556,7 @@ function AddPaymentForm() {
         full_name: editName.trim(),
         grade: editGrade ? parseInt(String(editGrade)) : null,
         lms_number: editLmsNumber.trim() || null,
+        notes: (student.notes || '').replace(/\[LMS:[^\]]*\]/gi, '').trim() || null,
       } as any)
       setEditingStudent(false)
     } catch (e: any) {

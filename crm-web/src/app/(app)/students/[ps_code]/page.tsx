@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, Plus, Printer, ExternalLink, Trash2, Edit2, Shield, Home, Phone, MapPin, UserCheck } from 'lucide-react'
-import { Student, Payment, Enrollment, CLASS_LABELS, MONTH_NAMES } from '@/lib/types'
+import { Student, Payment, Enrollment, CLASS_LABELS, MONTH_NAMES, extractLmsNumber, formatNotesWithLms } from '@/lib/types'
 import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES, DEFAULT_PAYMENT_METHODS, DEFAULT_BANKS, getAllCourseLabels } from '@/lib/courses'
 import { logAuditEvent } from '@/lib/audit-logger'
 
@@ -144,8 +144,15 @@ export default function StudentDetailPage() {
       .single()
 
     if (stu) {
-      setStudent(stu)
-      setForm(stu)
+      const extractedLms = extractLmsNumber(stu)
+      const cleanNotes = (stu.notes || '').replace(/\[LMS:[^\]]*\]/gi, '').trim()
+      const enhancedStu = {
+        ...stu,
+        lms_number: extractedLms,
+        notes: cleanNotes || null,
+      }
+      setStudent(enhancedStu)
+      setForm(enhancedStu)
 
       const hh = stu.household as any || {}
       setParentNameInput(hh.parent_name || '')
@@ -181,12 +188,13 @@ export default function StudentDetailPage() {
     if (!student) return
     setSavingStudent(true)
     try {
+      const finalNotes = formatNotesWithLms(form.notes, form.lms_number)
+
       const { error: err } = await supabase.from('students').update({
         full_name: form.full_name?.trim() || null,
         grade: form.grade ? parseInt(String(form.grade)) : null,
-        lms_number: form.lms_number?.trim() || null,
         school: null,
-        notes: form.notes?.trim() || null,
+        notes: finalNotes,
         fcode_ref: form.fcode_ref?.trim() || null,
       }).eq('id', student.id)
 

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, UserPlus, Plus, Trash2, Home, Sparkles, AlertTriangle, ExternalLink, Lock } from 'lucide-react'
-import { MONTH_NAMES } from '@/lib/types'
+import { MONTH_NAMES, formatNotesWithLms } from '@/lib/types'
 import {
   DEFAULT_GRADE_COURSES,
   DEFAULT_STANDALONE_COURSES,
@@ -448,12 +448,13 @@ export default function NewStudentPage() {
       householdId = hhData?.id || null
 
       // 2. Create Student Record under this single locked PS Code
+      const initialNotes = formatNotesWithLms(null, lmsNumber)
       const { data: stuData, error: stuErr } = await supabase.from('students').insert({
         ps_code: psCode.trim().toUpperCase(),
         full_name: finalStudentName,
         grade: primaryGrade,
-        lms_number: lmsNumber.trim() || null,
         school: null,
+        notes: initialNotes,
         household_id: householdId,
         fcode_ref: fcodeRef.trim() || null,
         created_by: createdBy.trim() || 'Admin / System User',

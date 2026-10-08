@@ -7,7 +7,7 @@ import {
   Phone, Home, ExternalLink, Filter, X, Sparkles, CheckCircle2, 
   BookOpen, Building2, ChevronRight, Eye, RefreshCw, FileSpreadsheet, Download
 } from 'lucide-react'
-import { Student } from '@/lib/types'
+import { Student, extractLmsNumber } from '@/lib/types'
 
 const GRADE_BADGE_STYLES: Record<number, { bg: string; color: string; border: string }> = {
   5:  { bg: '#eff6ff', color: '#2563eb', border: '#dbeafe' },
@@ -126,12 +126,12 @@ export default function StudentsPage() {
         if (raw) {
           orClauses.push(`ps_code.ilike.${cleanCode}%`)
           orClauses.push(`full_name.ilike.%${raw}%`)
-          orClauses.push(`lms_number.ilike.%${raw}%`)
+          orClauses.push(`notes.ilike.%${raw}%`)
         }
         if (cleanDigits) {
           orClauses.push(`ps_code.ilike.PS${cleanDigits}%`)
           orClauses.push(`ps_code.ilike.SM${cleanDigits}%`)
-          orClauses.push(`lms_number.ilike.%${cleanDigits}%`)
+          orClauses.push(`notes.ilike.%${cleanDigits}%`)
         }
 
         let q = supabase.from('students').select(`
@@ -182,7 +182,12 @@ export default function StudentsPage() {
           return aCode.length - bCode.length
         })
 
-        setStudents(sortedData.slice(p * PAGE_SIZE, (p + 1) * PAGE_SIZE))
+        const mappedList = sortedData.slice(p * PAGE_SIZE, (p + 1) * PAGE_SIZE).map(s => ({
+          ...s,
+          lms_number: extractLmsNumber(s)
+        }))
+
+        setStudents(mappedList)
         setTotal(Math.max(count || 0, exactMatch ? 1 : 0))
       } else {
         // Standard Paginated Query
@@ -199,7 +204,11 @@ export default function StudentsPage() {
 
         q = q.order('created_at', { ascending: false }).range(p * PAGE_SIZE, (p + 1) * PAGE_SIZE - 1)
         const { data, count } = await q
-        setStudents(data || [])
+        const mappedList = (data || []).map(s => ({
+          ...s,
+          lms_number: extractLmsNumber(s)
+        }))
+        setStudents(mappedList)
         setTotal(count || 0)
       }
     } finally {
@@ -246,9 +255,7 @@ export default function StudentsPage() {
       while (hasMore) {
         let q = supabase
           .from('students')
-          .select('ps_code, full_name, grade, lms_number, created_at')
-          .not('lms_number', 'is', null)
-          .neq('lms_number', '')
+          .select('ps_code, full_name, grade, notes, created_at')
 
         if (tutorFilter === 'sanduni') {
           q = q.ilike('ps_code', 'SM%')
@@ -271,18 +278,22 @@ export default function StudentsPage() {
         }
       }
 
-      if (allStudents.length === 0) {
+      const studentsWithLms = allStudents
+        .map(s => ({ ...s, lms_number: extractLmsNumber(s) }))
+        .filter(s => !!s.lms_number)
+
+      if (studentsWithLms.length === 0) {
         alert('No registered LMS Mobile Numbers found matching your filter criteria.')
         return
       }
 
       const headers = ['LMS Mobile Number', 'PS Code', 'Student Name', 'Grade', 'Registered Date']
-      const rows = allStudents.map(s => [
-        `"${(s.lms_number || '').replace(/"/g, '""')}"`,
+      const rows = studentsWithLms.map(s => [
+        `"${s.lms_number}"`,
         `"${s.ps_code || ''}"`,
         `"${(s.full_name || '').replace(/"/g, '""')}"`,
-        `"Grade ${s.grade || '—'}"`,
-        `"${s.created_at ? s.created_at.slice(0, 10) : ''}"`
+        `"${s.grade ? `Grade ${s.grade}` : ''}"`,
+        `"${s.created_at ? new Date(s.created_at).toLocaleDateString('en-GB') : ''}"`
       ])
 
       const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n')

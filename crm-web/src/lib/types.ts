@@ -170,3 +170,30 @@ export interface MonthlyRevenue {
   payment_count: number
   total_amount: number
 }
+
+// ── LMS Number Encoding / Extraction Helpers ──────────────────
+export function extractLmsNumber(stuOrNotes?: string | null | { notes?: string | null, lms_number?: string | null }): string {
+  if (!stuOrNotes) return ''
+  if (typeof stuOrNotes === 'string') {
+    const match = stuOrNotes.match(/\[LMS:\s*([^\]]+)\]/i)
+    return match ? match[1].trim() : ''
+  }
+  if (stuOrNotes.lms_number && stuOrNotes.lms_number.trim()) {
+    return stuOrNotes.lms_number.trim()
+  }
+  if (stuOrNotes.notes) {
+    const match = stuOrNotes.notes.match(/\[LMS:\s*([^\]]+)\]/i)
+    if (match) return match[1].trim()
+  }
+  return ''
+}
+
+export function formatNotesWithLms(notes: string | null | undefined, lmsNumber: string | null | undefined): string | null {
+  const clean = (notes || '').replace(/\[LMS:[^\]]*\]/gi, '').trim()
+  const cleanLms = (lmsNumber || '').trim()
+  if (cleanLms) {
+    return clean ? `${clean} [LMS: ${cleanLms}]` : `[LMS: ${cleanLms}]`
+  }
+  return clean || null
+}
+
