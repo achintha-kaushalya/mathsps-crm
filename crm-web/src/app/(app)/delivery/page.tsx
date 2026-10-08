@@ -44,6 +44,7 @@ interface DeliveryStudentItem {
   ps_code: string
   full_name: string
   grade: number
+  lms_number?: string
   class_type: string
   date_paid: string
   notes: string
@@ -219,7 +220,7 @@ export default function DeliveryPage() {
           .select(`
             id, student_id, class_type, month, year, amount_paid, payment_type, tute_delivered, date_paid, notes,
             students!inner(
-              id, ps_code, full_name, grade, household_id,
+              id, ps_code, full_name, grade, lms_number, household_id,
               households(id, parent_name, address, area, parent_phone)
             )
           `)
@@ -287,6 +288,7 @@ export default function DeliveryPage() {
             ps_code: stu.ps_code,
             full_name: stu.full_name || 'Student',
             grade: stu.grade || 0,
+            lms_number: stu.lms_number || '',
             class_type: item.class_type,
             date_paid: item.date_paid || '',
             notes: item.notes || '',
@@ -557,6 +559,58 @@ export default function DeliveryPage() {
     }
   }
 
+  // Export dedicated LMS Mobile Numbers list for selected delivery queue
+  function exportLmsNumbersBatch() {
+    const targetGroups = visibleGroups.filter(g => selectedHouseholds.has(g.household_id))
+    if (targetGroups.length === 0) {
+      alert('Select at least 1 record to export LMS numbers.')
+      return
+    }
+
+    const rows: string[][] = []
+    const seenLmsNumbers = new Set<string>()
+
+    targetGroups.forEach(g => {
+      const items = activeTab === 'unexported' ? g.students.filter(st => !st.dispatched) : g.students
+      items.forEach(st => {
+        const lms = (st.lms_number || '').trim()
+        if (lms) {
+          const courseName = courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type
+          rows.push([
+            `"${lms.replace(/"/g, '""')}"`,
+            `"${st.ps_code}"`,
+            `"${(st.full_name || '').replace(/"/g, '""')}"`,
+            `"Grade ${st.grade || '—'}"`,
+            `"${courseName.replace(/"/g, '""')}"`,
+            `"${MONTH_NAMES[month - 1]} ${year}"`
+          ])
+          seenLmsNumbers.add(lms)
+        }
+      })
+    })
+
+    if (rows.length === 0) {
+      alert('No LMS Mobile Numbers found on the selected students.')
+      return
+    }
+
+    const headers = ['LMS Mobile Number', 'PS Code', 'Student Name', 'Grade', 'Enrolled Course', 'Billing Month']
+    const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n')
+    const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    const dateStr = new Date().toISOString().slice(0, 10)
+    a.download = `MathsPS_Delivery_LMS_Numbers_${dateStr}_(${rows.length}_Students).csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+
+    setActionMessage(`✓ Exported ${rows.length} LMS Mobile Numbers (${seenLmsNumbers.size} unique numbers)!`)
+    setTimeout(() => setActionMessage(''), 6000)
+  }
+
   // Restore Dispatched items back to Unexported queue
   async function revertDispatchedBatch(g: DeliveryGroup) {
     if (!confirm(`Revert ${g.parent_name} (${g.students.map(s => s.ps_code).join(', ')}) back to Ready to Export queue?`)) return
@@ -702,6 +756,21 @@ export default function DeliveryPage() {
               >
                 <FileSpreadsheet size={16} />
                 {marking ? 'Exporting...' : `Export Post Office CSV (${selectedCount})`}
+              </button>
+              <button
+                onClick={exportLmsNumbersBatch}
+                disabled={selectedCount === 0}
+                className="btn-primary"
+                style={{
+                  background: 'linear-gradient(135deg, #2563eb 0%, #38bdf8 100%)',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  fontWeight: 600, padding: '9px 18px',
+                  boxShadow: '0 4px 12px rgba(56,189,248,0.25)',
+                  opacity: selectedCount === 0 ? 0.6 : 1
+                }}
+                title="Export dedicated LMS numbers CSV for your LMS student access portal"
+              >
+                <FileSpreadsheet size={16} /> Export LMS Numbers ({selectedCount})
               </button>
               <button
                 onClick={printBatchEnvelopes}

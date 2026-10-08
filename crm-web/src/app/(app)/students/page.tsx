@@ -5,7 +5,7 @@ import { createClient } from '@/lib/supabase/client'
 import { 
   Search, Plus, ArrowRight, User, GraduationCap, MapPin, 
   Phone, Home, ExternalLink, Filter, X, Sparkles, CheckCircle2, 
-  BookOpen, Building2, ChevronRight, Eye, RefreshCw
+  BookOpen, Building2, ChevronRight, Eye, RefreshCw, FileSpreadsheet, Download
 } from 'lucide-react'
 import { Student } from '@/lib/types'
 
@@ -233,6 +233,76 @@ export default function StudentsPage() {
     return { char, ...palette }
   }
 
+  const [exportingLms, setExportingLms] = useState(false)
+
+  async function exportLmsNumbersCsv() {
+    setExportingLms(true)
+    try {
+      const CHUNK = 1000
+      let allStudents: any[] = []
+      let from = 0
+      let hasMore = true
+
+      while (hasMore) {
+        let q = supabase
+          .from('students')
+          .select('ps_code, full_name, grade, lms_number, created_at')
+          .not('lms_number', 'is', null)
+          .neq('lms_number', '')
+
+        if (tutorFilter === 'sanduni') {
+          q = q.ilike('ps_code', 'SM%')
+        } else if (tutorFilter === 'prabuddha') {
+          q = q.ilike('ps_code', 'PS%')
+        }
+
+        if (gradeFilter) {
+          q = q.eq('grade', parseInt(gradeFilter))
+        }
+
+        const { data, error } = await q.order('created_at', { ascending: false }).range(from, from + CHUNK - 1)
+        if (error) throw error
+
+        allStudents = allStudents.concat(data || [])
+        if (!data || data.length < CHUNK) {
+          hasMore = false
+        } else {
+          from += CHUNK
+        }
+      }
+
+      if (allStudents.length === 0) {
+        alert('No registered LMS Mobile Numbers found matching your filter criteria.')
+        return
+      }
+
+      const headers = ['LMS Mobile Number', 'PS Code', 'Student Name', 'Grade', 'Registered Date']
+      const rows = allStudents.map(s => [
+        `"${(s.lms_number || '').replace(/"/g, '""')}"`,
+        `"${s.ps_code || ''}"`,
+        `"${(s.full_name || '').replace(/"/g, '""')}"`,
+        `"Grade ${s.grade || '—'}"`,
+        `"${s.created_at ? s.created_at.slice(0, 10) : ''}"`
+      ])
+
+      const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n')
+      const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const dateStr = new Date().toISOString().slice(0, 10)
+      a.download = `MathsPS_LMS_Numbers_Bulk_Import_${dateStr}_(${allStudents.length}_Students).csv`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch (e: any) {
+      alert('Failed to export LMS numbers: ' + e.message)
+    } finally {
+      setExportingLms(false)
+    }
+  }
+
   return (
     <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: 'var(--bg-base)' }}>
       {/* 1. Page Header */}
@@ -266,6 +336,25 @@ export default function StudentsPage() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button 
+            onClick={exportLmsNumbersCsv}
+            disabled={exportingLms}
+            className="btn-primary"
+            title="Export bulk LMS numbers CSV for your LMS portal"
+            style={{
+              padding: '9px 16px',
+              borderRadius: 10,
+              fontWeight: 700,
+              background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              boxShadow: '0 2px 8px rgba(16, 185, 129, 0.25)'
+            }}
+          >
+            <FileSpreadsheet size={15} />
+            {exportingLms ? 'Exporting LMS...' : 'Export LMS Numbers'}
+          </button>
           <button 
             onClick={() => { loadKpiStats(); loadStudents(page) }} 
             className="btn-secondary"
