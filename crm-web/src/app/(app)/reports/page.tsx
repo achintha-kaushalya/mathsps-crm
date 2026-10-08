@@ -272,7 +272,7 @@ export default function ReportsPage() {
           fetchAllPaginated((from, to) => {
             let q = supabase
               .from('payments')
-              .select('id, student_id, amount_paid, payment_type, bank_name, recorded_by, created_at, date_paid, class_type, notes, tute_delivered, students(ps_code, full_name, grade, household:households(parent_name, parent_phone))')
+              .select('id, student_id, amount_paid, payment_type, bank_name, recorded_by, created_at, date_paid, class_type, notes, tute_delivered, students(ps_code, full_name, grade, notes, household:households(parent_name, parent_phone))')
               .range(from, to)
               .order('created_at', { ascending: false })
 
@@ -285,7 +285,7 @@ export default function ReportsPage() {
           // Real new registered students in date range
           supabase
             .from('students')
-            .select('id, ps_code, full_name, grade, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(class_type)')
+            .select('id, ps_code, full_name, grade, notes, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(class_type)')
             .not('created_by', 'ilike', '%Auto-Pre-generated%')
             .gte('created_at', startOfRangeIso)
             .lte('created_at', endOfRangeIso)
@@ -349,7 +349,7 @@ export default function ReportsPage() {
           fetchAllPaginated((from, to) =>
             supabase
               .from('payments')
-              .select('id, student_id, amount_paid, payment_type, bank_name, recorded_by, created_at, date_paid, class_type, students(id, ps_code, full_name, grade, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(class_type))')
+              .select('id, student_id, amount_paid, payment_type, bank_name, recorded_by, created_at, date_paid, class_type, students(id, ps_code, full_name, grade, notes, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(class_type))')
               .eq('month', month)
               .eq('year', year)
               .range(from, to)
@@ -357,7 +357,7 @@ export default function ReportsPage() {
           fetchAllPaginated((from, to) =>
             supabase
               .from('payments')
-              .select('student_id, students(ps_code)')
+              .select('student_id, students(ps_code, notes)')
               .eq('month', prevMonthNum)
               .eq('year', prevYearNum)
               .range(from, to)
@@ -365,14 +365,14 @@ export default function ReportsPage() {
           fetchAllPaginated((from, to) =>
             supabase
               .from('payments')
-              .select('month, year, student_id, students(ps_code)')
+              .select('month, year, student_id, students(ps_code, notes)')
               .eq('month', nextMonthNum)
               .eq('year', nextYearNum)
               .range(from, to)
           ),
           supabase
             .from('students')
-            .select('id, ps_code, full_name, grade, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(class_type)')
+            .select('id, ps_code, full_name, grade, notes, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(class_type)')
             .not('created_by', 'ilike', '%Auto-Pre-generated%')
             .gte('created_at', startOfAdvanceLookback)
             .lte('created_at', endOfMonth)

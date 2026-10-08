@@ -19,7 +19,7 @@ import {
   History,
   RotateCw
 } from 'lucide-react'
-import { CLASS_LABELS, MONTH_NAMES } from '@/lib/types'
+import { CLASS_LABELS, MONTH_NAMES, extractLmsNumber } from '@/lib/types'
 import { exportLmsBulkCsv, formatMobileForLms, getGradeFromPayment } from '@/lib/reports-analytics'
 import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES } from '@/lib/courses'
 import { createClient } from '@/lib/supabase/client'
@@ -245,7 +245,8 @@ export default function LmsBulkExporterTab({
       const ps = item.students?.ps_code || item.ps_code || item.student_id || ''
       const name = item.students?.full_name || item.full_name || 'Student'
       const gr = getGradeFromPayment(item) || Number(item.students?.grade || item.grade || 0)
-      const phone = item.students?.household?.parent_phone || item.household?.parent_phone || item.parent_phone || ''
+      const lmsPhone = extractLmsNumber(item.students) || extractLmsNumber(item)
+      const phone = lmsPhone || item.students?.household?.parent_phone || item.household?.parent_phone || item.parent_phone || ''
       const cls = item.class_type || (item.enrollments && item.enrollments[0]?.class_type) || 'GENERAL'
 
       // Apply Grade Filter (unless standalone course is specifically selected)

@@ -14,7 +14,7 @@ import {
   Package,
   Download
 } from 'lucide-react'
-import { CLASS_LABELS } from '@/lib/types'
+import { CLASS_LABELS, extractLmsNumber } from '@/lib/types'
 import { exportTableToCsv, exportLmsBulkCsv } from '@/lib/reports-analytics'
 
 interface DayEndSummaryTabProps {
@@ -392,12 +392,12 @@ export default function DayEndSummaryTab({
                     const paidData = dayEndGradePaidMap[g] || { count: 0, total: 0 }
                     const share = totalDailyRevenue > 0 ? ((paidData.total / totalDailyRevenue) * 100).toFixed(1) : '0.0'
 
-                    // Extract paid students in this grade for LMS export
+                    // Extract paid students in this grade for LMS export (prioritize LMS number)
                     const gradePaidStudents = dailyPayments
                       .filter(p => (p.students?.grade || 0) === g)
                       .map(p => ({
                         name: p.students?.full_name || 'Student',
-                        mobile: p.students?.household?.parent_phone || ''
+                        mobile: extractLmsNumber(p.students) || p.students?.household?.parent_phone || ''
                       }))
 
                     return (
@@ -471,7 +471,7 @@ export default function DayEndSummaryTab({
                         onClick={() => {
                           const allPaid = dailyPayments.map(p => ({
                             name: p.students?.full_name || 'Student',
-                            mobile: p.students?.household?.parent_phone || ''
+                            mobile: extractLmsNumber(p.students) || p.students?.household?.parent_phone || ''
                           }))
                           exportLmsBulkCsv(`LMS_Billing_Bulk_AllGrades_${periodLabel.replace(/[\s\:]+/g, '_')}`, allPaid)
                         }}
@@ -509,7 +509,7 @@ export default function DayEndSummaryTab({
                     .filter(p => p.class_type === cls)
                     .map(p => ({
                       name: p.students?.full_name || 'Student',
-                      mobile: p.students?.household?.parent_phone || ''
+                      mobile: extractLmsNumber(p.students) || p.students?.household?.parent_phone || ''
                     }))
 
                   const cName = courseLabels[cls] || CLASS_LABELS[cls] || cls
