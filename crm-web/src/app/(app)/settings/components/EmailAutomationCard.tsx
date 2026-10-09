@@ -296,24 +296,28 @@ export default function EmailAutomationCard() {
       yearly: 'Annual Strategic Review'
     }
 
-    try {
-      const res = await fetch('/api/reports/send-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          reportType: type,
-          provider,
-          // SMTP options
-          smtpUser: smtpUser.trim() || undefined,
-          smtpPass: smtpPass.trim() || undefined,
-          // Resend options
-          senderApiKey: apiKey.trim() || undefined,
-          fromEmail: fromEmail.trim() || undefined,
-          recipients,
-          targetDate: new Date().toISOString().slice(0, 10),
-          includeCsv
+        const nowSlMs = new Date().getTime() + (new Date().getTimezoneOffset() * 60000) + (5.5 * 3600000)
+        const testTargetDate = type === 'morning'
+          ? new Date(nowSlMs - (24 * 60 * 60 * 1000)).toISOString().slice(0, 10)
+          : new Date(nowSlMs).toISOString().slice(0, 10)
+
+        const res = await fetch('/api/reports/send-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            reportType: type,
+            provider,
+            // SMTP options
+            smtpUser: smtpUser.trim() || undefined,
+            smtpPass: smtpPass.trim() || undefined,
+            // Resend options
+            senderApiKey: apiKey.trim() || undefined,
+            fromEmail: fromEmail.trim() || undefined,
+            recipients,
+            targetDate: testTargetDate,
+            includeCsv
+          })
         })
-      })
 
       const data = await res.json()
       if (!res.ok) throw new Error(data.error || 'Failed to dispatch email')
