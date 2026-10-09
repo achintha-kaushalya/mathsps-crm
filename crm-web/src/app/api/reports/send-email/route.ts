@@ -744,44 +744,48 @@ async function dispatchReportEmail(params: {
     subtitle: string,
     monthTotal: number,
     rows: { day: number; dateStr: string; counts: Record<number, number>; cumulativeTotal: number; isWeekend: boolean }[],
-    headerGrad: string
+    accentColor: string = '#0284c7'
   ) {
     const monthName = MONTH_NAMES[targetMonth - 1]
     return `
-      <div style="margin-top: 24px; margin-bottom: 24px; border: 1px solid #cbd5e1; border-radius: 10px; overflow: hidden; background: #ffffff;">
-        <div style="background: ${headerGrad}; color: #ffffff; padding: 14px 18px; display: table; width: 100%; box-sizing: border-box;">
-          <div style="display: table-cell; vertical-align: middle;">
-            <div style="font-size: 15px; font-weight: 800; letter-spacing: 0.3px;">${title}</div>
-            <div style="font-size: 11px; opacity: 0.9; margin-top: 2px;">${subtitle}</div>
-          </div>
-          <div style="display: table-cell; vertical-align: middle; text-align: right;">
-            <span style="background: rgba(255,255,255,0.22); padding: 4px 10px; border-radius: 14px; font-size: 11px; font-weight: 700; white-space: nowrap;">
-              ${monthName} Total: ${monthTotal}
-            </span>
-          </div>
+      <div style="margin: 20px 0; border: 1px solid #e2e8f0; border-radius: 12px; overflow: hidden; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.04);">
+        <div style="background: #0f172a; padding: 14px 18px; border-bottom: 1px solid #1e293b;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="vertical-align: middle;">
+                <div style="font-size: 13px; font-weight: 700; color: #ffffff; letter-spacing: -0.2px;">${title}</div>
+                <div style="font-size: 11px; color: #94a3b8; margin-top: 2px;">${subtitle}</div>
+              </td>
+              <td style="text-align: right; vertical-align: middle;">
+                <span style="display: inline-block; background: #1e293b; color: #38bdf8; border: 1px solid #334155; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700;">
+                  ${monthName} Total: ${monthTotal}
+                </span>
+              </td>
+            </tr>
+          </table>
         </div>
         <table style="width: 100%; border-collapse: collapse; font-size: 12px; text-align: center;">
           <thead>
-            <tr style="background: #15803d; color: #ffffff; font-weight: 800;">
-              <th rowspan="2" style="padding: 8px 10px; border: 1px solid #166534; width: 95px;">Date</th>
-              <th colspan="7" style="padding: 6px 8px; border: 1px solid #166534; font-size: 12px; letter-spacing: 0.5px;">${monthName} (Grades)</th>
-              <th rowspan="2" style="padding: 8px 10px; border: 1px solid #166534; width: 65px; background: #14532d;">Total</th>
+            <tr style="background: #f8fafc; color: #475569; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #e2e8f0;">
+              <th rowspan="2" style="padding: 10px 12px; border-right: 1px solid #e2e8f0; width: 95px; text-align: left; font-weight: 700;">Date</th>
+              <th colspan="7" style="padding: 6px 8px; border-bottom: 1px solid #e2e8f0; font-weight: 700; color: #0f172a;">${monthName} (Grades)</th>
+              <th rowspan="2" style="padding: 10px 12px; border-left: 1px solid #e2e8f0; width: 65px; font-weight: 700; color: #0f172a;">Total</th>
             </tr>
-            <tr style="background: #16a34a; color: #ffffff; font-weight: 700;">
-              ${matrixTargetGrades.map(g => `<th style="padding: 6px 4px; border: 1px solid #166534; min-width: 38px;">${g}</th>`).join('')}
+            <tr style="background: #f1f5f9; color: #64748b; font-size: 11px; font-weight: 700; border-bottom: 1px solid #cbd5e1;">
+              ${matrixTargetGrades.map(g => `<th style="padding: 6px 4px; border-right: 1px solid #e2e8f0; min-width: 38px;">Gr ${g}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
             ${rows.map((r, idx) => {
-              const bg = r.isWeekend ? '#fef2f2' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc')
+              const bg = r.isWeekend ? '#fffbeb' : (idx % 2 === 0 ? '#ffffff' : '#f8fafc')
               return `
-                <tr style="background: ${bg}; border-bottom: 1px solid #e2e8f0;">
-                  <td style="padding: 6px 8px; font-weight: 600; color: #334155; border-right: 1px solid #e2e8f0;">${r.dateStr}</td>
+                <tr style="background: ${bg}; border-bottom: 1px solid #f1f5f9;">
+                  <td style="padding: 7px 12px; font-weight: 600; color: #334155; text-align: left; border-right: 1px solid #e2e8f0; font-size: 11px;">${r.dateStr}</td>
                   ${matrixTargetGrades.map(g => {
                     const count = r.counts[g] || 0
-                    return `<td style="padding: 6px 4px; border-right: 1px solid #e2e8f0; color: ${count > 0 ? '#0f172a' : '#94a3b8'}; font-weight: ${count > 0 ? '600' : '400'};">${count}</td>`
+                    return `<td style="padding: 7px 4px; border-right: 1px solid #f1f5f9; color: ${count > 0 ? '#0f172a' : '#cbd5e1'}; font-weight: ${count > 0 ? '600' : '400'};">${count}</td>`
                   }).join('')}
-                  <td style="padding: 6px 8px; font-weight: 800; color: #047857; background: ${r.isWeekend ? '#fee2e2' : '#f0fdf4'};">${r.cumulativeTotal}</td>
+                  <td style="padding: 7px 12px; font-weight: 800; color: #0f172a; border-left: 1px solid #e2e8f0; background: ${r.isWeekend ? '#fef3c7' : '#f0fdf4'}; font-size: 12px;">${r.cumulativeTotal}</td>
                 </tr>
               `
             }).join('')}
@@ -793,23 +797,29 @@ async function dispatchReportEmail(params: {
 
   // Base CSS styles
   const baseEmailCss = `
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f1f5f9; margin: 0; padding: 24px; color: #1e293b; }
-    .container { max-width: 660px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,0.07); border: 1px solid #cbd5e1; }
-    .header { color: #ffffff; padding: 28px 24px; text-align: center; }
-    .header h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; }
-    .header p { margin: 6px 0 0 0; opacity: 0.9; font-size: 14px; }
-    .content { padding: 24px; }
-    .kpi-grid { display: table; width: 100%; table-layout: fixed; margin-bottom: 20px; }
-    .kpi-cell { display: table-cell; padding: 6px; vertical-align: top; }
-    .kpi-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; text-align: center; }
-    .kpi-label { font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 800; margin-bottom: 4px; }
-    .kpi-value { font-size: 19px; font-weight: 800; color: #0f172a; }
-    .section-title { font-size: 14px; font-weight: 800; color: #0f172a; margin: 20px 0 10px 0; border-bottom: 2px solid #3b82f6; padding-bottom: 4px; display: inline-block; text-transform: uppercase; letter-spacing: 0.5px; }
-    table.data { width: 100%; border-collapse: collapse; margin-bottom: 18px; font-size: 13px; }
-    table.data th { background: #f1f5f9; color: #475569; font-weight: 700; text-align: left; padding: 9px 10px; border-bottom: 2px solid #cbd5e1; }
-    table.data td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
-    .action-box { background: #eff6ff; border: 1px solid #bfdbfe; border-left: 4px solid #3b82f6; border-radius: 6px; padding: 14px; margin-bottom: 20px; font-size: 13px; }
-    .footer { background: #f8fafc; padding: 18px 24px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #e2e8f0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px 12px; color: #0f172a; line-height: 1.5; }
+    .container { max-width: 680px; margin: 0 auto; background: #ffffff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 20px rgba(0,0,0,0.06); border: 1px solid #e2e8f0; }
+    .header { background: #090d16; color: #ffffff; padding: 32px 28px; border-bottom: 1px solid #1e293b; text-align: left; }
+    .header-badge { display: inline-block; background: rgba(56, 189, 248, 0.12); color: #38bdf8; border: 1px solid rgba(56, 189, 248, 0.3); padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 12px; }
+    .header h1 { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: -0.5px; color: #ffffff; }
+    .header p { margin: 6px 0 0 0; color: #94a3b8; font-size: 13px; }
+    .content { padding: 28px; }
+    .kpi-grid { display: table; width: 100%; table-layout: fixed; margin-bottom: 24px; }
+    .kpi-cell { display: table-cell; padding: 0 6px; vertical-align: top; }
+    .kpi-cell:first-child { padding-left: 0; }
+    .kpi-cell:last-child { padding-right: 0; }
+    .kpi-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 14px; text-align: left; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+    .kpi-label { font-size: 11px; text-transform: uppercase; color: #64748b; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .kpi-value { font-size: 22px; font-weight: 800; color: #0f172a; letter-spacing: -0.5px; line-height: 1.1; }
+    .kpi-sub { font-size: 11px; color: #64748b; margin-top: 6px; }
+    .section-title { font-size: 13px; font-weight: 800; color: #0f172a; margin: 28px 0 12px 0; text-transform: uppercase; letter-spacing: 0.6px; display: flex; align-items: center; }
+    table.data { width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 13px; border: 1px solid #e2e8f0; border-radius: 10px; overflow: hidden; }
+    table.data th { background: #f8fafc; color: #475569; font-weight: 700; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; text-align: left; padding: 10px 12px; border-bottom: 1px solid #e2e8f0; }
+    table.data td { padding: 10px 12px; border-bottom: 1px solid #f1f5f9; color: #334155; }
+    table.data tr:last-child td { border-bottom: none; }
+    .action-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 18px; margin-bottom: 24px; }
+    .action-box-title { font-size: 13px; font-weight: 800; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px; }
+    .footer { background: #f8fafc; padding: 20px 28px; text-align: center; font-size: 11px; color: #64748b; border-top: 1px solid #e2e8f0; line-height: 1.6; }
   `
 
   let emailSubject = ''
@@ -826,19 +836,19 @@ async function dispatchReportEmail(params: {
     const payProgressionTotal = cumulativePayMatrixRows[cumulativePayMatrixRows.length - 1]?.cumulativeTotal || 0
 
     const matrix1Html = renderProgressionMatrixHtml(
-      `📅 ${MONTH_NAMES[targetMonth - 1]} ${targetYear} — Grade-Wise Cumulative Progression Sheet (Registrations)`,
+      `Grade-Wise Cumulative Registrations — ${MONTH_NAMES[targetMonth - 1]} ${targetYear}`,
       'Daily and cumulative count of new registered students across Grades 5–11',
       regProgressionTotal,
       cumulativeRegMatrixRows,
-      'linear-gradient(135deg, #15803d 0%, #166534 100%)'
+      '#059669'
     )
 
     const matrix2Html = renderProgressionMatrixHtml(
-      `💳 ${MONTH_NAMES[targetMonth - 1]} ${targetYear} — Grade-Wise Cumulative Progression Sheet (Fee Slips)`,
+      `Grade-Wise Cumulative Fee Slips / Paid Students — ${MONTH_NAMES[targetMonth - 1]} ${targetYear}`,
       'Daily and cumulative count of students paying fees across Grades 5–11',
       payProgressionTotal,
       cumulativePayMatrixRows,
-      'linear-gradient(135deg, #047857 0%, #065f46 100%)'
+      '#2563eb'
     )
 
     // ---- Comparisons (professional-style trend deltas) ----
@@ -851,71 +861,79 @@ async function dispatchReportEmail(params: {
       .filter((p: any) => p.created_at && parseInt(slDateOf(p.created_at).split('-')[2], 10) <= targetDayNum)
       .reduce((s: number, p: any) => s + (Number(p.amount_paid) || 0), 0)
     const fmtDelta = (cur: number, base: number, label: string) => {
-      if (!base) return `${label}: no data to compare`
+      if (!base) return `<span style="color:#64748b;">${label}: no prior benchmark</span>`
       const pct = ((cur - base) / base) * 100
-      const arrow = pct >= 0 ? '▲' : '▼'
+      const arrow = pct >= 0 ? '▲ +' : '▼ '
       const color = pct >= 0 ? '#059669' : '#dc2626'
-      return `${label}: <span style="color:${color};font-weight:700;">${arrow} ${Math.abs(pct).toFixed(1)}%</span> (Rs. ${base.toLocaleString()})`
+      const badgeBg = pct >= 0 ? '#ecfdf5' : '#fef2f2'
+      return `<strong>${label}:</strong> <span style="display:inline-block; padding:2px 6px; border-radius:4px; font-weight:700; font-size:11px; background:${badgeBg}; color:${color};">${arrow}${Math.abs(pct).toFixed(1)}%</span> <span style="color:#64748b; font-size:11px;">(Rs. ${base.toLocaleString()})</span>`
     }
-    const dayTrendLine = fmtDelta(totalDailyRevenue, lastWeekDayRevenue, `vs same weekday last week (${sameDayLastWeek})`)
-    const monthTrendLine = fmtDelta(totalMonthRevenue, prevMonthSameDayRevenue, `Month-to-date vs ${MONTH_NAMES[prevMonthNum - 1]} same day`)
+    const dayTrendLine = fmtDelta(totalDailyRevenue, lastWeekDayRevenue, `vs Same Day Last Week (${sameDayLastWeek})`)
+    const monthTrendLine = fmtDelta(totalMonthRevenue, prevMonthSameDayRevenue, `MTD vs ${MONTH_NAMES[prevMonthNum - 1]} at Day ${targetDayNum}`)
 
-    emailSubject = `☀️ MathsPS Morning Operations Brief — ${targetDate} (Yesterday: Rs. ${totalDailyRevenue.toLocaleString()})`
+    emailSubject = `☀️ MathsPS Morning Operations Brief — ${targetDate} (Rs. ${totalDailyRevenue.toLocaleString()})`
     emailHtml = `
       <!DOCTYPE html>
       <html>
       <head><meta charset="utf-8"><style>${baseEmailCss}</style></head>
       <body>
         <div class="container">
-          <div class="header" style="background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #3b82f6 100%);">
-            <h1>☀️ MathsPS Executive Morning Brief</h1>
-            <p>Daily Operations, Yesterday's Audit &amp; Month Cumulative Progression (${targetDate})</p>
+          <div class="header">
+            <span class="header-badge">Daily Executive Intelligence</span>
+            <h1>☀️ MathsPS Operations Brief</h1>
+            <p>Audited performance for yesterday (<strong>${targetDate}</strong>) and Month-to-Date metrics</p>
           </div>
 
           <div class="content">
             <div class="kpi-grid">
               <div class="kpi-cell">
-                <div class="kpi-card" style="border-left: 4px solid #3b82f6;">
-                  <div class="kpi-label">Yesterday Collection</div>
+                <div class="kpi-card" style="border-top: 3px solid #2563eb;">
+                  <div class="kpi-label">Yesterday Collections</div>
                   <div class="kpi-value" style="color: #2563eb;">Rs. ${totalDailyRevenue.toLocaleString()}</div>
-                  <div style="font-size: 11px; color: #64748b; margin-top: 2px;">${paymentsList.length} slips processed</div>
+                  <div class="kpi-sub">${paymentsList.length} slips audited</div>
                 </div>
               </div>
               <div class="kpi-cell">
-                <div class="kpi-card" style="border-left: 4px solid #10b981;">
-                  <div class="kpi-label">New Registrations</div>
+                <div class="kpi-card" style="border-top: 3px solid #059669;">
+                  <div class="kpi-label">New Intake</div>
                   <div class="kpi-value" style="color: #059669;">+${regList.length}</div>
-                  <div style="font-size: 11px; color: #64748b; margin-top: 2px;">Yesterday intake</div>
+                  <div class="kpi-sub">Yesterday registered</div>
                 </div>
               </div>
               <div class="kpi-cell">
-                <div class="kpi-card" style="border-left: 4px solid #8b5cf6;">
-                  <div class="kpi-label">${MONTH_NAMES[targetMonth - 1]} Month-to-Date</div>
+                <div class="kpi-card" style="border-top: 3px solid #7c3aed;">
+                  <div class="kpi-label">${MONTH_NAMES[targetMonth - 1]} MTD Total</div>
                   <div class="kpi-value" style="color: #7c3aed;">Rs. ${totalMonthRevenue.toLocaleString()}</div>
-                  <div style="font-size: 11px; color: #64748b; margin-top: 2px;">${totalCurrPaidStudents} paying students</div>
+                  <div class="kpi-sub">${totalCurrPaidStudents} paying students</div>
                 </div>
               </div>
             </div>
 
             <div class="action-box">
-              <strong style="color: #1e40af; display: block; margin-bottom: 6px; font-size: 14px;">🎯 Daily Operations Summary:</strong>
-              <ul style="margin: 0; padding-left: 18px; color: #1e293b; display: flex; flex-direction: column; gap: 4px;">
-                <li><strong>Yesterday's Collection:</strong> Processed Rs. ${totalDailyRevenue.toLocaleString()} across ${paymentsList.length} audited slips.</li>
-                <li><strong>Month-to-Date Performance:</strong> Rs. ${totalMonthRevenue.toLocaleString()} collected with ${regProgressionTotal} new registrations this month.</li>
-                <li><strong>Pending Debts Overview:</strong> Rs. ${totalDebtAmount.toLocaleString()} outstanding across ${outstandingList.length} student records.</li>
-                <li><strong>Day Trend:</strong> ${dayTrendLine}</li>
-                <li><strong>Month Trend:</strong> ${monthTrendLine}</li>
-                <li><strong>Retention:</strong> ${overallRetentionRate}% of ${MONTH_NAMES[prevMonthNum - 1]} payers have paid this month; ${droppedCount} still to follow up.</li>
-              </ul>
+              <div class="action-box-title">📊 Executive Highlights &amp; Trends</div>
+              <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                <tr>
+                  <td style="padding: 4px 0; color: #334155;">• ${dayTrendLine}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0; color: #334155;">• ${monthTrendLine}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0; color: #334155;">• <strong>Retention:</strong> <span style="color:#0f172a; font-weight:700;">${overallRetentionRate}%</span> of ${MONTH_NAMES[prevMonthNum - 1]} students renewed (${droppedCount} still unpaid).</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0; color: #334155;">• <strong>Pending Balance:</strong> Rs. ${totalDebtAmount.toLocaleString()} across ${outstandingList.length} students.</td>
+                </tr>
+              </table>
             </div>
 
-            <div class="section-title">📊 Yesterday's Grade-Wise Intake &amp; Revenue Breakdown</div>
+            <div class="section-title">Yesterday's Grade-Wise Breakdown</div>
             <table class="data">
               <thead>
                 <tr>
                   <th>Grade</th>
                   <th style="text-align: center;">New Registered</th>
-                  <th style="text-align: center;">Paid Slips</th>
+                  <th style="text-align: center;">Audited Slips</th>
                   <th style="text-align: right;">Amount Collected</th>
                 </tr>
               </thead>
@@ -926,29 +944,29 @@ async function dispatchReportEmail(params: {
                   const rev = pays.reduce((sum, p) => sum + (Number(p.amount_paid) || 0), 0)
                   return `
                     <tr>
-                      <td><strong>Grade ${g}</strong></td>
-                      <td style="text-align: center;">${regs.length}</td>
-                      <td style="text-align: center;">${pays.length}</td>
-                      <td style="text-align: right; font-weight: 700;">Rs. ${rev.toLocaleString()}</td>
+                      <td style="font-weight: 600; color: #0f172a;">Grade ${g}</td>
+                      <td style="text-align: center; color: ${regs.length > 0 ? '#059669' : '#94a3b8'}; font-weight: ${regs.length > 0 ? '700' : '400'};">${regs.length}</td>
+                      <td style="text-align: center; color: ${pays.length > 0 ? '#0f172a' : '#94a3b8'}; font-weight: ${pays.length > 0 ? '700' : '400'};">${pays.length}</td>
+                      <td style="text-align: right; font-weight: 700; color: ${rev > 0 ? '#0f172a' : '#94a3b8'};">Rs. ${rev.toLocaleString()}</td>
                     </tr>
                   `
                 }).join('')}
-                <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid #cbd5e1;">
-                  <td>TOTAL</td>
-                  <td style="text-align: center;">${regList.length}</td>
-                  <td style="text-align: center;">${paymentsList.length}</td>
-                  <td style="text-align: right; color: #2563eb;">Rs. ${totalDailyRevenue.toLocaleString()}</td>
+                <tr style="background: #f8fafc; font-weight: 800; border-top: 2px solid #e2e8f0;">
+                  <td style="color: #0f172a;">TOTAL</td>
+                  <td style="text-align: center; color: #059669;">${regList.length}</td>
+                  <td style="text-align: center; color: #0f172a;">${paymentsList.length}</td>
+                  <td style="text-align: right; color: #2563eb; font-size: 14px;">Rs. ${totalDailyRevenue.toLocaleString()}</td>
                 </tr>
               </tbody>
             </table>
 
-            <div class="section-title">👥 Progression Report 1: New Registrations (Cumulative)</div>
+            <div class="section-title">Progression 1: Cumulative Registrations</div>
             ${matrix1Html}
 
-            <div class="section-title">💳 Progression Report 2: Paid Students / Slips (Cumulative)</div>
+            <div class="section-title">Progression 2: Cumulative Fee Slips</div>
             ${matrix2Html}
 
-            <div class="section-title">🏦 Bank &amp; Payment Method Breakdown</div>
+            <div class="section-title">Bank &amp; Payment Channel Distribution</div>
             <table class="data">
               <thead>
                 <tr>
@@ -963,10 +981,10 @@ async function dispatchReportEmail(params: {
                   const share = totalDailyRevenue > 0 ? ((data.total / totalDailyRevenue) * 100).toFixed(1) : '0.0'
                   return `
                     <tr>
-                      <td><strong>${bank}</strong></td>
+                      <td style="font-weight: 600; color: #0f172a;">${bank}</td>
                       <td style="text-align: center;">${data.count}</td>
                       <td style="text-align: right; font-weight: 700; color: #0f172a;">Rs. ${data.total.toLocaleString()}</td>
-                      <td style="text-align: right; color: #64748b;">${share}%</td>
+                      <td style="text-align: right; color: #64748b; font-weight: 600;">${share}%</td>
                     </tr>
                   `
                 }).join('')}
@@ -974,7 +992,7 @@ async function dispatchReportEmail(params: {
               </tbody>
             </table>
 
-            <div class="section-title">👤 Staff Performance &amp; Audit Activity</div>
+            <div class="section-title">Staff Verification Activity</div>
             <table class="data">
               <thead>
                 <tr>
@@ -987,7 +1005,7 @@ async function dispatchReportEmail(params: {
               <tbody>
                 ${Object.entries(auditorDailyRevenueMap).sort((a, b) => b[1].total - a[1].total).map(([who, data]) => `
                   <tr>
-                    <td><strong>🔒 ${who}</strong></td>
+                    <td style="font-weight: 600; color: #0f172a;">🔒 ${who}</td>
                     <td style="text-align: center;">${data.regCount}</td>
                     <td style="text-align: center;">${data.count}</td>
                     <td style="text-align: right; font-weight: 700; color: #2563eb;">Rs. ${data.total.toLocaleString()}</td>
