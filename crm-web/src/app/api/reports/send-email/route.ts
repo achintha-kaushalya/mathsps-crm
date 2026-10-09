@@ -154,7 +154,10 @@ export async function GET(request: Request) {
         reportType: rType,
         provider,
         recipients,
-        targetDate: nowSlStr,
+        // Morning brief is sent at 7 AM and reports on YESTERDAY's completed day
+        targetDate: rType === 'morning'
+          ? new Date(new Date(nowSlStr).getTime() - 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+          : nowSlStr,
         includeCsv,
         smtpUser,
         smtpPass,
@@ -264,8 +267,12 @@ async function dispatchReportEmail(params: {
   const prevMonthNum = targetMonth === 1 ? 12 : targetMonth - 1
   const prevYearNum = targetMonth === 1 ? targetYear - 1 : targetYear
 
-  const startOfDay = `${targetDate}T00:00:00.000Z`
-  const endOfDay = `${targetDate}T23:59:59.999Z`
+  // Day boundaries in Sri Lanka time (UTC+05:30), converted to UTC ISO for DB filters
+  const slStart = (d: string) => new Date(`${d}T00:00:00.000+05:30`).toISOString()
+  const slEnd = (d: string) => new Date(`${d}T23:59:59.999+05:30`).toISOString()
+
+  const startOfDay = slStart(targetDate)
+  const endOfDay = slEnd(targetDate)
 
   // Date windows for Weekly (7 days), Prior Week, and Full Year
   const targetDateTime = new Date(targetDate).getTime()
@@ -273,9 +280,9 @@ async function dispatchReportEmail(params: {
   const fourteenDaysAgo = new Date(targetDateTime - (13 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10)
   const eightDaysAgo = new Date(targetDateTime - (7 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10)
 
-  const startOfWeek = `${sevenDaysAgo}T00:00:00.000Z`
-  const startOfPriorWeek = `${fourteenDaysAgo}T00:00:00.000Z`
-  const endOfPriorWeek = `${eightDaysAgo}T23:59:59.999Z`
+  const startOfWeek = slStart(sevenDaysAgo)
+  const startOfPriorWeek = slStart(fourteenDaysAgo)
+  const endOfPriorWeek = slEnd(eightDaysAgo)
 
   // Advance lookback date for month registrations (e.g. 45 days prior to month start)
   const startOfAdvanceLookback = new Date(targetYear, targetMonth - 2, 1).toISOString()
