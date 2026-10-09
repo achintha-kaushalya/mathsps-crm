@@ -841,6 +841,25 @@ async function dispatchReportEmail(params: {
       'linear-gradient(135deg, #047857 0%, #065f46 100%)'
     )
 
+    // ---- Comparisons (professional-style trend deltas) ----
+    const slDateOf = (iso: string) => new Date(new Date(iso).getTime() + 5.5 * 3600000).toISOString().slice(0, 10)
+    const sameDayLastWeek = new Date(new Date(targetDate).getTime() - 7 * 86400000).toISOString().slice(0, 10)
+    const lastWeekDayRevenue = (yearPayments || [])
+      .filter((p: any) => p.created_at && slDateOf(p.created_at) === sameDayLastWeek)
+      .reduce((s: number, p: any) => s + (Number(p.amount_paid) || 0), 0)
+    const prevMonthSameDayRevenue = (prevMonthPayments || [])
+      .filter((p: any) => p.created_at && parseInt(slDateOf(p.created_at).split('-')[2], 10) <= targetDayNum)
+      .reduce((s: number, p: any) => s + (Number(p.amount_paid) || 0), 0)
+    const fmtDelta = (cur: number, base: number, label: string) => {
+      if (!base) return `${label}: no data to compare`
+      const pct = ((cur - base) / base) * 100
+      const arrow = pct >= 0 ? '▲' : '▼'
+      const color = pct >= 0 ? '#059669' : '#dc2626'
+      return `${label}: <span style="color:${color};font-weight:700;">${arrow} ${Math.abs(pct).toFixed(1)}%</span> (Rs. ${base.toLocaleString()})`
+    }
+    const dayTrendLine = fmtDelta(totalDailyRevenue, lastWeekDayRevenue, `vs same weekday last week (${sameDayLastWeek})`)
+    const monthTrendLine = fmtDelta(totalMonthRevenue, prevMonthSameDayRevenue, `Month-to-date vs ${MONTH_NAMES[prevMonthNum - 1]} same day`)
+
     emailSubject = `☀️ MathsPS Morning Operations Brief — ${targetDate} (Yesterday: Rs. ${totalDailyRevenue.toLocaleString()})`
     emailHtml = `
       <!DOCTYPE html>
@@ -884,6 +903,9 @@ async function dispatchReportEmail(params: {
                 <li><strong>Yesterday's Collection:</strong> Processed Rs. ${totalDailyRevenue.toLocaleString()} across ${paymentsList.length} audited slips.</li>
                 <li><strong>Month-to-Date Performance:</strong> Rs. ${totalMonthRevenue.toLocaleString()} collected with ${regProgressionTotal} new registrations this month.</li>
                 <li><strong>Pending Debts Overview:</strong> Rs. ${totalDebtAmount.toLocaleString()} outstanding across ${outstandingList.length} student records.</li>
+                <li><strong>Day Trend:</strong> ${dayTrendLine}</li>
+                <li><strong>Month Trend:</strong> ${monthTrendLine}</li>
+                <li><strong>Retention:</strong> ${overallRetentionRate}% of ${MONTH_NAMES[prevMonthNum - 1]} payers have paid this month; ${droppedCount} still to follow up.</li>
               </ul>
             </div>
 
