@@ -296,12 +296,13 @@ export default function EmailAutomationCard() {
       yearly: 'Annual Strategic Review'
     }
 
-        const nowSlMs = new Date().getTime() + (new Date().getTimezoneOffset() * 60000) + (5.5 * 3600000)
-        const testTargetDate = type === 'morning'
-          ? new Date(nowSlMs - (24 * 60 * 60 * 1000)).toISOString().slice(0, 10)
-          : new Date(nowSlMs).toISOString().slice(0, 10)
+    try {
+      const nowSlMs = new Date().getTime() + (new Date().getTimezoneOffset() * 60000) + (5.5 * 3600000)
+      const testTargetDate = type === 'morning'
+        ? new Date(nowSlMs - (24 * 60 * 60 * 1000)).toISOString().slice(0, 10)
+        : new Date(nowSlMs).toISOString().slice(0, 10)
 
-        const res = await fetch('/api/reports/send-email', {
+      const res = await fetch('/api/reports/send-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
