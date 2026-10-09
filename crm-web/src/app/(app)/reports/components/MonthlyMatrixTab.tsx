@@ -333,6 +333,56 @@ export default function MonthlyMatrixTab({
         </div>
       </div>
 
+      {/* Monthly Collection Target Goal & Trajectory Forecast Gauge */}
+      {(() => {
+        const defaultGoal = 6000000 // Rs. 6M default target
+        const daysInMonth = new Date(year, month, 0).getDate()
+        const now = new Date()
+        const isCurrentMonth = now.getMonth() + 1 === month && now.getFullYear() === year
+        const currentDayNum = isCurrentMonth ? Math.min(now.getDate(), daysInMonth) : daysInMonth
+        const pctAchieved = Math.min(100, Math.round((totalMonthlyRevenue / defaultGoal) * 100))
+        const dailyAvg = currentDayNum > 0 ? Math.round(totalMonthlyRevenue / currentDayNum) : 0
+        const projectedMonthEnd = Math.round(dailyAvg * daysInMonth)
+        const projectedPct = Math.min(150, Math.round((projectedMonthEnd / defaultGoal) * 100))
+
+        return (
+          <div className="glass-card" style={{ padding: 18, marginBottom: 20, background: 'linear-gradient(180deg, rgba(59,130,246,0.06) 0%, rgba(59,130,246,0.01) 100%)', border: '1px solid rgba(59,130,246,0.2)' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  🎯 Monthly Collection Target &amp; Pace Gauge ({MONTH_NAMES[month - 1]} {year})
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
+                  Target: <strong>Rs. {defaultGoal.toLocaleString()}</strong> · Collected: <strong style={{ color: '#10b981' }}>Rs. {totalMonthlyRevenue.toLocaleString()} ({pctAchieved}%)</strong> · Daily Pace: <strong>Rs. {dailyAvg.toLocaleString()}/day</strong>
+                </div>
+              </div>
+
+              <div style={{ textAlign: 'right' }}>
+                <span className="badge" style={{
+                  background: projectedMonthEnd >= defaultGoal ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.15)',
+                  color: projectedMonthEnd >= defaultGoal ? '#10b981' : '#f59e0b',
+                  fontSize: 12,
+                  fontWeight: 700
+                }}>
+                  Projected Finish: Rs. {projectedMonthEnd.toLocaleString()} ({projectedPct}%)
+                </span>
+              </div>
+            </div>
+
+            {/* Visual Progress Bar */}
+            <div style={{ width: '100%', height: 10, background: 'rgba(255,255,255,0.08)', borderRadius: 20, overflow: 'hidden', position: 'relative' }}>
+              <div style={{
+                width: `${pctAchieved}%`,
+                height: '100%',
+                background: 'linear-gradient(90deg, #3b82f6 0%, #10b981 100%)',
+                borderRadius: 20,
+                transition: 'width 0.6s ease'
+              }} />
+            </div>
+          </div>
+        )
+      })()}
+
       {/* SUB-VIEW 1: PROGRESSION MATRIX */}
       {monthlySubTab === 'matrix' && (
         <div className="fade-in">

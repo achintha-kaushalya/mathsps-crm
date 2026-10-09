@@ -30,6 +30,8 @@ import MonthlyMatrixTab from './components/MonthlyMatrixTab'
 import MultiMonthTrendsTab from './components/MultiMonthTrendsTab'
 import RetentionAnalyzerTab from './components/RetentionAnalyzerTab'
 import LmsBulkExporterTab from './components/LmsBulkExporterTab'
+import DebtAgingTab from './components/DebtAgingTab'
+import DataQualityAuditTab from './components/DataQualityAuditTab'
 
 export function isNewRegistrationPsCode(psCode: string | null | undefined): boolean {
   if (!psCode) return false
@@ -52,8 +54,8 @@ export default function ReportsPage() {
     getAllCourseLabels(DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES)
   )
 
-  // Primary 5 Categorized Tab selection
-  const [activeTab, setActiveTab] = useState<'daily_operations' | 'monthly_financials' | 'growth_retention' | 'lms_exporter' | 'debts'>('daily_operations')
+  // Primary Categorized Tab selection
+  const [activeTab, setActiveTab] = useState<'daily_operations' | 'monthly_financials' | 'growth_retention' | 'lms_exporter' | 'debts' | 'data_quality'>('daily_operations')
 
   // Sub-view Tab Selections
   const [dailySubTab, setDailySubTab] = useState<'matrix' | 'ledger' | 'staff'>('matrix')
@@ -1256,7 +1258,7 @@ export default function ReportsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <AlertCircle size={16} />
-            ⚠️ Outstanding Debts &amp; Arrears
+            ⚠️ Debt Aging &amp; Recovery
             <span style={{
               background: activeTab === 'debts' ? 'rgba(255,255,255,0.2)' : 'rgba(239,68,68,0.15)',
               color: activeTab === 'debts' ? '#fff' : '#ef4444',
@@ -1264,6 +1266,15 @@ export default function ReportsPage() {
             }}>
               {outstandingList.length}
             </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('data_quality')}
+            className={activeTab === 'data_quality' ? 'btn-primary' : 'btn-secondary'}
+            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+          >
+            <ShieldCheck size={16} style={{ color: '#10b981' }} />
+            🛡️ Data Quality &amp; Audit
           </button>
         </div>
 
@@ -1458,89 +1469,26 @@ export default function ReportsPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* CATEGORY 4: OUTSTANDING DEBTS TABLE                                       */}
+        {/* CATEGORY 4: DEBT AGING & RECOVERY INTELLIGENCE                           */}
         {/* ========================================================================= */}
         {activeTab === 'debts' && (
-          <div className="fade-in">
-            <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-              <div style={{ width: 280 }}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Search Debtor</label>
-                <div style={{ position: 'relative' }}>
-                  <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                  <input className="search-bar" style={{ paddingLeft: 32 }} placeholder="Search PS code, student name, address..."
-                    value={searchDebt} onChange={e => setSearchDebt(e.target.value)} />
-                </div>
-              </div>
+          <DebtAgingTab
+            outstandingList={outstandingList}
+            courseLabels={courseLabels}
+            loading={loading}
+          />
+        )}
 
-              <div>
-                <button
-                  onClick={() => {
-                    const headers = ['PS CODE', 'STUDENT NAME', 'GRADE', 'CLASS', 'OUTSTANDING DEBT (RS)', 'DELIVERY ADDRESS']
-                    const rows = filteredDebts.map(d => [
-                      `"${d.ps_code}"`,
-                      `"${(d.full_name || '').replace(/"/g, '""')}"`,
-                      `"Grade ${d.grade || '?'}"`,
-                      `"${courseLabels[d.class_type] || CLASS_LABELS[d.class_type] || d.class_type}"`,
-                      `"${Math.abs(d.current_balance || 0)}"`,
-                      `"${(d.address || '').replace(/"/g, '""')}"`
-                    ])
-                    exportTableToCsv(`Outstanding_Debts_Report`, headers, rows)
-                  }}
-                  className="btn-primary"
-                  style={{ background: '#ef4444', display: 'flex', alignItems: 'center', gap: 6 }}
-                >
-                  <FileSpreadsheet size={16} /> Export CSV
-                </button>
-              </div>
-            </div>
-
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 16, marginBottom: 20 }}>
-              <div className="stat-card" style={{ borderLeft: '4px solid #f87171', boxShadow: '0 4px 20px -4px rgba(248, 113, 113, 0.25)' }}>
-                <div className="stat-card label">Total Outstanding Portfolio Debt</div>
-                <div className="stat-card value" style={{ color: '#f87171' }}>Rs. {totalDebtAmount.toLocaleString()}</div>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>{outstandingList.length} student ledger balances in debt</div>
-              </div>
-            </div>
-
-            <div className="glass-card" style={{ overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontWeight: 600, fontSize: 14, color: '#f87171', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <AlertCircle size={16} /> Students with Outstanding Debt ({filteredDebts.length} Records)
-                </div>
-              </div>
-
-              <div style={{ overflowX: 'auto' }}>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>PS Code</th>
-                      <th>Student Name</th>
-                      <th>Grade</th>
-                      <th>Class</th>
-                      <th>Outstanding Debt</th>
-                      <th>Address</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredDebts.map((item, idx) => (
-                      <tr key={`${item.ps_code}-${idx}`}>
-                        <td>
-                          <a href={`/students/${encodeURIComponent(item.ps_code)}`} style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 700 }}>
-                            {item.ps_code}
-                          </a>
-                        </td>
-                        <td style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{item.full_name || '—'}</td>
-                        <td>Gr {item.grade || '—'}</td>
-                        <td style={{ fontSize: 12, color: 'var(--text-muted)' }}>{courseLabels[item.class_type] || CLASS_LABELS[item.class_type] || item.class_type}</td>
-                        <td style={{ color: '#f87171', fontWeight: 800, fontSize: 14 }}>Rs. {Math.abs(item.current_balance).toLocaleString()}</td>
-                        <td style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.address || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </div>
+        {/* ========================================================================= */}
+        {/* CATEGORY 5: DATA QUALITY & INTEGRITY AUDIT                                */}
+        {/* ========================================================================= */}
+        {activeTab === 'data_quality' && (
+          <DataQualityAuditTab
+            allPaymentsMonth={allPaymentsMonth}
+            dailyPayments={dailyPayments}
+            newStudents={newStudents}
+            loading={loading}
+          />
         )}
       </div>
     </div>
