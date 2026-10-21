@@ -1,16 +1,16 @@
 'use client'
 
-import { Printer, FileSpreadsheet, Building2, Users, Calendar, Layers } from 'lucide-react'
-import { MONTH_NAMES, CLASS_LABELS } from '@/lib/types'
-import { exportTableToCsv, TARGET_GRADES } from '@/lib/reports-analytics'
+import { Printer, FileSpreadsheet, Building2, Users, Calendar, Layers, BookOpen, GraduationCap, Download, CheckCircle2, TrendingUp } from 'lucide-react'
+import { MONTH_NAMES, CLASS_LABELS, extractLmsNumber } from '@/lib/types'
+import { exportTableToCsv, exportLmsBulkCsv, TARGET_GRADES, getGradeFromPayment } from '@/lib/reports-analytics'
 
 interface MonthlyMatrixTabProps {
   month: number
   setMonth: (m: number) => void
   year: number
   setYear: (y: number) => void
-  monthlySubTab: 'matrix' | 'bank' | 'registrations'
-  setMonthlySubTab: (tab: 'matrix' | 'bank' | 'registrations') => void
+  monthlySubTab: 'matrix' | 'courses' | 'bank' | 'registrations'
+  setMonthlySubTab: (tab: 'matrix' | 'courses' | 'bank' | 'registrations') => void
   matrixMode: 'registrations' | 'payments'
   setMatrixMode: (mode: 'registrations' | 'payments') => void
   cumulativeMatrixRows: {
@@ -56,6 +56,85 @@ export default function MonthlyMatrixTab({
   courseLabels = {}
 }: MonthlyMatrixTabProps) {
   const matrixTargetGrades = TARGET_GRADES
+
+  // =========================================================================
+  // COURSE FINANCIAL ALIGNMENT & BREAKDOWN
+  // =========================================================================
+  // 1. Group all month payments by class_type / course
+  const coursePaymentMap = new Map<string, {
+    classCode: string
+    courseName: string
+    grade: number
+    studentIds: Set<string>
+    slipsCount: number
+    revenue: number
+    studentsList: { name: string; mobile: string; ps_code: string; amount: number; date_paid: string }[]
+  }>()
+
+  allPaymentsMonth.forEach(p => {
+    const rawClass = p.class_type || 'UNKNOWN'
+    const amt = Number(p.amount_paid) || 0
+    const ps = p.students?.ps_code || p.student_id || 'UNKNOWN'
+    const studentName = p.students?.full_name || 'Student'
+    const studentMobile = extractLmsNumber(p.students) || p.students?.household?.parent_phone || ''
+    const studentGrade = getGradeFromPayment(p) || p.students?.grade || 0
+    const courseTitle = courseLabels[rawClass] || CLASS_LABELS[rawClass] || rawClass
+
+    if (!coursePaymentMap.has(rawClass)) {
+      coursePaymentMap.set(rawClass, {
+        classCode: rawClass,
+        courseName: courseTitle,
+        grade: studentGrade,
+        studentIds: new Set<string>(),
+        slipsCount: 0,
+        revenue: 0,
+        studentsList: []
+      })
+    }
+
+    const entry = coursePaymentMap.get(rawClass)!
+    entry.studentIds.add(ps)
+    entry.slipsCount += 1
+    entry.revenue += amt
+    entry.studentsList.push({
+      name: studentName,
+      mobile: studentMobile,
+      ps_code: ps,
+      amount: amt,
+      date_paid: p.date_paid || (p.created_at ? p.created_at.slice(0, 10) : '')
+    })
+  })
+
+  // 2. Also incorporate newly registered students with enrolled classes
+  const courseEnrollmentMap = new Map<string, number>()
+  newStudents.forEach(s => {
+    (s.enrollments || []).forEach((e: any) => {
+      const c = e.class_type
+      if (c) {
+        courseEnrollmentMap.set(c, (courseEnrollmentMap.get(c) || 0) + 1)
+      }
+    })
+  })
+
+  // 3. Flatten into course breakdown list sorted by revenue descending
+  const courseBreakdownList = Array.from(coursePaymentMap.values()).map(c => ({
+    code: c.classCode,
+    name: c.courseName,
+    grade: c.grade,
+    studentCount: c.studentIds.size,
+    slipsCount: c.slipsCount,
+    revenue: c.revenue,
+    newEnrollments: courseEnrollmentMap.get(c.classCode) || 0,
+    students: c.studentsList
+  })).sort((a, b) => b.revenue - a.revenue)
+
+  // 4. Grade-grouped courses summary
+  const gradeWiseCourseMap: Record<number, typeof courseBreakdownList> = {}
+  courseBreakdownList.forEach(c => {
+    const g = c.grade || 0
+    if (!gradeWiseCourseMap[g]) gradeWiseCourseMap[g] = []
+    gradeWiseCourseMap[g].push(c)
+  })
 
   return (
     <div className="fade-in">
@@ -176,6 +255,27 @@ export default function MonthlyMatrixTab({
               </>
             )}
 
+            {monthlySubTab === 'courses' && (
+              <button
+                type="button"
+                onClick={() => {
+                  const headers = ['GRADE', 'COURSE / SUBJECT', 'STUDENTS ENROLLED / PAID', 'TOTAL REVENUE (RS)', 'SHARE %']
+                  const rows = courseBreakdownList.map(c => [
+                    `"Grade ${c.grade || 'Other'}"`,
+                    `"${(c.name || '').replace(/"/g, '""')}"`,
+                    `"${c.studentCount}"`,
+                    `"${c.revenue}"`,
+                    `"${totalMonthlyRevenue > 0 ? ((c.revenue / totalMonthlyRevenue) * 100).toFixed(1) : 0}%"`
+                  ])
+                  exportTableToCsv(`Course_Financials_${MONTH_NAMES[month - 1]}_${year}`, headers, rows)
+                }}
+                className="btn-primary"
+                style={{ background: '#7c3aed', display: 'flex', alignItems: 'center', gap: 6 }}
+              >
+                <FileSpreadsheet size={16} /> Export Courses CSV
+              </button>
+            )}
+
             {monthlySubTab === 'bank' && (
               <button
                 type="button"
@@ -244,6 +344,27 @@ export default function MonthlyMatrixTab({
           >
             <Calendar size={15} />
             1–31 Progression Matrix
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setMonthlySubTab('courses')}
+            style={{
+              padding: '6px 14px',
+              fontSize: 12,
+              fontWeight: 700,
+              borderRadius: 8,
+              border: 'none',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              background: monthlySubTab === 'courses' ? '#7c3aed' : 'var(--bg-base)',
+              color: monthlySubTab === 'courses' ? '#fff' : 'var(--text-secondary)'
+            }}
+          >
+            <BookOpen size={15} />
+            Courses &amp; Financials ({courseBreakdownList.length})
           </button>
 
           <button
@@ -508,7 +629,240 @@ export default function MonthlyMatrixTab({
         </div>
       )}
 
-      {/* SUB-VIEW 2: BANK REVENUE */}
+      {/* SUB-VIEW 2: COURSES & FINANCIALS TRACKING */}
+      {monthlySubTab === 'courses' && (
+        <div className="fade-in">
+          {/* Top Course Analytics Summary Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid #8b5cf6', boxShadow: '0 4px 20px -4px rgba(139, 92, 246, 0.25)' }}>
+              <div className="stat-card label">Active Courses Monetized</div>
+              <div className="stat-card value" style={{ color: '#8b5cf6', fontSize: 24 }}>
+                {courseBreakdownList.length} Courses
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                With verified payment collections
+              </div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #10b981', boxShadow: '0 4px 20px -4px rgba(16, 185, 129, 0.25)' }}>
+              <div className="stat-card label">Top Revenue Course</div>
+              <div className="stat-card value" style={{ color: '#10b981', fontSize: 18, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {courseBreakdownList[0]?.name || 'None'}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Rs. {(courseBreakdownList[0]?.revenue || 0).toLocaleString()} ({courseBreakdownList[0]?.studentCount || 0} students)
+              </div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #38bdf8', boxShadow: '0 4px 20px -4px rgba(56, 189, 248, 0.25)' }}>
+              <div className="stat-card label">Average Course Yield</div>
+              <div className="stat-card value" style={{ color: '#38bdf8', fontSize: 24 }}>
+                Rs. {courseBreakdownList.length > 0 ? Math.round(totalMonthlyRevenue / courseBreakdownList.length).toLocaleString() : 0}
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                Per active course in {MONTH_NAMES[month - 1]}
+              </div>
+            </div>
+          </div>
+
+          {/* Master Course-Wise Financial Breakdown Table */}
+          <div className="glass-card" style={{ padding: 20, marginBottom: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <BookOpen size={20} style={{ color: '#8b5cf6' }} />
+                Course Performance &amp; Revenue Alignment ({MONTH_NAMES[month - 1]} {year})
+              </div>
+              <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', fontWeight: 700, fontSize: 12 }}>
+                {courseBreakdownList.length} Active Courses / Classes
+              </span>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Course / Class Name</th>
+                    <th style={{ textAlign: 'center' }}>Grade</th>
+                    <th style={{ textAlign: 'center' }}>Paying Students</th>
+                    <th style={{ textAlign: 'center' }}>Slips Audited</th>
+                    <th style={{ textAlign: 'center' }}>New Enrolled</th>
+                    <th style={{ textAlign: 'right' }}>Total Collections (Rs.)</th>
+                    <th style={{ textAlign: 'right' }}>% Revenue Share</th>
+                    <th style={{ textAlign: 'center', width: 140 }}>LMS Export</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {courseBreakdownList.map(c => {
+                    const share = totalMonthlyRevenue > 0 ? ((c.revenue / totalMonthlyRevenue) * 100).toFixed(1) : '0.0'
+                    return (
+                      <tr key={c.code}>
+                        <td>
+                          <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {c.name}
+                          </div>
+                          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace' }}>
+                            {c.code}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <span className="badge" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)', fontWeight: 700, fontSize: 11 }}>
+                            {c.grade > 0 ? `Grade ${c.grade}` : 'Specialist'}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center', fontWeight: 700, color: '#10b981' }}>
+                          {c.studentCount}
+                        </td>
+                        <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                          {c.slipsCount}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          {c.newEnrollments > 0 ? (
+                            <span className="badge" style={{ background: 'rgba(16,185,129,0.15)', color: '#10b981', fontSize: 11, fontWeight: 700 }}>
+                              +{c.newEnrollments} new
+                            </span>
+                          ) : (
+                            <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-primary)', fontSize: 14 }}>
+                          Rs. {c.revenue.toLocaleString()}
+                        </td>
+                        <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--accent-blue)', fontSize: 12 }}>
+                          {share}%
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            disabled={c.students.length === 0}
+                            onClick={() => {
+                              const safeName = c.name.replace(/[\s\(\)\/\:]+/g, '_')
+                              exportLmsBulkCsv(`LMS_Billing_${safeName}_${MONTH_NAMES[month - 1]}_${year}`, c.students)
+                            }}
+                            className="btn-secondary"
+                            style={{ padding: '4px 10px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                            title="Export LMS Bulk Sample CSV (name,mobile)"
+                          >
+                            <Download size={12} style={{ color: '#10b981' }} /> LMS CSV
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  })}
+
+                  {/* Summary Footer Row */}
+                  <tr style={{ background: 'rgba(255,255,255,0.03)', fontWeight: 800 }}>
+                    <td colSpan={2} style={{ color: 'var(--text-primary)', fontSize: 13 }}>
+                      TOTAL ALL COURSES
+                    </td>
+                    <td style={{ textAlign: 'center', color: '#10b981', fontSize: 14 }}>
+                      {allPaymentsMonth.length}
+                    </td>
+                    <td style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+                      {allPaymentsMonth.length}
+                    </td>
+                    <td style={{ textAlign: 'center', color: '#10b981' }}>
+                      {newStudents.length}
+                    </td>
+                    <td style={{ textAlign: 'right', color: '#10b981', fontSize: 15 }}>
+                      Rs. {totalMonthlyRevenue.toLocaleString()}
+                    </td>
+                    <td style={{ textAlign: 'right', color: 'var(--text-primary)' }}>
+                      100.0%
+                    </td>
+                    <td style={{ textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        disabled={allPaymentsMonth.length === 0}
+                        onClick={() => {
+                          const allPaid = allPaymentsMonth.map(p => ({
+                            name: p.students?.full_name || 'Student',
+                            mobile: extractLmsNumber(p.students) || p.students?.household?.parent_phone || ''
+                          }))
+                          exportLmsBulkCsv(`LMS_Billing_AllCourses_${MONTH_NAMES[month - 1]}_${year}`, allPaid)
+                        }}
+                        className="btn-primary"
+                        style={{ padding: '4px 10px', fontSize: 11, background: '#10b981', display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      >
+                        <Download size={12} /> All LMS
+                      </button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          {/* Grade-Wise Course Alignment Breakdown */}
+          <div style={{ marginTop: 20 }}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <GraduationCap size={20} style={{ color: 'var(--accent-blue)' }} />
+              Grade-Wise Course Alignment Breakdown
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: 16 }}>
+              {matrixTargetGrades.map(g => {
+                const gradeCourses = gradeWiseCourseMap[g] || []
+                const gradeTotalRev = gradeCourses.reduce((sum, c) => sum + c.revenue, 0)
+                const gradeTotalStudents = gradeCourses.reduce((sum, c) => sum + c.studentCount, 0)
+
+                return (
+                  <div key={g} className="glass-card" style={{ padding: 16, borderTop: '3px solid var(--accent-blue)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, paddingBottom: 8, borderBottom: '1px solid var(--border)' }}>
+                      <div>
+                        <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--text-primary)' }}>
+                          Grade {g}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {gradeCourses.length} active {gradeCourses.length === 1 ? 'course' : 'courses'}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <div style={{ fontWeight: 800, color: '#10b981', fontSize: 15 }}>
+                          Rs. {gradeTotalRev.toLocaleString()}
+                        </div>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {gradeTotalStudents} students paid
+                        </div>
+                      </div>
+                    </div>
+
+                    {gradeCourses.length > 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                        {gradeCourses.map(c => (
+                          <div key={c.code} style={{ padding: '8px 10px', background: 'var(--bg-base)', borderRadius: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12 }}>
+                            <div style={{ maxWidth: '65%' }}>
+                              <div style={{ fontWeight: 600, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {c.name}
+                              </div>
+                              <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                                {c.studentCount} students ({c.slipsCount} slips)
+                              </div>
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>
+                                Rs. {c.revenue.toLocaleString()}
+                              </div>
+                              <div style={{ fontSize: 10, color: 'var(--accent-blue)', fontWeight: 600 }}>
+                                {totalMonthlyRevenue > 0 ? ((c.revenue / totalMonthlyRevenue) * 100).toFixed(1) : 0}% share
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <div style={{ padding: 14, textAlign: 'center', fontSize: 12, color: 'var(--text-muted)' }}>
+                        No course payments recorded in Grade {g} for this month.
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-VIEW 3: BANK REVENUE */}
       {monthlySubTab === 'bank' && (
         <div className="fade-in">
           <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>

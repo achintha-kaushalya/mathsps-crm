@@ -59,7 +59,7 @@ export default function ReportsPage() {
 
   // Sub-view Tab Selections
   const [dailySubTab, setDailySubTab] = useState<'matrix' | 'ledger' | 'staff'>('matrix')
-  const [monthlySubTab, setMonthlySubTab] = useState<'matrix' | 'bank' | 'registrations'>('matrix')
+  const [monthlySubTab, setMonthlySubTab] = useState<'matrix' | 'courses' | 'bank' | 'registrations'>('matrix')
   const [growthSubTab, setGrowthSubTab] = useState<'trends' | 'retention'>('trends')
 
   // Date filters
