@@ -178,21 +178,21 @@ export default function MembersPage() {
       <div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 20, alignItems: 'start' }}>
 
-          {/* Members List */}
-          <div className="stat-card" style={{ padding: 0, overflow: 'hidden' }}>
+          {/* Members List — Glassmorphic Container */}
+          <div className="glass-card" style={{ padding: 0, overflow: 'hidden' }}>
             <div style={{
               padding: '14px 20px', borderBottom: '1px solid var(--border)',
-              background: '#f8fafc',
+              background: 'rgba(255, 255, 255, 0.02)',
               fontWeight: 700, fontSize: 13.5, display: 'flex', justifyContent: 'space-between', alignItems: 'center'
             }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ color: 'var(--text-primary)' }}>Active Team Roster</span>
-                <span style={{ fontSize: 11, background: '#e2e8f0', color: '#475569', padding: '2px 8px', borderRadius: 12, fontWeight: 700 }}>
+                <span style={{ color: 'var(--text-primary)', fontWeight: 800 }}>Active Team Roster</span>
+                <span style={{ fontSize: 11, background: 'var(--bg-card-hover)', color: 'var(--accent-blue)', padding: '2px 8px', borderRadius: 12, fontWeight: 700, border: '1px solid var(--border)' }}>
                   {members.length}
                 </span>
               </div>
-              <span style={{ fontSize: 11.5, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <Lock size={12} /> Admin verification required for changes
+              <span style={{ fontSize: 11.5, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Lock size={12} /> Admin authorization required for changes
               </span>
             </div>
 
@@ -207,8 +207,8 @@ export default function MembersPage() {
                       <th>Email Account</th>
                       <th style={{ textAlign: 'center', width: 110 }}>Role</th>
                       <th style={{ textAlign: 'center', width: 135 }}>Lead Visibility</th>
-                      <th style={{ textAlign: 'center', width: 115 }}>Commissions</th>
-                      <th style={{ textAlign: 'center', width: 65 }}>Status</th>
+                      <th style={{ textAlign: 'center', width: 105 }}>Commissions</th>
+                      <th style={{ textAlign: 'center', width: 70 }}>Status</th>
                       <th style={{ textAlign: 'center', width: 95, paddingRight: 16 }}>Actions</th>
                     </tr>
                   </thead>
@@ -223,19 +223,29 @@ export default function MembersPage() {
                       const effectiveRole = perms.sub_role || m.role
 
                       const roleBadgeStyles: Record<string, { bg: string; color: string; border: string }> = {
-                        admin: { bg: '#faf5ff', color: '#7c3aed', border: '#e9d5ff' },
-                        callcenter: { bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
-                        payments: { bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
-                        member: { bg: '#f0fdf4', color: '#16a34a', border: '#bbf7d0' },
+                        admin: { bg: 'rgba(168, 85, 247, 0.15)', color: '#c084fc', border: 'rgba(168, 85, 247, 0.35)' },
+                        callcenter: { bg: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', border: 'rgba(56, 189, 248, 0.35)' },
+                        payments: { bg: 'rgba(245, 158, 11, 0.15)', color: '#fbbf24', border: 'rgba(245, 158, 11, 0.35)' },
+                        member: { bg: 'rgba(34, 197, 94, 0.15)', color: '#4ade80', border: 'rgba(34, 197, 94, 0.35)' },
                       }
                       const currentRoleStyle = roleBadgeStyles[effectiveRole] || roleBadgeStyles.member
 
                       return (
-                      <tr key={m.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                      <tr key={m.id} style={{ borderBottom: '1px solid var(--border)' }}>
                         <td style={{ fontWeight: 700, paddingLeft: 16, color: 'var(--text-primary)' }}>
-                          {m.name}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                            <div style={{
+                              width: 26, height: 26, borderRadius: '50%',
+                              background: 'rgba(56, 189, 248, 0.12)', color: 'var(--accent-blue)',
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              fontSize: 11, fontWeight: 700, flexShrink: 0
+                            }}>
+                              {m.name[0]?.toUpperCase()}
+                            </div>
+                            <span>{m.name}</span>
+                          </div>
                         </td>
-                        <td style={{ color: m.email ? '#475569' : '#ea580c', fontSize: 12 }}>
+                        <td style={{ color: m.email ? 'var(--text-secondary)' : '#f97316', fontSize: 12 }}>
                           {m.email ? m.email : '⚠️ No Login Account'}
                         </td>
 
@@ -244,12 +254,13 @@ export default function MembersPage() {
                           <select
                             className="input-field"
                             style={{
-                              padding: '2px 6px', fontSize: 11, height: 26, width: 110,
+                              padding: '2px 8px', fontSize: 11, height: 26, width: 110,
                               background: currentRoleStyle.bg,
                               color: currentRoleStyle.color,
                               borderColor: currentRoleStyle.border,
                               fontWeight: 700,
-                              margin: '0 auto'
+                              margin: '0 auto',
+                              borderRadius: 6
                             }}
                             value={effectiveRole}
                             onChange={(e) => {
@@ -261,10 +272,10 @@ export default function MembersPage() {
                               }
                             }}
                           >
-                            <option value="member" style={{ background: '#ffffff', color: '#16a34a' }}>MEMBER (Both)</option>
-                            <option value="callcenter" style={{ background: '#ffffff', color: '#2563eb' }}>CALL CENTER</option>
-                            <option value="payments" style={{ background: '#ffffff', color: '#d97706' }}>PAYMENTS</option>
-                            <option value="admin" style={{ background: '#ffffff', color: '#7c3aed' }}>ADMIN (Full)</option>
+                            <option value="member" style={{ background: '#090d16', color: '#4ade80' }}>MEMBER (Both)</option>
+                            <option value="callcenter" style={{ background: '#090d16', color: '#38bdf8' }}>CALL CENTER</option>
+                            <option value="payments" style={{ background: '#090d16', color: '#fbbf24' }}>PAYMENTS</option>
+                            <option value="admin" style={{ background: '#090d16', color: '#c084fc' }}>ADMIN (Full)</option>
                           </select>
                         </td>
 
@@ -284,11 +295,11 @@ export default function MembersPage() {
                               setModalError('')
                             }}
                             style={{
-                              background: isAll ? '#eff6ff' : allowed.length > 0 ? '#faf5ff' : '#f8fafc',
-                              border: `1px solid ${isAll ? '#bfdbfe' : allowed.length > 0 ? '#e9d5ff' : '#e2e8f0'}`,
-                              color: isAll ? '#2563eb' : allowed.length > 0 ? '#7c3aed' : '#64748b',
-                              padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+                              background: isAll ? 'rgba(56, 189, 248, 0.12)' : allowed.length > 0 ? 'rgba(168, 85, 247, 0.12)' : 'var(--bg-card-hover)',
+                              border: `1px solid ${isAll ? 'rgba(56, 189, 248, 0.35)' : allowed.length > 0 ? 'rgba(168, 85, 247, 0.35)' : 'var(--border)'}`,
+                              color: isAll ? 'var(--accent-blue)' : allowed.length > 0 ? '#c084fc' : 'var(--text-secondary)',
+                              padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 5,
                               transition: 'all 0.15s'
                             }}
                             title="Click to configure which members' assigned leads this user can view"
@@ -303,10 +314,10 @@ export default function MembersPage() {
                           <button
                             onClick={() => setHistoryModalMember(m)}
                             style={{
-                              background: '#ecfdf5',
-                              border: '1px solid #a7f3d0',
-                              color: '#059669',
-                              padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                              background: 'rgba(16, 185, 129, 0.12)',
+                              border: '1px solid rgba(16, 185, 129, 0.35)',
+                              color: '#34d399',
+                              padding: '3px 9px', borderRadius: 6, fontSize: 11, fontWeight: 700,
                               cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
                               transition: 'all 0.15s'
                             }}
@@ -329,16 +340,16 @@ export default function MembersPage() {
                               display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: 5,
                               padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
                               cursor: 'pointer', border: '1px solid', width: 56, height: 24,
-                              background: m.active ? '#ecfdf5' : '#fef2f2',
-                              borderColor: m.active ? '#a7f3d0' : '#fee2e2',
-                              color: m.active ? '#059669' : '#dc2626',
+                              background: m.active ? 'rgba(16, 185, 129, 0.12)' : 'rgba(239, 68, 68, 0.12)',
+                              borderColor: m.active ? 'rgba(16, 185, 129, 0.35)' : 'rgba(239, 68, 68, 0.35)',
+                              color: m.active ? '#34d399' : '#f87171',
                               transition: 'all 0.15s'
                             }}
                             title={`Click to turn ${m.active ? 'OFF' : 'ON'}`}
                           >
                             <span style={{
                               width: 5, height: 5, borderRadius: '50%',
-                              background: m.active ? '#059669' : '#dc2626'
+                              background: m.active ? '#34d399' : '#f87171'
                             }} />
                             <span>{m.active ? 'ON' : 'OFF'}</span>
                           </button>
@@ -386,7 +397,7 @@ export default function MembersPage() {
                                 setModalError('')
                               }}
                               style={{
-                                background: 'none', border: 'none', color: '#ef4444',
+                                background: 'none', border: 'none', color: '#f87171',
                                 cursor: 'pointer', fontSize: 13, padding: '2px 4px', opacity: 0.75,
                                 transition: 'opacity 0.15s, transform 0.15s',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center'
@@ -408,12 +419,12 @@ export default function MembersPage() {
             )}
           </div>
 
-          {/* Add Member Form */}
-          <div className="stat-card" style={{ padding: 22, border: '1px solid #e2e8f0' }}>
+          {/* Add Member Form — Glassmorphic Card */}
+          <div className="glass-card" style={{ padding: 22 }}>
             <div style={{ fontWeight: 800, fontSize: 14.5, marginBottom: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
               <div style={{
                 width: 28, height: 28, borderRadius: 6,
-                background: '#eff6ff', color: '#2563eb',
+                background: 'rgba(56, 189, 248, 0.12)', color: 'var(--accent-blue)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center'
               }}>
                 <UserPlus size={15} />
@@ -539,12 +550,12 @@ export default function MembersPage() {
       {/* Admin Password Confirmation Modal */}
       {modalAction && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(15, 23, 42, 0.65)', backdropFilter: 'blur(6px)',
+          position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
         }}>
-          <div className="stat-card" style={{ maxWidth: 440, width: '90%', padding: 26, borderRadius: 16, border: '1px solid #e2e8f0', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)' }}>
+          <div className="glass-card" style={{ maxWidth: 440, width: '90%', padding: 26, borderRadius: 16, border: '1px solid var(--border)', boxShadow: '0 25px 50px -12px rgba(0,0,0,0.5)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 14 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: '#eff6ff', color: '#2563eb', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
+              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(56, 189, 248, 0.15)', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>
                 🔒
               </div>
               <div>
@@ -562,14 +573,14 @@ export default function MembersPage() {
             </div>
 
             {modalError && (
-              <div style={{ padding: '8px 12px', background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 8, color: '#dc2626', fontSize: 12, marginBottom: 14 }}>
+              <div style={{ padding: '8px 12px', background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: 8, color: '#f87171', fontSize: 12, marginBottom: 14 }}>
                 ⚠️ {modalError}
               </div>
             )}
 
             <form onSubmit={handleConfirmAdminAction}>
               {modalAction.type === 'permissions' && (
-                <div style={{ marginBottom: 16, background: '#f8fafc', padding: 14, borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                <div style={{ marginBottom: 16, background: 'var(--bg-card-hover)', padding: 14, borderRadius: 10, border: '1px solid var(--border)' }}>
                   <div style={{ marginBottom: 12 }}>
                     <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: 'var(--text-primary)' }}>
                       <input
@@ -609,9 +620,9 @@ export default function MembersPage() {
                                 style={{
                                   display: 'flex', alignItems: 'center', gap: 6,
                                   fontSize: 12, padding: '4px 8px', borderRadius: 6,
-                                  background: isChecked ? 'rgba(59, 130, 246, 0.15)' : 'rgba(255,255,255,0.02)',
-                                  border: `1px solid ${isChecked ? '#3b82f6' : 'var(--border)'}`,
-                                  cursor: 'pointer', color: isChecked ? '#93c5fd' : 'var(--text-secondary)'
+                                  background: isChecked ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                                  border: `1px solid ${isChecked ? 'var(--accent-blue)' : 'var(--border)'}`,
+                                  cursor: 'pointer', color: isChecked ? 'var(--accent-blue)' : 'var(--text-secondary)'
                                 }}
                               >
                                 <input
@@ -737,24 +748,24 @@ export default function MembersPage() {
         </div>
       )}
 
-      {/* Member Commission History Modal */}
+      {/* Member Commission History Modal — Dark Glassmorphic */}
       {historyModalMember && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16
         }}>
-          <div className="glass-card" style={{ maxWidth: 700, width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: 24, borderRadius: 16, background: '#ffffff', color: '#0f172a' }}>
+          <div className="glass-card" style={{ maxWidth: 700, width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: 24, borderRadius: 16, background: '#0b1120', border: '1px solid var(--border)', color: 'var(--text-primary)' }}>
             {/* Modal Header */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #e2e8f0', paddingBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid var(--border)', paddingBottom: 14 }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(16, 185, 129, 0.15)', color: '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <DollarSign size={22} />
                 </div>
                 <div>
-                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0f172a' }}>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--text-primary)' }}>
                     Commission Payout History — {historyModalMember.name}
                   </h3>
-                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                  <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                     Archive of cleared commissions and settlement batches
                   </div>
                 </div>
@@ -762,7 +773,7 @@ export default function MembersPage() {
               <button
                 type="button"
                 onClick={() => setHistoryModalMember(null)}
-                style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer', padding: 4 }}
+                style={{ background: 'none', border: 'none', fontSize: 20, color: 'var(--text-muted)', cursor: 'pointer', padding: 4 }}
               >
                 ✕
               </button>
@@ -779,10 +790,10 @@ export default function MembersPage() {
 
                 if (memberSettlements.length === 0) {
                   return (
-                    <div style={{ padding: 40, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+                    <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
                       <History size={32} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
                       <div>No past commission settlements found for <b>{historyModalMember.name}</b>.</div>
-                      <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 4 }}>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 4 }}>
                         When commissions are cleared from the Dashboard, settlement records will appear here.
                       </div>
                     </div>
@@ -798,20 +809,20 @@ export default function MembersPage() {
                   <div>
                     {/* Summary Card */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
-                      <div style={{ padding: 14, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                        <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Total Settlements</div>
-                        <div style={{ fontSize: 20, fontWeight: 800, color: '#0f172a' }}>{memberSettlements.length} Batches</div>
+                      <div style={{ padding: 14, background: 'var(--bg-card-hover)', borderRadius: 10, border: '1px solid var(--border)' }}>
+                        <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', fontWeight: 700 }}>Total Settlements</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: 'var(--text-primary)' }}>{memberSettlements.length} Batches</div>
                       </div>
-                      <div style={{ padding: 14, background: '#ecfdf5', borderRadius: 10, border: '1px solid #a7f3d0' }}>
-                        <div style={{ fontSize: 11, color: '#059669', textTransform: 'uppercase', fontWeight: 700 }}>Cumulative Commission Paid</div>
-                        <div style={{ fontSize: 20, fontWeight: 900, color: '#059669' }}>Rs. {totalPaidToMember.toLocaleString()}</div>
+                      <div style={{ padding: 14, background: 'rgba(16, 185, 129, 0.12)', borderRadius: 10, border: '1px solid rgba(16, 185, 129, 0.35)' }}>
+                        <div style={{ fontSize: 11, color: '#34d399', textTransform: 'uppercase', fontWeight: 700 }}>Cumulative Commission Paid</div>
+                        <div style={{ fontSize: 20, fontWeight: 900, color: '#34d399' }}>Rs. {totalPaidToMember.toLocaleString()}</div>
                       </div>
                     </div>
 
                     {/* Settlement Timeline Table */}
                     <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
                       <thead>
-                        <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left', color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>
+                        <tr style={{ borderBottom: '1px solid var(--border)', textAlign: 'left', color: 'var(--text-muted)', fontSize: 11, textTransform: 'uppercase' }}>
                           <th style={{ padding: '8px 6px' }}>Date &amp; Batch</th>
                           <th style={{ padding: '8px 6px', textAlign: 'center' }}>Paid Classes</th>
                           <th style={{ padding: '8px 6px' }}>Grade Breakdown</th>
@@ -829,21 +840,21 @@ export default function MembersPage() {
                           const gradeParts = Object.entries(grades).filter(([_, c]) => (c as number) > 0).map(([g, c]) => `Gr ${g}: ${c}`).join(', ')
 
                           return (
-                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <tr key={idx} style={{ borderBottom: '1px solid var(--border)' }}>
                               <td style={{ padding: '10px 6px' }}>
-                                <div style={{ fontWeight: 700, color: '#0f172a' }}>{dateFormatted}</div>
-                                <div style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>{s.batch_id}</div>
+                                <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>{dateFormatted}</div>
+                                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'monospace' }}>{s.batch_id}</div>
                               </td>
                               <td style={{ padding: '10px 6px', textAlign: 'center', fontWeight: 800 }}>
                                 {mb?.paid_classes || 0}
                               </td>
-                              <td style={{ padding: '10px 6px', color: '#475569', fontSize: 11 }}>
+                              <td style={{ padding: '10px 6px', color: 'var(--text-secondary)', fontSize: 11 }}>
                                 {gradeParts || '—'}
                               </td>
-                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 900, color: '#059669', fontSize: 13 }}>
+                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 900, color: '#34d399', fontSize: 13 }}>
                                 Rs. {(mb?.commission_amount || 0).toLocaleString()}
                               </td>
-                              <td style={{ padding: '10px 6px', textAlign: 'right', color: '#64748b', fontSize: 11 }}>
+                              <td style={{ padding: '10px 6px', textAlign: 'right', color: 'var(--text-muted)', fontSize: 11 }}>
                                 {s.settled_by || 'Admin'}
                               </td>
                             </tr>
@@ -857,7 +868,7 @@ export default function MembersPage() {
             </div>
 
             {/* Modal Footer */}
-            <div style={{ marginTop: 16, borderTop: '1px solid #e2e8f0', paddingTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+            <div style={{ marginTop: 16, borderTop: '1px solid var(--border)', paddingTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
               <button
                 type="button"
                 className="btn-secondary"
