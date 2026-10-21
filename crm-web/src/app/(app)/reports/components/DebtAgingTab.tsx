@@ -13,7 +13,8 @@ import {
   ShieldAlert,
   DollarSign,
   TrendingDown,
-  Users
+  Users,
+  CheckCircle2
 } from 'lucide-react'
 import { exportTableToCsv, sanitizePhoneForWhatsApp, TARGET_GRADES } from '@/lib/reports-analytics'
 import { CLASS_LABELS } from '@/lib/types'
@@ -140,10 +141,13 @@ export default function DebtAgingTab({
     <div className="fade-in">
       {/* 1. Header & Summary Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
-        <div className="stat-card" style={{ borderLeft: '4px solid #ef4444', boxShadow: '0 4px 20px -4px rgba(239, 68, 68, 0.25)' }}>
+        <div className="stat-card" style={{ borderLeft: '4px solid #ef4444', boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)' }}>
           <div className="stat-card label">Total Unpaid Fee Portfolio</div>
-          <div className="stat-card value" style={{ color: '#ef4444', fontSize: 24 }}>
-            Rs. {bucketStats.totalDebt.toLocaleString()}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)' }}>Rs.</span>
+            <span style={{ fontSize: 24, fontWeight: 800, color: '#ef4444' }}>
+              {bucketStats.totalDebt.toLocaleString()}
+            </span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
             Across {bucketStats.totalCount} student ledger records
@@ -158,15 +162,21 @@ export default function DebtAgingTab({
             borderLeft: '4px solid #f59e0b',
             cursor: 'pointer',
             background: selectedBucket === '1_7' ? 'rgba(245, 158, 11, 0.08)' : undefined,
-            boxShadow: '0 4px 20px -4px rgba(245, 158, 11, 0.2)'
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)'
           }}
         >
-          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>🟡 1–7 Days Overdue</span>
+          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#f59e0b', display: 'inline-block' }} />
+              1–7 Days Overdue
+            </span>
             {selectedBucket === '1_7' && <span className="badge" style={{ fontSize: 10, background: '#f59e0b', color: '#fff' }}>ACTIVE</span>}
           </div>
-          <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 22 }}>
-            Rs. {bucketStats.b1_7.amount.toLocaleString()}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)' }}>Rs.</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: '#f59e0b' }}>
+              {bucketStats.b1_7.amount.toLocaleString()}
+            </span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
             {bucketStats.b1_7.count} students (Recent Grace Period)
@@ -181,15 +191,21 @@ export default function DebtAgingTab({
             borderLeft: '4px solid #ea580c',
             cursor: 'pointer',
             background: selectedBucket === '8_15' ? 'rgba(234, 88, 12, 0.08)' : undefined,
-            boxShadow: '0 4px 20px -4px rgba(234, 88, 12, 0.2)'
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)'
           }}
         >
-          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>🟠 8–15 Days Overdue</span>
+          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#ea580c', display: 'inline-block' }} />
+              8–15 Days Overdue
+            </span>
             {selectedBucket === '8_15' && <span className="badge" style={{ fontSize: 10, background: '#ea580c', color: '#fff' }}>ACTIVE</span>}
           </div>
-          <div className="stat-card value" style={{ color: '#ea580c', fontSize: 22 }}>
-            Rs. {bucketStats.b8_15.amount.toLocaleString()}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)' }}>Rs.</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: '#ea580c' }}>
+              {bucketStats.b8_15.amount.toLocaleString()}
+            </span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
             {bucketStats.b8_15.count} students (Mid-Month Follow-up Required)
@@ -204,15 +220,21 @@ export default function DebtAgingTab({
             borderLeft: '4px solid #dc2626',
             cursor: 'pointer',
             background: selectedBucket === '15_plus' ? 'rgba(220, 38, 38, 0.08)' : undefined,
-            boxShadow: '0 4px 20px -4px rgba(220, 38, 38, 0.25)'
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)'
           }}
         >
-          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between' }}>
-            <span>🔴 15+ Days High Risk</span>
+          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#dc2626', display: 'inline-block' }} />
+              15+ Days High Risk
+            </span>
             {selectedBucket === '15_plus' && <span className="badge" style={{ fontSize: 10, background: '#dc2626', color: '#fff' }}>ACTIVE</span>}
           </div>
-          <div className="stat-card value" style={{ color: '#dc2626', fontSize: 22 }}>
-            Rs. {bucketStats.b15Plus.amount.toLocaleString()}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)' }}>Rs.</span>
+            <span style={{ fontSize: 22, fontWeight: 800, color: '#dc2626' }}>
+              {bucketStats.b15Plus.amount.toLocaleString()}
+            </span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
             {bucketStats.b15Plus.count} students (Urgent Call Escalation)
@@ -226,7 +248,7 @@ export default function DebtAgingTab({
           <div>
             <div style={{ fontWeight: 800, fontSize: 15, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 8 }}>
               <ShieldAlert size={18} />
-              🚨 Top 10 High-Priority Overdue Accounts (Instant Recovery)
+              Top 10 High-Priority Overdue Accounts (Instant Recovery)
             </div>
             <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
               Reach out directly to these highest-balance accounts with pre-filled WhatsApp reminder templates.
@@ -321,8 +343,8 @@ export default function DebtAgingTab({
           })}
 
           {top10Debtors.length === 0 && (
-            <div style={{ padding: 20, textAlign: 'center', color: '#10b981', gridColumn: '1 / -1' }}>
-              🎉 Zero student accounts currently in debt.
+            <div style={{ padding: 24, textAlign: 'center', color: '#10b981', gridColumn: '1 / -1', fontWeight: 600, fontSize: 13, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+              <CheckCircle2 size={16} /> Zero student accounts currently in debt.
             </div>
           )}
         </div>

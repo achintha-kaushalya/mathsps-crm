@@ -1214,19 +1214,45 @@ export default function ReportsPage() {
       </div>
 
       <div className="page-content">
-        {/* 4 Clean Consolidated Navigation Tabs */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 12, flexWrap: 'wrap' }}>
+        {/* Sleek Segmented Primary Navigation Bar */}
+        <div style={{
+          display: 'flex',
+          gap: 6,
+          overflowX: 'auto',
+          padding: '6px 8px',
+          marginBottom: 20,
+          background: 'var(--bg-card)',
+          borderRadius: 12,
+          border: '1px solid var(--border)'
+        }}>
           <button
             onClick={() => setActiveTab('daily_operations')}
-            className={activeTab === 'daily_operations' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: activeTab === 'daily_operations' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: activeTab === 'daily_operations' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+              color: activeTab === 'daily_operations' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: activeTab === 'daily_operations' ? 700 : 500,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease'
+            }}
           >
-            <Sparkles size={16} />
-            Daily Operations &amp; Audit
+            <Sparkles size={15} />
+            <span>Daily Operations &amp; Audit</span>
             <span style={{
-              background: activeTab === 'daily_operations' ? 'rgba(255,255,255,0.2)' : 'rgba(56,189,248,0.15)',
-              color: activeTab === 'daily_operations' ? '#fff' : '#38bdf8',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
+              fontSize: 11,
+              padding: '2px 7px',
+              borderRadius: 10,
+              background: activeTab === 'daily_operations' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
+              color: activeTab === 'daily_operations' ? '#fff' : 'var(--text-muted)',
+              border: activeTab === 'daily_operations' ? 'none' : '1px solid var(--border)',
+              fontWeight: 700
             }}>
               {dailyPayments.length} slips
             </span>
@@ -1234,15 +1260,32 @@ export default function ReportsPage() {
 
           <button
             onClick={() => setActiveTab('monthly_financials')}
-            className={activeTab === 'monthly_financials' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: activeTab === 'monthly_financials' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: activeTab === 'monthly_financials' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+              color: activeTab === 'monthly_financials' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: activeTab === 'monthly_financials' ? 700 : 500,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease'
+            }}
           >
-            <Calendar size={16} />
-            Monthly Financials &amp; Matrix
+            <Calendar size={15} />
+            <span>Monthly Financials &amp; Matrix</span>
             <span style={{
-              background: activeTab === 'monthly_financials' ? 'rgba(255,255,255,0.2)' : 'rgba(74,222,128,0.15)',
-              color: activeTab === 'monthly_financials' ? '#fff' : '#4ade80',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
+              fontSize: 11,
+              padding: '2px 7px',
+              borderRadius: 10,
+              background: activeTab === 'monthly_financials' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
+              color: activeTab === 'monthly_financials' ? '#fff' : 'var(--text-muted)',
+              border: activeTab === 'monthly_financials' ? 'none' : '1px solid var(--border)',
+              fontWeight: 700
             }}>
               {MONTH_NAMES[month - 1]}
             </span>
@@ -1250,15 +1293,32 @@ export default function ReportsPage() {
 
           <button
             onClick={() => setActiveTab('growth_retention')}
-            className={activeTab === 'growth_retention' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: activeTab === 'growth_retention' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: activeTab === 'growth_retention' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+              color: activeTab === 'growth_retention' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: activeTab === 'growth_retention' ? 700 : 500,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease'
+            }}
           >
-            <LineChartIcon size={16} />
-            Growth &amp; Retention Intelligence
+            <LineChartIcon size={15} />
+            <span>Growth &amp; Retention</span>
             <span style={{
-              background: activeTab === 'growth_retention' ? 'rgba(255,255,255,0.2)' : 'rgba(129,140,248,0.15)',
-              color: activeTab === 'growth_retention' ? '#fff' : '#818cf8',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
+              fontSize: 11,
+              padding: '2px 7px',
+              borderRadius: 10,
+              background: activeTab === 'growth_retention' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
+              color: activeTab === 'growth_retention' ? '#fff' : 'var(--text-muted)',
+              border: activeTab === 'growth_retention' ? 'none' : '1px solid var(--border)',
+              fontWeight: 700
             }}>
               {trendYear}
             </span>
@@ -1266,43 +1326,81 @@ export default function ReportsPage() {
 
           <button
             onClick={() => setActiveTab('lms_exporter')}
-            className={activeTab === 'lms_exporter' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: activeTab === 'lms_exporter' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: activeTab === 'lms_exporter' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+              color: activeTab === 'lms_exporter' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: activeTab === 'lms_exporter' ? 700 : 500,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease'
+            }}
           >
-            <Sparkles size={16} style={{ color: '#38bdf8' }} />
-            LMS Bulk Exporter
-            <span style={{
-              background: activeTab === 'lms_exporter' ? 'rgba(255,255,255,0.2)' : 'rgba(56,189,248,0.15)',
-              color: activeTab === 'lms_exporter' ? '#fff' : '#38bdf8',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
-            }}>
-              name,mobile
-            </span>
+            <FileSpreadsheet size={15} />
+            <span>LMS Bulk Exporter</span>
           </button>
 
           <button
             onClick={() => setActiveTab('debts')}
-            className={activeTab === 'debts' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: activeTab === 'debts' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: activeTab === 'debts' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+              color: activeTab === 'debts' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: activeTab === 'debts' ? 700 : 500,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease'
+            }}
           >
-            <AlertCircle size={16} />
-            Debt Aging &amp; Recovery
-            <span style={{
-              background: activeTab === 'debts' ? 'rgba(255,255,255,0.2)' : 'rgba(239,68,68,0.15)',
-              color: activeTab === 'debts' ? '#fff' : '#ef4444',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
-            }}>
-              {outstandingList.length}
-            </span>
+            <AlertCircle size={15} />
+            <span>Debt Aging &amp; Recovery</span>
+            {outstandingList.length > 0 && (
+              <span style={{
+                fontSize: 11,
+                padding: '2px 7px',
+                borderRadius: 10,
+                background: 'rgba(239, 68, 68, 0.15)',
+                color: '#ef4444',
+                border: '1px solid rgba(239, 68, 68, 0.3)',
+                fontWeight: 700
+              }}>
+                {outstandingList.length}
+              </span>
+            )}
           </button>
 
           <button
             onClick={() => setActiveTab('data_quality')}
-            className={activeTab === 'data_quality' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              border: activeTab === 'data_quality' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: activeTab === 'data_quality' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+              color: activeTab === 'data_quality' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: activeTab === 'data_quality' ? 700 : 500,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'all 0.15s ease'
+            }}
           >
-            <ShieldCheck size={16} style={{ color: '#10b981' }} />
-            Data Quality &amp; Audit
+            <ShieldCheck size={15} />
+            <span>Data Quality &amp; Audit</span>
           </button>
         </div>
 

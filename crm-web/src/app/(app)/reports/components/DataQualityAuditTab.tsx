@@ -140,14 +140,14 @@ export default function DataQualityAuditTab({
             borderLeft: '4px solid #f59e0b',
             cursor: 'pointer',
             background: activeQualityTab === 'missing_lms' ? 'rgba(245, 158, 11, 0.08)' : undefined,
-            boxShadow: '0 4px 20px -4px rgba(245, 158, 11, 0.2)'
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)'
           }}
         >
-          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Missing LMS Number</span>
             {activeQualityTab === 'missing_lms' && <span className="badge" style={{ fontSize: 10, background: '#f59e0b', color: '#fff' }}>VIEWING</span>}
           </div>
-          <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 24 }}>
+          <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 24, marginTop: 4 }}>
             {missingLmsStudents.length} Students
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -163,14 +163,14 @@ export default function DataQualityAuditTab({
             borderLeft: '4px solid #ef4444',
             cursor: 'pointer',
             background: activeQualityTab === 'missing_phone' ? 'rgba(239, 68, 68, 0.08)' : undefined,
-            boxShadow: '0 4px 20px -4px rgba(239, 68, 68, 0.25)'
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)'
           }}
         >
-          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Missing Household Phone</span>
             {activeQualityTab === 'missing_phone' && <span className="badge" style={{ fontSize: 10, background: '#ef4444', color: '#fff' }}>VIEWING</span>}
           </div>
-          <div className="stat-card value" style={{ color: '#ef4444', fontSize: 24 }}>
+          <div className="stat-card value" style={{ color: '#ef4444', fontSize: 24, marginTop: 4 }}>
             {missingPhoneStudents.length} Students
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -186,14 +186,14 @@ export default function DataQualityAuditTab({
             borderLeft: '4px solid #8b5cf6',
             cursor: 'pointer',
             background: activeQualityTab === 'duplicate_phones' ? 'rgba(139, 92, 246, 0.08)' : undefined,
-            boxShadow: '0 4px 20px -4px rgba(139, 92, 246, 0.2)'
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)'
           }}
         >
-          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Shared Phone / Sibling Links</span>
             {activeQualityTab === 'duplicate_phones' && <span className="badge" style={{ fontSize: 10, background: '#8b5cf6', color: '#fff' }}>VIEWING</span>}
           </div>
-          <div className="stat-card value" style={{ color: '#8b5cf6', fontSize: 24 }}>
+          <div className="stat-card value" style={{ color: '#8b5cf6', fontSize: 24, marginTop: 4 }}>
             {duplicatePhoneGroups.length} Phone Numbers
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
@@ -209,14 +209,14 @@ export default function DataQualityAuditTab({
             borderLeft: '4px solid #3b82f6',
             cursor: 'pointer',
             background: activeQualityTab === 'undelivered_tutes' ? 'rgba(59, 130, 246, 0.08)' : undefined,
-            boxShadow: '0 4px 20px -4px rgba(59, 130, 246, 0.2)'
+            boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)'
           }}
         >
-          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+          <div className="stat-card label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span>Tute Delivery Pipeline</span>
             {activeQualityTab === 'undelivered_tutes' && <span className="badge" style={{ fontSize: 10, background: '#3b82f6', color: '#fff' }}>VIEWING</span>}
           </div>
-          <div className="stat-card value" style={{ color: '#3b82f6', fontSize: 24 }}>
+          <div className="stat-card value" style={{ color: '#3b82f6', fontSize: 24, marginTop: 4 }}>
             {undeliveredTutesList.length} Slips
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>

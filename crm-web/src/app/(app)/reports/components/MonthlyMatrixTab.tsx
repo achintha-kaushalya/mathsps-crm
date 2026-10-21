@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Printer, FileSpreadsheet, Building2, Users, Calendar, Layers, BookOpen, GraduationCap, Download, CheckCircle2, TrendingUp, Sparkles, Filter } from 'lucide-react'
+import { Printer, FileSpreadsheet, Building2, Users, Calendar, Layers, BookOpen, GraduationCap, Download, CheckCircle2, TrendingUp, Sparkles, Filter, CreditCard } from 'lucide-react'
 import { MONTH_NAMES, CLASS_LABELS, extractLmsNumber } from '@/lib/types'
 import { CourseConfig } from '@/lib/courses'
 import { exportTableToCsv, exportLmsBulkCsv, TARGET_GRADES, getGradeFromPayment } from '@/lib/reports-analytics'
@@ -235,7 +235,7 @@ export default function MonthlyMatrixTab({
                 <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
                   Matrix Data Metric
                 </label>
-                <div style={{ display: 'flex', gap: 4, background: 'var(--bg-base)', padding: 4, borderRadius: 8, border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', gap: 4, background: 'var(--bg-base)', padding: 3, borderRadius: 8, border: '1px solid var(--border)' }}>
                   <button
                     type="button"
                     onClick={() => setMatrixMode('registrations')}
@@ -246,11 +246,15 @@ export default function MonthlyMatrixTab({
                       borderRadius: 6,
                       border: 'none',
                       cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
                       background: matrixMode === 'registrations' ? 'var(--accent-blue)' : 'transparent',
                       color: matrixMode === 'registrations' ? '#fff' : 'var(--text-muted)'
                     }}
                   >
-                    👥 New Registrations
+                    <Users size={13} />
+                    <span>New Registrations</span>
                   </button>
                   <button
                     type="button"
@@ -262,11 +266,15 @@ export default function MonthlyMatrixTab({
                       borderRadius: 6,
                       border: 'none',
                       cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
                       background: matrixMode === 'payments' ? '#10b981' : 'transparent',
                       color: matrixMode === 'payments' ? '#fff' : 'var(--text-muted)'
                     }}
                   >
-                    💳 Paid Students / Slips
+                    <CreditCard size={13} />
+                    <span>Paid Students / Slips</span>
                   </button>
                 </div>
               </div>
@@ -470,17 +478,20 @@ export default function MonthlyMatrixTab({
 
       {/* Top KPI Cards with Dashboard Colored Shadows & Left Borders */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
-        <div className="stat-card" style={{ borderLeft: '4px solid #38bdf8', boxShadow: '0 4px 20px -4px rgba(56, 189, 248, 0.25)' }}>
+        <div className="stat-card" style={{ borderLeft: '4px solid #38bdf8', boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)' }}>
           <div className="stat-card label">Total Revenue ({MONTH_NAMES[month - 1]} {year})</div>
-          <div className="stat-card value" style={{ color: '#38bdf8', fontSize: 24 }}>
-            Rs. {totalMonthlyRevenue.toLocaleString()}
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 4, marginTop: 4 }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text-muted)' }}>Rs.</span>
+            <span style={{ fontSize: 24, fontWeight: 800, color: '#38bdf8' }}>
+              {totalMonthlyRevenue.toLocaleString()}
+            </span>
           </div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
             {allPaymentsMonth.length} student slips collected
           </div>
         </div>
 
-        <div className="stat-card" style={{ borderLeft: '4px solid #4ade80', boxShadow: '0 4px 20px -4px rgba(74, 222, 128, 0.25)' }}>
+        <div className="stat-card" style={{ borderLeft: '4px solid #4ade80', boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)' }}>
           <div className="stat-card label">Month-End Cumulative Total</div>
           <div className="stat-card value" style={{ color: '#4ade80', fontSize: 24 }}>
             {cumulativeMatrixRows[cumulativeMatrixRows.length - 1]?.cumulativeTotal || 0}
@@ -490,7 +501,7 @@ export default function MonthlyMatrixTab({
           </div>
         </div>
 
-        <div className="stat-card" style={{ borderLeft: '4px solid #818cf8', boxShadow: '0 4px 20px -4px rgba(129, 140, 248, 0.25)' }}>
+        <div className="stat-card" style={{ borderLeft: '4px solid #818cf8', boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)' }}>
           <div className="stat-card label">New Admissions</div>
           <div className="stat-card value" style={{ color: '#818cf8', fontSize: 24 }}>
             {newStudents.length} Students
@@ -500,7 +511,7 @@ export default function MonthlyMatrixTab({
           </div>
         </div>
 
-        <div className="stat-card" style={{ borderLeft: '4px solid #fcd34d', boxShadow: '0 4px 20px -4px rgba(245, 158, 11, 0.25)' }}>
+        <div className="stat-card" style={{ borderLeft: '4px solid #fcd34d', boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)' }}>
           <div className="stat-card label">Top Bank Partner</div>
           <div className="stat-card value" style={{ color: '#f59e0b', fontSize: 20 }}>
             {bankRevenue[0]?.bank || 'None'}
@@ -524,11 +535,12 @@ export default function MonthlyMatrixTab({
         const projectedPct = Math.min(150, Math.round((projectedMonthEnd / defaultGoal) * 100))
 
         return (
-          <div className="glass-card" style={{ padding: 18, marginBottom: 20, background: 'linear-gradient(180deg, rgba(59,130,246,0.06) 0%, rgba(59,130,246,0.01) 100%)', border: '1px solid rgba(59,130,246,0.2)' }}>
+          <div className="glass-card" style={{ padding: 18, marginBottom: 20, background: 'var(--bg-card)', border: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
               <div>
                 <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  🎯 Monthly Collection Target &amp; Pace Gauge ({MONTH_NAMES[month - 1]} {year})
+                  <TrendingUp size={16} style={{ color: 'var(--accent-blue)' }} />
+                  Monthly Collection Target &amp; Pace Gauge ({MONTH_NAMES[month - 1]} {year})
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                   Target: <strong>Rs. {defaultGoal.toLocaleString()}</strong> · Collected: <strong style={{ color: '#10b981' }}>Rs. {totalMonthlyRevenue.toLocaleString()} ({pctAchieved}%)</strong> · Daily Pace: <strong>Rs. {dailyAvg.toLocaleString()}/day</strong>
@@ -548,7 +560,7 @@ export default function MonthlyMatrixTab({
             </div>
 
             {/* Visual Progress Bar */}
-            <div style={{ width: '100%', height: 10, background: 'rgba(255,255,255,0.08)', borderRadius: 20, overflow: 'hidden', position: 'relative' }}>
+            <div style={{ width: '100%', height: 8, background: 'var(--bg-card-hover)', borderRadius: 20, overflow: 'hidden', position: 'relative' }}>
               <div style={{
                 width: `${pctAchieved}%`,
                 height: '100%',
@@ -566,27 +578,28 @@ export default function MonthlyMatrixTab({
         <div className="fade-in">
           <div className="glass-card" style={{ overflow: 'hidden', padding: 0, borderRadius: 12 }}>
             <div style={{
-              background: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)',
-              color: '#fff',
+              background: 'var(--bg-card-hover)',
               padding: '16px 20px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              borderBottom: '2px solid #145a17'
+              borderBottom: '1px solid var(--border)'
             }}>
               <div>
-                <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <Calendar size={20} />
+                <div style={{ fontSize: 16, fontWeight: 800, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Calendar size={18} style={{ color: 'var(--accent-blue)' }} />
                   {MONTH_NAMES[month - 1]} {year} — Grade-Wise Cumulative Progression Sheet
                 </div>
-                <div style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>
                   {matrixMode === 'registrations'
                     ? 'Daily and cumulative count of new registered students across Grades 5–11'
                     : 'Daily and cumulative count of students paying fees across Grades 5–11'}
                 </div>
               </div>
               <span style={{
-                background: 'rgba(255,255,255,0.2)',
+                background: 'rgba(56, 189, 248, 0.12)',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
+                color: 'var(--accent-blue)',
                 padding: '4px 12px',
                 borderRadius: 20,
                 fontSize: 12,
