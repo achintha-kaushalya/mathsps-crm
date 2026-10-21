@@ -370,7 +370,7 @@ export default function SettingsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <User size={16} />
-            👤 Account &amp; Security
+            Account &amp; Security
           </button>
 
           <button
@@ -379,7 +379,7 @@ export default function SettingsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Database size={16} />
-            💾 Database Backup &amp; Recovery
+            Database Backup &amp; Recovery
             <span style={{
               background: activeTab === 'database_backup' ? 'rgba(255,255,255,0.2)' : 'rgba(74,222,128,0.15)',
               color: activeTab === 'database_backup' ? '#fff' : '#4ade80',
@@ -395,7 +395,7 @@ export default function SettingsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Mail size={16} />
-            📧 Email Reports &amp; Dispatch
+            Email Reports &amp; Dispatch
           </button>
 
           <button
@@ -404,7 +404,7 @@ export default function SettingsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Cpu size={16} />
-            ⚡ System Diagnostics
+            System Diagnostics
           </button>
         </div>
 
@@ -538,9 +538,10 @@ export default function SettingsPage() {
                   type="submit"
                   className="btn-primary"
                   disabled={savingPassword}
-                  style={{ width: '100%', justifyContent: 'center', padding: '11px', fontSize: 13, fontWeight: 700 }}
+                  style={{ width: '100%', justifyContent: 'center', padding: '11px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
                 >
-                  {savingPassword ? 'Updating Password...' : '🔒 Update Account Password'}
+                  <Lock size={16} />
+                  {savingPassword ? 'Updating Password...' : 'Update Account Password'}
                 </button>
               </form>
             </div>

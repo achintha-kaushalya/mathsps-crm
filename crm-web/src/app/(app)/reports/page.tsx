@@ -1198,7 +1198,7 @@ export default function ReportsPage() {
                 color: tutorFilter === 'all' ? '#34d399' : 'var(--text-secondary)'
               }}
             >
-              🌐 All Combined
+              All Combined
             </button>
           </div>
 
@@ -1208,7 +1208,7 @@ export default function ReportsPage() {
             style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, textDecoration: 'none', padding: '8px 14px' }}
           >
             <Mail size={16} style={{ color: 'var(--accent-blue)' }} />
-            📧 Email Automation Settings
+            Email Automation Settings
           </a>
         </div>
       </div>
@@ -1222,7 +1222,7 @@ export default function ReportsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Sparkles size={16} />
-            🌅 Daily Operations &amp; Audit
+            Daily Operations &amp; Audit
             <span style={{
               background: activeTab === 'daily_operations' ? 'rgba(255,255,255,0.2)' : 'rgba(56,189,248,0.15)',
               color: activeTab === 'daily_operations' ? '#fff' : '#38bdf8',
@@ -1238,7 +1238,7 @@ export default function ReportsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Calendar size={16} />
-            📅 Monthly Financials &amp; Matrix
+            Monthly Financials &amp; Matrix
             <span style={{
               background: activeTab === 'monthly_financials' ? 'rgba(255,255,255,0.2)' : 'rgba(74,222,128,0.15)',
               color: activeTab === 'monthly_financials' ? '#fff' : '#4ade80',
@@ -1254,7 +1254,7 @@ export default function ReportsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <LineChartIcon size={16} />
-            📈 Growth &amp; Retention Intelligence
+            Growth &amp; Retention Intelligence
             <span style={{
               background: activeTab === 'growth_retention' ? 'rgba(255,255,255,0.2)' : 'rgba(129,140,248,0.15)',
               color: activeTab === 'growth_retention' ? '#fff' : '#818cf8',
@@ -1270,7 +1270,7 @@ export default function ReportsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <Sparkles size={16} style={{ color: '#38bdf8' }} />
-            🎓 LMS Bulk Exporter
+            LMS Bulk Exporter
             <span style={{
               background: activeTab === 'lms_exporter' ? 'rgba(255,255,255,0.2)' : 'rgba(56,189,248,0.15)',
               color: activeTab === 'lms_exporter' ? '#fff' : '#38bdf8',
@@ -1286,7 +1286,7 @@ export default function ReportsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <AlertCircle size={16} />
-            ⚠️ Debt Aging &amp; Recovery
+            Debt Aging &amp; Recovery
             <span style={{
               background: activeTab === 'debts' ? 'rgba(255,255,255,0.2)' : 'rgba(239,68,68,0.15)',
               color: activeTab === 'debts' ? '#fff' : '#ef4444',
@@ -1302,7 +1302,7 @@ export default function ReportsPage() {
             style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
           >
             <ShieldCheck size={16} style={{ color: '#10b981' }} />
-            🛡️ Data Quality &amp; Audit
+            Data Quality &amp; Audit
           </button>
         </div>
 

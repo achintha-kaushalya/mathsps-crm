@@ -575,8 +575,9 @@ export default function MonthlyMatrixTab({
               borderBottom: '2px solid #145a17'
             }}>
               <div>
-                <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.5 }}>
-                  📅 {MONTH_NAMES[month - 1]} {year} — Grade-Wise Cumulative Progression Sheet
+                <div style={{ fontSize: 18, fontWeight: 800, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Calendar size={20} />
+                  {MONTH_NAMES[month - 1]} {year} — Grade-Wise Cumulative Progression Sheet
                 </div>
                 <div style={{ fontSize: 12, opacity: 0.9, marginTop: 2 }}>
                   {matrixMode === 'registrations'
