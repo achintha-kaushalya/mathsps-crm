@@ -45,6 +45,7 @@ export default function MasterLeadsSpreadsheet() {
   const supabase = createClient()
 
   // Current User Context
+  const [authLoaded, setAuthLoaded] = useState(false)
   const [currentMemberName, setCurrentMemberName] = useState<string>('')
   const [userRole, setUserRole] = useState<'member' | 'admin' | 'owner' | 'callcenter' | 'payments'>('member')
   const [userColor, setUserColor] = useState<string>('#3b82f6')
@@ -77,7 +78,7 @@ export default function MasterLeadsSpreadsheet() {
   const searchTimeout = useRef<NodeJS.Timeout | undefined>(undefined)
   const isAdmin = Boolean(userRole === 'admin' || userRole === 'owner' || (currentMemberName && currentMemberName.toLowerCase().includes('admin')))
 
-  // Initialize User Info & Permissions
+  // Initialize User Info & Permissions FIRST
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
@@ -107,11 +108,13 @@ export default function MasterLeadsSpreadsheet() {
         const colorIdx = Math.abs(uName.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0)) % USER_COLORS.length
         setUserColor(USER_COLORS[colorIdx])
       }
+      setAuthLoaded(true)
     })
     loadMembers()
   }, [])
 
   useEffect(() => {
+    if (!authLoaded) return
     if (searchTimeout.current) clearTimeout(searchTimeout.current)
     searchTimeout.current = setTimeout(() => {
       setPage(0)
@@ -120,9 +123,13 @@ export default function MasterLeadsSpreadsheet() {
     return () => {
       if (searchTimeout.current) clearTimeout(searchTimeout.current)
     }
-  }, [search, statusFilter, memberFilter, currentMemberName, allowedMembers, canViewAll])
+  }, [authLoaded, search, statusFilter, memberFilter, currentMemberName, allowedMembers, canViewAll])
 
-  useEffect(() => { loadLeads(page) }, [page])
+  useEffect(() => {
+    if (authLoaded) {
+      loadLeads(page)
+    }
+  }, [authLoaded, page])
 
   // REAL-TIME WEBSOCKET SUBSCRIPTION + MULTIPLAYER PRESENCE
   const channelRef = useRef<any>(null)
@@ -585,7 +592,16 @@ export default function MasterLeadsSpreadsheet() {
             </tr>
 
             {/* DATA ROWS */}
-            {leads.map((lead, idx) => {
+            {(!authLoaded || loading) && leads.length === 0 ? (
+              <tr>
+                <td colSpan={16} style={{ textAlign: 'center', padding: '60px 0', color: 'var(--text-muted)' }}>
+                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, fontSize: 13 }}>
+                    <RefreshCw size={15} className="animate-spin" />
+                    <span>Loading leads...</span>
+                  </div>
+                </td>
+              </tr>
+            ) : leads.map((lead, idx) => {
               const ownLead = isOwnLead(lead)
               const editable = canEditLead(lead) // admin, own lead, or permitted team lead
               const canEditFullRow = isAdmin || ownLead
