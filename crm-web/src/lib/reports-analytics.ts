@@ -6,6 +6,18 @@ import { MONTH_NAMES } from './types'
 export const TARGET_GRADES = [5, 6, 7, 8, 9, 10, 11] as const
 
 /**
+ * Standard 4 Standalone / Specialist Courses
+ */
+export const STANDALONE_COURSES_CONFIG = [
+  { code: 'GEOMETRY_FULL', shortLabel: 'Geometry', fullLabel: 'Geometry Full Course' },
+  { code: 'BODMAS_MASTER', shortLabel: 'Booster', fullLabel: 'Final Term Booster (9 වසර)' },
+  { code: 'SHORT_QN_BANK', shortLabel: 'Short Qns', fullLabel: 'Short Questions Bank' },
+  { code: 'SUPER_REVISION', shortLabel: 'Revision', fullLabel: 'Super Revision Masterclass' }
+] as const
+
+export type StandaloneCourseCode = typeof STANDALONE_COURSES_CONFIG[number]['code']
+
+/**
  * Grade visual color map for badges, charts, and table highlights
  */
 export const GRADE_COLOR_MAP: Record<number, { stroke: string; fill: string; name: string }> = {
