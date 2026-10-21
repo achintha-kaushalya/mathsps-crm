@@ -53,6 +53,7 @@ export default function AnalyticsDashboard() {
   const [commissionViewFilter, setCommissionViewFilter] = useState<'current_active' | 'all_paid'>('current_active')
   const [settlementSuccess, setSettlementSuccess] = useState<string>('')
   const [settlingModalOpen, setSettlingModalOpen] = useState(false)
+  const [settleTargetMember, setSettleTargetMember] = useState<string | null>(null) // null = all members, string = specific member name
   const [settlingLoading, setSettlingLoading] = useState(false)
   const [adminPasswordForSettle, setAdminPasswordForSettle] = useState('')
   const [settleError, setSettleError] = useState('')
@@ -256,7 +257,7 @@ export default function AnalyticsDashboard() {
     return found
   }
 
-  // Settle / Clear Current Active Commissions and log history
+  // Settle / Clear Current Active Commissions and log history (All or Single Member)
   async function executeCommissionSettlement(e: React.FormEvent) {
     e.preventDefault()
     if (!adminPasswordForSettle) {
@@ -270,23 +271,46 @@ export default function AnalyticsDashboard() {
     try {
       const now = new Date()
       const timeStampStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
-      const batchId = `COMM_${timeStampStr}`
+      const prefix = settleTargetMember ? `COMM_${settleTargetMember.toUpperCase().replace(/\s+/g, '_')}_` : 'COMM_'
+      const batchId = `${prefix}${timeStampStr}`
+
+      // Filter paid members and leads based on target
+      const targetMembersList = settleTargetMember
+        ? paidMembersList.filter(m => m.name.toLowerCase() === settleTargetMember.toLowerCase())
+        : paidMembersList
+
+      const leadsToMark = paidLeads.filter(l => {
+        if (!l.id) return false
+        if (settleTargetMember) {
+          const assigned = (l.assigned_member || 'Unassigned').trim().toLowerCase()
+          return assigned === settleTargetMember.trim().toLowerCase()
+        }
+        return true
+      })
+
+      if (leadsToMark.length === 0 || targetMembersList.length === 0) {
+        throw new Error('No unsettled leads found for the selected member/target.')
+      }
 
       // 1. Prepare settlement record
-      const memberBreakdown = paidMembersList.map(m => ({
+      const memberBreakdown = targetMembersList.map(m => ({
         member_name: m.name,
         paid_classes: m.totalPaidClasses,
         commission_amount: m.commissionAmount,
         grades: paidMemberGradeMatrix[m.name] || {}
       }))
 
+      const settledAmount = targetMembersList.reduce((acc, m) => acc + m.commissionAmount, 0)
+      const settledClassesCount = targetMembersList.reduce((acc, m) => acc + m.totalPaidClasses, 0)
+
       const settlementRecord = {
         batch_id: batchId,
         settled_at: now.toISOString(),
         settled_by: currentMemberName || 'Admin',
-        lead_count: totalPaidConversions,
-        total_paid_classes: totalPaidClassesCount,
-        total_commission_amount: totalCommissionAmount,
+        target_member: settleTargetMember || 'ALL_MEMBERS',
+        lead_count: leadsToMark.length,
+        total_paid_classes: settledClassesCount,
+        total_commission_amount: settledAmount,
         rates_used: { g6_8: rateG6_8, g9: rateG9, g10_11: rateG10_11 },
         member_breakdown: memberBreakdown
       }
@@ -324,17 +348,18 @@ export default function AnalyticsDashboard() {
         throw new Error(errJson.error || 'Failed to authenticate admin or save settlement history.')
       }
 
-      // 3. Mark current unsettled leads with [SETTLED: batchId] tag in comments
-      const leadsToMark = paidLeads.filter(l => l.id)
+      // 3. Mark targeted unsettled leads with [SETTLED: batchId] tag in comments
       for (const l of leadsToMark) {
         const oldComments = (l.comments || '').trim()
         const newComments = oldComments ? `${oldComments} [SETTLED:${batchId}]` : `[SETTLED:${batchId}]`
         await supabase.from('leads').update({ comments: newComments }).eq('id', l.id)
       }
 
+      const targetLabel = settleTargetMember ? `for ${settleTargetMember}` : 'for all team members'
       setSettlingModalOpen(false)
       setAdminPasswordForSettle('')
-      setSettlementSuccess(`✓ Successfully cleared commissions (${batchId})! Total settled: Rs. ${totalCommissionAmount.toLocaleString()}`)
+      setSettleTargetMember(null)
+      setSettlementSuccess(`✓ Successfully cleared commissions ${targetLabel} (${batchId})! Amount: Rs. ${settledAmount.toLocaleString()}`)
       setTimeout(() => setSettlementSuccess(''), 8000)
 
       await loadData()
@@ -1444,6 +1469,7 @@ export default function AnalyticsDashboard() {
                 {userRole === 'admin' && (
                   <button
                     onClick={() => {
+                      setSettleTargetMember(null)
                       setSettlingModalOpen(true)
                       setAdminPasswordForSettle('')
                       setSettleError('')
@@ -1602,13 +1628,16 @@ export default function AnalyticsDashboard() {
                 <table className="data-table" style={{ tableLayout: 'fixed' }}>
                   <thead>
                     <tr>
-                      <th style={{ width: 160, textAlign: 'left' }}>Member Name</th>
+                      <th style={{ width: 150, textAlign: 'left' }}>Member Name</th>
                       {GRADES.map((g) => (
                         <th key={g} style={{ textAlign: 'center' }}>Gr {g}</th>
                       ))}
                       <th style={{ textAlign: 'center', fontWeight: 700 }}>Total Paid Seats</th>
-                      <th style={{ textAlign: 'right', fontWeight: 800, color: '#059669', width: 150 }}>Commission (Rs.)</th>
-                      <th style={{ textAlign: 'right', fontWeight: 700, width: 90 }}>Share %</th>
+                      <th style={{ textAlign: 'right', fontWeight: 800, color: '#059669', width: 140 }}>Commission (Rs.)</th>
+                      <th style={{ textAlign: 'right', fontWeight: 700, width: 80 }}>Share %</th>
+                      {userRole === 'admin' && (
+                        <th style={{ textAlign: 'center', width: 110 }}>Action</th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
@@ -1650,6 +1679,33 @@ export default function AnalyticsDashboard() {
                           <td style={{ textAlign: 'right', fontWeight: 600, fontSize: 13, color: 'var(--text-secondary)' }}>
                             {share}%
                           </td>
+                          {userRole === 'admin' && (
+                            <td style={{ textAlign: 'center' }}>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setSettleTargetMember(m.name)
+                                  setSettlingModalOpen(true)
+                                  setAdminPasswordForSettle('')
+                                  setSettleError('')
+                                }}
+                                disabled={commissionViewFilter !== 'current_active' || m.commissionAmount === 0}
+                                style={{
+                                  background: 'rgba(217, 119, 6, 0.12)',
+                                  border: '1px solid rgba(217, 119, 6, 0.35)',
+                                  color: '#f59e0b',
+                                  padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                                  cursor: (commissionViewFilter !== 'current_active' || m.commissionAmount === 0) ? 'not-allowed' : 'pointer',
+                                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                                  opacity: (commissionViewFilter !== 'current_active' || m.commissionAmount === 0) ? 0.4 : 1,
+                                  transition: 'all 0.15s'
+                                }}
+                                title={`Clear and settle commissions only for ${m.name}`}
+                              >
+                                <span>Clear</span>
+                              </button>
+                            </td>
+                          )}
                         </tr>
                       )
                     })}
@@ -1669,6 +1725,7 @@ export default function AnalyticsDashboard() {
                         Rs. {totalCommissionAmount.toLocaleString()}
                       </td>
                       <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-secondary)' }}>100.0%</td>
+                      {userRole === 'admin' && <td />}
                     </tr>
                   </tfoot>
                 </table>
@@ -1683,77 +1740,114 @@ export default function AnalyticsDashboard() {
               )}
             </div>
 
-            {/* Settle Commissions Confirmation Modal */}
-            {settlingModalOpen && (
-              <div style={{
-                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16
-              }}>
-                <div className="glass-card" style={{ maxWidth: 460, width: '100%', padding: 24, borderRadius: 16, background: '#ffffff', color: '#0f172a' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: 8, background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      <DollarSign size={20} />
+            {/* Settle Commissions Confirmation Modal (Dark Glassmorphism) */}
+            {settlingModalOpen && (() => {
+              const targetMembers = settleTargetMember
+                ? paidMembersList.filter(m => m.name.toLowerCase() === settleTargetMember.toLowerCase())
+                : paidMembersList
+              const targetAmount = targetMembers.reduce((sum, m) => sum + m.commissionAmount, 0)
+              const targetClasses = targetMembers.reduce((sum, m) => sum + m.totalPaidClasses, 0)
+              const targetLeadsCount = paidLeads.filter(l => {
+                if (!settleTargetMember) return true
+                return (l.assigned_member || 'Unassigned').trim().toLowerCase() === settleTargetMember.trim().toLowerCase()
+              }).length
+
+              return (
+                <div style={{
+                  position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16
+                }}>
+                  <div className="glass-card" style={{
+                    maxWidth: 480, width: '100%', padding: 24, borderRadius: 16,
+                    background: '#0b1120', color: 'var(--text-primary)', border: '1px solid var(--border)',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                      <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <DollarSign size={22} />
+                      </div>
+                      <div>
+                        <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: 'var(--text-primary)' }}>
+                          {settleTargetMember ? `Clear Commission — ${settleTargetMember}` : 'Clear & Settle All Commissions'}
+                        </h3>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                          {settleTargetMember ? `Individual settlement for ${settleTargetMember}` : 'Batch settlement for all eligible team members'}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Clear &amp; Settle Commissions</h3>
-                      <div style={{ fontSize: 12, color: '#64748b' }}>Confirm payout settlement for current period</div>
+
+                    <div style={{
+                      padding: 14, background: 'var(--bg-card-hover)', borderRadius: 10,
+                      border: '1px solid var(--border)', marginBottom: 16, fontSize: 13, lineHeight: 1.6
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Target:</span>
+                        <b style={{ color: settleTargetMember ? 'var(--accent-blue)' : '#f59e0b' }}>
+                          {settleTargetMember ? `Single Member (${settleTargetMember})` : `All Team Members (${targetMembers.length})`}
+                        </b>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Total Payable:</span>
+                        <span style={{ color: '#34d399', fontWeight: 900, fontSize: 15 }}>Rs. {targetAmount.toLocaleString()}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <span style={{ color: 'var(--text-muted)' }}>Paid Leads / Seats:</span>
+                        <span style={{ fontWeight: 700 }}>{targetLeadsCount} leads ({targetClasses} class seats)</span>
+                      </div>
+                      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', marginTop: 8, borderTop: '1px solid var(--border)', paddingTop: 8 }}>
+                        ⚠️ <b>Admin Password Required:</b> Marking these leads as settled will reset {settleTargetMember ? `${settleTargetMember}'s` : 'the active'} commission balance back to <b>Rs. 0</b>. The settlement record will be archived in Member profiles.
+                      </div>
                     </div>
+
+                    {settleError && (
+                      <div style={{ padding: '8px 12px', background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.35)', borderRadius: 8, color: '#f87171', fontSize: 12, marginBottom: 14 }}>
+                        ⚠️ {settleError}
+                      </div>
+                    )}
+
+                    <form onSubmit={executeCommissionSettlement}>
+                      <div style={{ marginBottom: 16 }}>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                          Enter Admin Password to Authorize *
+                        </label>
+                        <input
+                          type="password"
+                          className="input-field"
+                          placeholder="Admin password (admin@mathsps.com)"
+                          required
+                          autoFocus
+                          value={adminPasswordForSettle}
+                          onChange={e => setAdminPasswordForSettle(e.target.value)}
+                          style={{ height: 38 }}
+                        />
+                      </div>
+
+                      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                        <button
+                          type="button"
+                          className="btn-secondary"
+                          onClick={() => {
+                            setSettlingModalOpen(false)
+                            setSettleTargetMember(null)
+                          }}
+                          disabled={settlingLoading}
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          type="submit"
+                          className="btn-primary"
+                          disabled={settlingLoading}
+                          style={{ background: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)', border: 'none', color: '#ffffff' }}
+                        >
+                          {settlingLoading ? 'Settling...' : `✓ Confirm & Clear ${settleTargetMember ? settleTargetMember : 'All'}`}
+                        </button>
+                      </div>
+                    </form>
                   </div>
-
-                  <div style={{ padding: 14, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16, fontSize: 13, lineHeight: 1.5 }}>
-                    <div><b>Total Payable:</b> <span style={{ color: '#059669', fontWeight: 800 }}>Rs. {totalCommissionAmount.toLocaleString()}</span></div>
-                    <div><b>Paid Leads Being Settled:</b> {totalPaidConversions} leads ({totalPaidClassesCount} seats)</div>
-                    <div><b>Eligible Members:</b> {paidMembersList.length} members</div>
-                    <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 6 }}>
-                      ⚠️ Once cleared, these leads will be marked as settled. The live commission balance will reset to 0 for the new period. A settlement log will be archived in Member profiles.
-                    </div>
-                  </div>
-
-                  {settleError && (
-                    <div style={{ padding: '8px 12px', background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 8, color: '#dc2626', fontSize: 12, marginBottom: 14 }}>
-                      ⚠️ {settleError}
-                    </div>
-                  )}
-
-                  <form onSubmit={executeCommissionSettlement}>
-                    <div style={{ marginBottom: 16 }}>
-                      <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
-                        Enter Admin Password to Authorize *
-                      </label>
-                      <input
-                        type="password"
-                        className="input-field"
-                        placeholder="Admin password"
-                        required
-                        autoFocus
-                        value={adminPasswordForSettle}
-                        onChange={e => setAdminPasswordForSettle(e.target.value)}
-                        style={{ height: 38 }}
-                      />
-                    </div>
-
-                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-                      <button
-                        type="button"
-                        className="btn-secondary"
-                        onClick={() => setSettlingModalOpen(false)}
-                        disabled={settlingLoading}
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        type="submit"
-                        className="btn-primary"
-                        disabled={settlingLoading}
-                        style={{ background: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)', border: 'none' }}
-                      >
-                        {settlingLoading ? 'Settling...' : '✓ Confirm & Clear Commissions'}
-                      </button>
-                    </div>
-                  </form>
                 </div>
-              </div>
-            )}
+              )
+            })()}
           </div>
         )}
 
