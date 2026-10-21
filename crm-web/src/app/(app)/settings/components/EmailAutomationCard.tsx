@@ -668,16 +668,18 @@ export default function EmailAutomationCard() {
               </div>
 
               {/* 4. Weekly Velocity & Intake Schedule */}
-              <div style={{ padding: 12, background: 'rgba(99,102,241,0.06)', borderRadius: 6, border: '1px solid rgba(99,102,241,0.15)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+              <div style={{ padding: 12, background: 'rgba(99, 102, 241, 0.05)', borderRadius: 8, border: '1px solid rgba(99, 102, 241, 0.15)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 6 }}>
                   <input
                     type="checkbox"
                     checked={weeklySchedule}
                     onChange={e => setWeeklySchedule(e.target.checked)}
+                    style={{ accentColor: 'var(--accent-purple)' }}
                   />
-                  <span>📅 Weekly Velocity &amp; Intake Digest</span>
+                  <Calendar size={15} style={{ color: 'var(--accent-purple)' }} />
+                  <span>Weekly Velocity &amp; Intake Digest</span>
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 26, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Every:</span>
                   <select
                     className="input-field"
@@ -702,21 +704,23 @@ export default function EmailAutomationCard() {
                 </div>
               </div>
 
-              {/* 4. Monthly Financial Close Schedule */}
-              <div style={{ padding: 12, background: 'rgba(5,150,105,0.06)', borderRadius: 6, border: '1px solid rgba(5,150,105,0.15)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+              {/* 5. Monthly Financial Close Schedule */}
+              <div style={{ padding: 12, background: 'rgba(16, 185, 129, 0.05)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.15)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 6 }}>
                   <input
                     type="checkbox"
                     checked={monthlySchedule}
                     onChange={e => setMonthlySchedule(e.target.checked)}
+                    style={{ accentColor: '#10b981' }}
                   />
-                  <span>📊 Monthly Executive Business Close</span>
+                  <CheckCircle2 size={15} style={{ color: '#10b981' }} />
+                  <span>Monthly Executive Business Close</span>
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 26, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Day:</span>
                   <select
                     className="input-field"
-                    style={{ width: 80, padding: '3px 8px', fontSize: 12 }}
+                    style={{ width: 85, padding: '3px 8px', fontSize: 12 }}
                     value={monthlyDate}
                     onChange={e => setMonthlyDate(Number(e.target.value))}
                   >
@@ -737,17 +741,19 @@ export default function EmailAutomationCard() {
                 </div>
               </div>
 
-              {/* 5. Annual Strategic Review */}
-              <div style={{ padding: 12, background: 'rgba(217,119,6,0.06)', borderRadius: 6, border: '1px solid rgba(217,119,6,0.15)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+              {/* 6. Annual Strategic Review */}
+              <div style={{ padding: 12, background: 'rgba(245, 158, 11, 0.05)', borderRadius: 8, border: '1px solid rgba(245, 158, 11, 0.15)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 6 }}>
                   <input
                     type="checkbox"
                     checked={yearlySchedule}
                     onChange={e => setYearlySchedule(e.target.checked)}
+                    style={{ accentColor: '#f59e0b' }}
                   />
-                  <span>🏆 Annual Strategic Financial &amp; Growth Review</span>
+                  <TrendingUp size={15} style={{ color: '#f59e0b' }} />
+                  <span>Annual Strategic Financial &amp; Growth Review</span>
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 26, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Every Dec 31 @</span>
                   <input
                     type="time"

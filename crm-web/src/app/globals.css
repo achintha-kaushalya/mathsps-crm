@@ -251,6 +251,25 @@ body {
 .input-field::placeholder { color: var(--text-muted); }
 .input-field option { background: var(--bg-card); color: var(--text-primary); }
 
+/* Chrome/Safari Dark mode autofill fix so inputs never turn blinding white on saved credentials */
+[data-theme="dark"] .input-field,
+[data-theme="dark"] input.input-field,
+[data-theme="dark"] select.input-field {
+  background-color: var(--input-bg) !important;
+  color: var(--text-primary) !important;
+}
+
+[data-theme="dark"] input:-webkit-autofill,
+[data-theme="dark"] input:-webkit-autofill:hover, 
+[data-theme="dark"] input:-webkit-autofill:focus,
+[data-theme="dark"] input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 1000px #0d1424 inset !important;
+  -webkit-text-fill-color: #f8fafc !important;
+  caret-color: #f8fafc !important;
+  border-color: var(--border) !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 /* Clean, modern select dropdown styling with perfectly centered SVG chevron */
 select.input-field,
 select.select-input,
