@@ -363,48 +363,122 @@ export default function SettingsPage() {
 
       <div className="page-content" style={{ width: '100%', maxWidth: '100%' }}>
         {/* Navigation Tabs */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 12, flexWrap: 'wrap' }}>
+        <div style={{
+          display: 'flex',
+          gap: 6,
+          overflowX: 'auto',
+          padding: '6px 8px',
+          marginBottom: 20,
+          background: 'var(--bg-card)',
+          borderRadius: 12,
+          border: '1px solid var(--border)'
+        }}>
           <button
+            type="button"
             onClick={() => setActiveTab('account_security')}
-            className={activeTab === 'account_security' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              boxSizing: 'border-box',
+              border: activeTab === 'account_security' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: activeTab === 'account_security' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+              color: activeTab === 'account_security' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+            }}
           >
-            <User size={16} />
-            Account &amp; Security
+            <User size={15} />
+            <span>Account &amp; Security</span>
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab('database_backup')}
-            className={activeTab === 'database_backup' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              boxSizing: 'border-box',
+              border: activeTab === 'database_backup' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: activeTab === 'database_backup' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+              color: activeTab === 'database_backup' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+            }}
           >
-            <Database size={16} />
-            Database Backup &amp; Recovery
+            <Database size={15} />
+            <span>Database Backup &amp; Recovery</span>
             <span style={{
-              background: activeTab === 'database_backup' ? 'rgba(255,255,255,0.2)' : 'rgba(74,222,128,0.15)',
-              color: activeTab === 'database_backup' ? '#fff' : '#4ade80',
-              padding: '2px 8px', borderRadius: 12, fontSize: 11
+              fontSize: 11,
+              padding: '2px 7px',
+              borderRadius: 10,
+              boxSizing: 'border-box',
+              background: activeTab === 'database_backup' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
+              color: activeTab === 'database_backup' ? '#fff' : 'var(--text-muted)',
+              border: '1px solid ' + (activeTab === 'database_backup' ? 'var(--accent-blue)' : 'var(--border)'),
+              fontWeight: 600
             }}>
               {dbCounts.students} students
             </span>
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab('email_automation')}
-            className={activeTab === 'email_automation' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              boxSizing: 'border-box',
+              border: activeTab === 'email_automation' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: activeTab === 'email_automation' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+              color: activeTab === 'email_automation' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+            }}
           >
-            <Mail size={16} />
-            Email Reports &amp; Dispatch
+            <Mail size={15} />
+            <span>Email Reports &amp; Dispatch</span>
           </button>
 
           <button
+            type="button"
             onClick={() => setActiveTab('diagnostics')}
-            className={activeTab === 'diagnostics' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              boxSizing: 'border-box',
+              border: activeTab === 'diagnostics' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: activeTab === 'diagnostics' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+              color: activeTab === 'diagnostics' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+            }}
           >
-            <Cpu size={16} />
-            System Diagnostics
+            <Cpu size={15} />
+            <span>System Diagnostics</span>
           </button>
         </div>
 

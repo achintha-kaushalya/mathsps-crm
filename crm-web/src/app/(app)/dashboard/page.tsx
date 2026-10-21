@@ -651,28 +651,72 @@ export default function AnalyticsDashboard() {
       <div className="page-content">
 
         {/* ── Navigation Tabs ───────────────────────────── */}
-        <div style={{ display: 'flex', gap: 10, marginBottom: 20, borderBottom: '1px solid var(--border)', paddingBottom: 12, flexWrap: 'wrap' }}>
+        <div style={{
+          display: 'flex',
+          gap: 6,
+          overflowX: 'auto',
+          padding: '6px 8px',
+          marginBottom: 20,
+          background: 'var(--bg-card)',
+          borderRadius: 12,
+          border: '1px solid var(--border)'
+        }}>
           <button
+            type="button"
             onClick={() => setActiveTab('overview')}
-            className={activeTab === 'overview' ? 'btn-primary' : 'btn-secondary'}
-            style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+            style={{
+              padding: '8px 16px',
+              borderRadius: 8,
+              boxSizing: 'border-box',
+              border: activeTab === 'overview' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+              background: activeTab === 'overview' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+              color: activeTab === 'overview' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              fontWeight: 600,
+              fontSize: 13,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              whiteSpace: 'nowrap',
+              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+            }}
           >
-            <BarChart2 size={16} />
-            {isAdmin ? 'Overview' : 'My Workstation'}
+            <BarChart2 size={15} />
+            <span>{isAdmin ? 'Overview' : 'My Workstation'}</span>
           </button>
 
           {isAdmin && (
             <button
+              type="button"
               onClick={() => setActiveTab('daily_member_tracking')}
-              className={activeTab === 'daily_member_tracking' ? 'btn-primary' : 'btn-secondary'}
-              style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                boxSizing: 'border-box',
+                border: activeTab === 'daily_member_tracking' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+                background: activeTab === 'daily_member_tracking' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+                color: activeTab === 'daily_member_tracking' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                whiteSpace: 'nowrap',
+                transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+              }}
             >
-              <Calendar size={16} />
-              Daily Tracking
+              <Calendar size={15} />
+              <span>Daily Tracking</span>
               <span style={{
-                background: activeTab === 'daily_member_tracking' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
-                color: activeTab === 'daily_member_tracking' ? '#fff' : 'var(--accent-blue)',
-                padding: '2px 8px', borderRadius: 12, fontSize: 11
+                fontSize: 11,
+                padding: '2px 7px',
+                borderRadius: 10,
+                boxSizing: 'border-box',
+                background: activeTab === 'daily_member_tracking' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
+                color: activeTab === 'daily_member_tracking' ? '#fff' : 'var(--text-muted)',
+                border: '1px solid ' + (activeTab === 'daily_member_tracking' ? 'var(--accent-blue)' : 'var(--border)'),
+                fontWeight: 600
               }}>
                 {dayLeads.length} today
               </span>
@@ -681,16 +725,36 @@ export default function AnalyticsDashboard() {
 
           {isAdmin && (
             <button
+              type="button"
               onClick={() => setActiveTab('master_paid_report')}
-              className={activeTab === 'master_paid_report' ? 'btn-primary' : 'btn-secondary'}
-              style={{ padding: '8px 18px', fontSize: 13, fontWeight: 700, display: 'flex', alignItems: 'center', gap: 8 }}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                boxSizing: 'border-box',
+                border: activeTab === 'master_paid_report' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+                background: activeTab === 'master_paid_report' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+                color: activeTab === 'master_paid_report' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                whiteSpace: 'nowrap',
+                transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+              }}
             >
-              <CheckCircle2 size={16} />
-              Paid Report
+              <CheckCircle2 size={15} />
+              <span>Paid Report</span>
               <span style={{
-                background: activeTab === 'master_paid_report' ? 'rgba(255,255,255,0.2)' : 'rgba(59,130,246,0.15)',
-                color: activeTab === 'master_paid_report' ? '#fff' : 'var(--accent-blue)',
-                padding: '2px 8px', borderRadius: 12, fontSize: 11
+                fontSize: 11,
+                padding: '2px 7px',
+                borderRadius: 10,
+                boxSizing: 'border-box',
+                background: activeTab === 'master_paid_report' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
+                color: activeTab === 'master_paid_report' ? '#fff' : 'var(--text-muted)',
+                border: '1px solid ' + (activeTab === 'master_paid_report' ? 'var(--accent-blue)' : 'var(--border)'),
+                fontWeight: 600
               }}>
                 {totalPaidConversions} paid leads
               </span>

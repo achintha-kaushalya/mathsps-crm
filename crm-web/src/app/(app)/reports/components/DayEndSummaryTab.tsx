@@ -93,55 +93,47 @@ export default function DayEndSummaryTab({
               <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
                 Period Preset
               </label>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                <button
-                  type="button"
-                  onClick={() => applyDateRangePreset('today')}
-                  className={dateRangePreset === 'today' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '6px 12px', fontSize: 12 }}
-                >
-                  Today
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyDateRangePreset('yesterday')}
-                  className={dateRangePreset === 'yesterday' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '6px 12px', fontSize: 12 }}
-                >
-                  Yesterday
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyDateRangePreset('last7')}
-                  className={dateRangePreset === 'last7' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '6px 12px', fontSize: 12 }}
-                >
-                  Last 7 Days
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyDateRangePreset('this_month')}
-                  className={dateRangePreset === 'this_month' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '6px 12px', fontSize: 12 }}
-                >
-                  This Month
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyDateRangePreset('last_month')}
-                  className={dateRangePreset === 'last_month' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '6px 12px', fontSize: 12 }}
-                >
-                  Last Month
-                </button>
-                <button
-                  type="button"
-                  onClick={() => applyDateRangePreset('custom')}
-                  className={dateRangePreset === 'custom' ? 'btn-primary' : 'btn-secondary'}
-                  style={{ padding: '6px 12px', fontSize: 12 }}
-                >
-                  Custom Range ▾
-                </button>
+              <div style={{
+                display: 'flex',
+                gap: 4,
+                flexWrap: 'wrap',
+                background: 'var(--bg-base)',
+                padding: '4px 6px',
+                borderRadius: 10,
+                border: '1px solid var(--border)'
+              }}>
+                {[
+                  { key: 'today', label: 'Today' },
+                  { key: 'yesterday', label: 'Yesterday' },
+                  { key: 'last7', label: 'Last 7 Days' },
+                  { key: 'this_month', label: 'This Month' },
+                  { key: 'last_month', label: 'Last Month' },
+                  { key: 'custom', label: 'Custom Range ▾' },
+                ].map(p => {
+                  const isSelected = dateRangePreset === p.key
+                  return (
+                    <button
+                      key={p.key}
+                      type="button"
+                      onClick={() => applyDateRangePreset(p.key as any)}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: 12,
+                        borderRadius: 6,
+                        boxSizing: 'border-box',
+                        border: isSelected ? '1px solid var(--accent-blue)' : '1px solid transparent',
+                        background: isSelected ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                        color: isSelected ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        whiteSpace: 'nowrap',
+                        transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+                      }}
+                    >
+                      {p.label}
+                    </button>
+                  )
+                })}
               </div>
             </div>
 
