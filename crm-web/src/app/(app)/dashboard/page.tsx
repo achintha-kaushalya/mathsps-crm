@@ -801,21 +801,22 @@ export default function AnalyticsDashboard() {
               </div>
             )}
 
-            {/* Clean Status Group Cards */}
+            {/* Clean Status Group Bento Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 22 }}>
               {Object.entries(STATUS_GROUPS).map(([key, grp]) => {
                 const count = grp.statuses.reduce((s, st) => s + ((isAdmin ? statusCounts[st] : myStatusCounts[st]) || 0), 0)
                 const denom = isAdmin ? totalFiltered : myLeads.length
                 const pct = denom > 0 ? ((count / denom) * 100).toFixed(1) : '0.0'
+                const barColor = key === 'hot' ? '#f59e0b' : key === 'converted' ? '#10b981' : key === 'new' ? '#38bdf8' : '#94a3b8'
                 return (
-                  <div key={key} className="glass-card" style={{ padding: '14px 18px' }}>
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 4 }}>
+                  <div key={key} className="glass-card bento-kpi-card" style={{ padding: '16px 20px', borderTop: `3px solid ${barColor}` }}>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 700, marginBottom: 6 }}>
                       {isAdmin ? grp.label : `My ${grp.label}`}
                     </div>
-                    <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)' }}>{count.toLocaleString()}</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 8 }}>{pct}% of {isAdmin ? 'all' : 'my'} leads</div>
-                    <div style={{ height: 3, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
-                      <div style={{ width: `${pct}%`, height: '100%', background: 'var(--accent-blue)', borderRadius: 99, transition: 'width 0.6s ease' }} />
+                    <div style={{ fontSize: 28, fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.02em' }}>{count.toLocaleString()}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 10, fontWeight: 500 }}>{pct}% of {isAdmin ? 'all' : 'my'} leads</div>
+                    <div style={{ height: 4, background: 'var(--border)', borderRadius: 99, overflow: 'hidden' }}>
+                      <div style={{ width: `${pct}%`, height: '100%', background: barColor, borderRadius: 99, transition: 'width 0.6s ease', boxShadow: `0 0 8px ${barColor}` }} />
                     </div>
                   </div>
                 )
@@ -1336,47 +1337,50 @@ function KpiCard({ icon, iconBg, iconColor, borderColor, label, value, sub }: {
   sub?: string
 }) {
   return (
-    <div className="stat-card" style={{
+    <div className="stat-card bento-kpi-card" style={{
       borderLeft: borderColor ? `4px solid ${borderColor}` : '1px solid var(--border)',
       borderRadius: 16,
-      padding: '16px 18px',
-      boxShadow: '0 4px 20px -4px rgba(0, 0, 0, 0.05)',
+      padding: '18px 20px',
+      boxShadow: borderColor ? `0 4px 20px -4px ${borderColor}33` : 'var(--shadow-sm)',
       display: 'flex',
       flexDirection: 'column',
-      justifyContent: 'space-between'
+      justifyContent: 'space-between',
+      position: 'relative',
+      overflow: 'hidden'
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div style={{
           fontSize: 11,
           color: 'var(--text-secondary)',
           textTransform: 'uppercase',
           fontWeight: 700,
-          letterSpacing: '0.05em'
+          letterSpacing: '0.06em'
         }}>
           {label}
         </div>
         <div style={{
-          width: 32,
-          height: 32,
-          borderRadius: 8,
+          width: 36,
+          height: 36,
+          borderRadius: 10,
           background: iconBg || 'var(--bg-card-hover)',
           color: iconColor || 'var(--accent-blue)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          flexShrink: 0
+          flexShrink: 0,
+          boxShadow: iconColor ? `0 2px 10px -2px ${iconColor}44` : 'none'
         }}>
           {icon}
         </div>
       </div>
 
       <div>
-        <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1 }}>
+        <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
           {value}
         </div>
         {sub && (
-          <div style={{ fontSize: 11, fontWeight: 600, color: '#10b981', marginTop: 4 }}>
-            {sub}
+          <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--accent-green)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>↑</span> {sub}
           </div>
         )}
       </div>
