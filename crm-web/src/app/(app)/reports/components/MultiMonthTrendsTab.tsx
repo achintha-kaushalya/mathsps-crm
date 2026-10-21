@@ -3,7 +3,11 @@
 import {
   LineChart as LineChartIcon,
   TrendingUp,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Users,
+  DollarSign,
+  UserPlus,
+  Check
 } from 'lucide-react'
 import { MONTH_NAMES } from '@/lib/types'
 import { exportTableToCsv, GRADE_COLOR_MAP } from '@/lib/reports-analytics'
@@ -103,10 +107,13 @@ export default function MultiMonthTrendsTab({
                     border: 'none',
                     cursor: 'pointer',
                     background: trendMetric === 'students' ? 'var(--accent-blue)' : 'transparent',
-                    color: trendMetric === 'students' ? '#fff' : 'var(--text-muted)'
+                    color: trendMetric === 'students' ? '#fff' : 'var(--text-muted)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6
                   }}
                 >
-                  👥 Active Paying Students
+                  <Users size={13} /> Active Paying Students
                 </button>
                 <button
                   type="button"
@@ -119,10 +126,13 @@ export default function MultiMonthTrendsTab({
                     border: 'none',
                     cursor: 'pointer',
                     background: trendMetric === 'revenue' ? '#10b981' : 'transparent',
-                    color: trendMetric === 'revenue' ? '#fff' : 'var(--text-muted)'
+                    color: trendMetric === 'revenue' ? '#fff' : 'var(--text-muted)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6
                   }}
                 >
-                  💰 Total Revenue (Rs.)
+                  <DollarSign size={13} /> Total Revenue (Rs.)
                 </button>
                 <button
                   type="button"
@@ -135,10 +145,13 @@ export default function MultiMonthTrendsTab({
                     border: 'none',
                     cursor: 'pointer',
                     background: trendMetric === 'registrations' ? '#8b5cf6' : 'transparent',
-                    color: trendMetric === 'registrations' ? '#fff' : 'var(--text-muted)'
+                    color: trendMetric === 'registrations' ? '#fff' : 'var(--text-muted)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6
                   }}
                 >
-                  ✨ New Registrations
+                  <UserPlus size={13} /> New Registrations
                 </button>
               </div>
             </div>
@@ -220,7 +233,8 @@ export default function MultiMonthTrendsTab({
                     transition: 'all 0.15s'
                   }}
                 >
-                  {isSelected ? '✓ ' : ''}{mName.slice(0, 3)}
+                  {isSelected && <Check size={11} style={{ marginRight: 3, verticalAlign: 'middle' }} />}
+                  {mName.slice(0, 3)}
                 </button>
               )
             })}

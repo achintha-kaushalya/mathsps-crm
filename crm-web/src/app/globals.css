@@ -67,38 +67,50 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--border-light); border-radius: 4px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* Glass card & UI Cards (LMS Reference Style) */
-.glass-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
+/* ── Sleek Minimalist & Bento Surfaces (from vibe_coding_skills/design_systems/sleek_SKILL.md) ── */
+.glass-card,
+.stat-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   border-radius: 16px;
-  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
-  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
-}
-.glass-card:hover { 
-  border-color: #cbd5e1; 
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-/* Stat card (LMS Reference Style) */
-.stat-card {
-  background: #ffffff;
-  border: 1px solid #e2e8f0;
-  border-radius: 16px;
-  padding: 20px 22px;
-  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.05);
-  transition: all 0.2s ease;
+.glass-card {
+  padding: 20px;
 }
+
+.stat-card {
+  padding: 18px 20px;
+}
+
+.glass-card:hover,
 .stat-card:hover {
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-md);
   transform: translateY(-2px);
-  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+}
+
+/* Dark Mode Sleek Glass Enhancement */
+[data-theme="dark"] .glass-card,
+[data-theme="dark"] .stat-card {
+  background: rgba(17, 24, 39, 0.7);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 20px -4px rgba(0, 0, 0, 0.5);
+}
+
+[data-theme="dark"] .glass-card:hover,
+[data-theme="dark"] .stat-card:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+  box-shadow: 0 8px 25px -4px rgba(0, 0, 0, 0.6);
 }
 
 /* ========================================================================= */
 /* ── Comprehensive Enterprise Dark Mode Overrides (All Pages) ── */
 /* ========================================================================= */
-[data-theme="dark"] .glass-card,
-[data-theme="dark"] .stat-card,
 [data-theme="dark"] .page-header,
 [data-theme="dark"] [style*="background: #ffffff"],
 [data-theme="dark"] [style*="background: rgb(255, 255, 255)"],

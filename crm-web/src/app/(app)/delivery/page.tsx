@@ -1561,7 +1561,7 @@ export default function DeliveryPage() {
                                 color: isPending ? '#f97316' : '#10b981',
                                 border: `1px solid ${isPending ? 'rgba(249, 115, 22, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`
                               }}>
-                                {isPending ? '📦 READY' : '✓ DISPATCHED'}
+                                {isPending ? 'READY' : 'DISPATCHED'}
                               </span>
                             </div>
                           )

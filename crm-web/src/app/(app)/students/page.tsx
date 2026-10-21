@@ -865,8 +865,8 @@ export default function StudentsPage() {
                   <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
                     <span>Grade {selectedStudent.grade || '—'}</span>
                     <span>·</span>
-                    <span style={{ color: selectedStudent.lms_number ? '#059669' : '#64748b', fontWeight: 600 }}>
-                      📱 LMS: {selectedStudent.lms_number || 'Not Set'}
+                    <span style={{ color: selectedStudent.lms_number ? 'var(--accent-green)' : 'var(--text-muted)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                      <Phone size={12} /> LMS: {selectedStudent.lms_number || 'Not Set'}
                     </span>
                   </div>
                 </div>

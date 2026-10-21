@@ -1416,7 +1416,7 @@ export default function ReportsPage() {
                   }}
                 >
                   <LineChartIcon size={16} />
-                  📊 Multi-Month Interactive Trends ({trendYear})
+                  Multi-Month Interactive Trends ({trendYear})
                 </button>
 
                 <button
@@ -1437,7 +1437,7 @@ export default function ReportsPage() {
                   }}
                 >
                   <RefreshCw size={16} />
-                  🔄 Month Retention &amp; Churn Analyzer
+                  Month Retention &amp; Churn Analyzer
                 </button>
               </div>
 

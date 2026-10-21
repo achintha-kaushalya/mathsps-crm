@@ -390,7 +390,7 @@ export default function LmsBulkExporterTab({
                 style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 <Video size={14} />
-                📹 Monthly / Previous Month Recording
+                Monthly / Previous Month Recording
               </button>
               <button
                 type="button"
@@ -399,7 +399,7 @@ export default function LmsBulkExporterTab({
                 style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
               >
                 <Calendar size={14} />
-                📅 Day-End / Range ({startDate === endDate ? startDate : `${startDate} to ${endDate}`})
+                Day-End / Range ({startDate === endDate ? startDate : `${startDate} to ${endDate}`})
               </button>
               <button
                 type="button"
@@ -407,7 +407,8 @@ export default function LmsBulkExporterTab({
                 className={sourceType === 'registrations' ? 'btn-primary' : 'btn-secondary'}
                 style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
               >
-                🎓 New Registrations
+                <GraduationCap size={14} />
+                New Registrations
               </button>
             </div>
           </div>

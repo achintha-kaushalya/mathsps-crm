@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Plus, RefreshCw, Lock, AlertTriangle, Sparkles, UserCheck, Repeat } from 'lucide-react'
+import { Search, Plus, RefreshCw, Lock, AlertTriangle, Sparkles, UserCheck, Repeat, Shield, Phone, Edit2, Trash2, User } from 'lucide-react'
 import { Lead, LEAD_STATUSES } from '@/lib/types'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -430,8 +430,19 @@ export default function MasterLeadsSpreadsheet() {
               <Sparkles size={12} /> Live Multiplayer Sync
             </span>
           </h1>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3 }}>
-            Logged in as: <b>{currentMemberName || 'Staff'}</b> ({isAdmin ? '🛡 Admin Access' : '🔒 Member Access — Can edit own assigned records'})
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span>Logged in as: <b>{currentMemberName || 'Staff'}</b></span>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--bg-base)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }}>
+              {isAdmin ? (
+                <>
+                  <Shield size={12} style={{ color: 'var(--accent-blue)' }} /> Admin Access
+                </>
+              ) : (
+                <>
+                  <Lock size={12} style={{ color: 'var(--text-muted)' }} /> Member Access — Can edit own assigned records
+                </>
+              )}
+            </span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
@@ -473,7 +484,9 @@ export default function MasterLeadsSpreadsheet() {
         <table className="data-table" style={{ fontSize: 11.5, width: '100%', minWidth: '100%' }}>
           <thead>
             <tr style={{ background: '#f8fafc' }}>
-              <th style={{ width: 28, textAlign: 'center', whiteSpace: 'nowrap' }}>🔒</th>
+              <th style={{ width: 28, textAlign: 'center', whiteSpace: 'nowrap' }}>
+                <Lock size={12} style={{ margin: '0 auto', color: 'var(--text-muted)' }} />
+              </th>
               <th style={{ width: 68, whiteSpace: 'nowrap' }}>Code</th>
               <th style={{ width: 88, whiteSpace: 'nowrap' }}>Phone</th>
               <th style={{ width: 78, whiteSpace: 'nowrap' }}>Assigned</th>
@@ -604,9 +617,13 @@ export default function MasterLeadsSpreadsheet() {
                   {/* Lock / Ownership Status */}
                   <td style={{ textAlign: 'center' }}>
                     {canEditFullRow ? (
-                      <span style={{ color: '#10b981', fontSize: 11 }} title="You own and can edit all fields in this row">✏</span>
+                      <span style={{ color: '#10b981', display: 'inline-flex', alignItems: 'center' }} title="You own and can edit all fields in this row">
+                        <Edit2 size={12} />
+                      </span>
                     ) : editable ? (
-                      <span style={{ color: '#38bdf8', fontSize: 11 }} title="Assigned 2nd Call Lead (Only 2nd Call fields editable)">📞</span>
+                      <span style={{ color: '#38bdf8', display: 'inline-flex', alignItems: 'center' }} title="Assigned 2nd Call Lead (Only 2nd Call fields editable)">
+                        <Phone size={12} />
+                      </span>
                     ) : (
                       <span title={`Locked (Assigned to ${lead.assigned_member})`} style={{ display: 'inline-flex', alignItems: 'center' }}>
                         <Lock size={12} style={{ color: 'var(--text-muted)' }} />
@@ -689,9 +706,9 @@ export default function MasterLeadsSpreadsheet() {
                       <div style={{
                         position: 'absolute', right: 4, top: '50%', transform: 'translateY(-50%)',
                         background: presence.color, color: '#fff', fontSize: 9.5, padding: '1px 5px',
-                        borderRadius: 8, fontWeight: 700, pointerEvents: 'none'
+                        borderRadius: 8, fontWeight: 700, pointerEvents: 'none', display: 'inline-flex', alignItems: 'center', gap: 3
                       }}>
-                        👤 {presence.user_name}
+                        <User size={9} /> {presence.user_name}
                       </div>
                     )}
                     <GridCell
@@ -779,12 +796,15 @@ export default function MasterLeadsSpreadsheet() {
                           padding: '4px 6px',
                           opacity: 0.85,
                           transition: 'opacity 0.15s, transform 0.15s',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
                         }}
                         onMouseEnter={(e) => (e.currentTarget.style.opacity = '1')}
                         onMouseLeave={(e) => (e.currentTarget.style.opacity = '0.85')}
                         title="Delete lead"
                       >
-                        🗑
+                        <Trash2 size={13} />
                       </button>
                     ) : (
                       <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>—</span>
@@ -814,7 +834,7 @@ export default function MasterLeadsSpreadsheet() {
         }}>
           <div className="card" style={{ maxWidth: 420, width: '90%', padding: 24, borderRadius: 14, border: '1px solid var(--border)', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, color: 'var(--accent-red)' }}>
-              <span style={{ fontSize: 22 }}>⚠️</span>
+              <AlertTriangle size={20} />
               <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>Confirm Delete Lead</h3>
             </div>
             <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 20 }}>
@@ -835,7 +855,7 @@ export default function MasterLeadsSpreadsheet() {
                 disabled={!!deletingId}
                 style={{ padding: '8px 18px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
               >
-                {deletingId ? 'Deleting...' : '🗑 Yes, Delete'}
+                <Trash2 size={14} /> {deletingId ? 'Deleting...' : 'Yes, Delete'}
               </button>
             </div>
           </div>
