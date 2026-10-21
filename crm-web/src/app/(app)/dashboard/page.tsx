@@ -5,7 +5,8 @@ import { createClient } from '@/lib/supabase/client'
 import {
   Users, Phone, TrendingUp, Activity, BarChart2,
   RefreshCw, CheckCircle, CreditCard, Calendar,
-  CheckCircle2, FileSpreadsheet, Target, Award, Clock, ArrowRight
+  CheckCircle2, FileSpreadsheet, Target, Award, Clock, ArrowRight,
+  Sparkles, Trophy, Layers
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -529,7 +530,8 @@ export default function AnalyticsDashboard() {
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
             <div>
               <h1 style={{ fontSize: 26, fontWeight: 800, margin: '0 0 6px', color: '#ffffff', display: 'flex', alignItems: 'center', gap: 10 }}>
-                Welcome back, {currentMemberName || (isAdmin ? 'Admin' : 'Team Member')}! 👋
+                Welcome back, {currentMemberName || (isAdmin ? 'Admin' : 'Team Member')}!
+                <Sparkles size={22} style={{ color: '#fcd34d' }} />
               </h1>
               <p style={{ fontSize: 13, color: 'rgba(255, 255, 255, 0.85)', margin: 0 }}>
                 {isAdmin
@@ -619,10 +621,9 @@ export default function AnalyticsDashboard() {
             color: '#f59e0b',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'center',
-            fontSize: 20
+            justifyContent: 'center'
           }}>
-            🎯
+            <Target size={20} />
           </div>
           <div>
             <div style={{ fontSize: 13.5, fontWeight: 800, color: 'var(--text-primary)' }}>
@@ -828,7 +829,10 @@ export default function AnalyticsDashboard() {
               <div className="glass-card" style={{ marginBottom: 22, overflow: 'hidden' }}>
                 <div style={{ padding: '14px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>📊 Leads by Member &amp; Grade</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)' }}>
+                      <BarChart2 size={16} style={{ color: 'var(--accent-blue)' }} />
+                      Leads by Member &amp; Grade
+                    </div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>Lead distribution across members and grade levels</div>
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '4px 10px', borderRadius: 6 }}>
@@ -928,7 +932,10 @@ export default function AnalyticsDashboard() {
                 {/* My Grade-Wise Lead Breakdown */}
                 <div className="glass-card" style={{ overflow: 'hidden' }}>
                   <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14 }}>🎯 My Pipeline by Grade</div>
+                    <div style={{ fontWeight: 700, fontSize: 14, display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-primary)' }}>
+                      <Target size={16} style={{ color: 'var(--accent-blue)' }} />
+                      My Pipeline by Grade
+                    </div>
                     <div style={{ fontSize: 12, color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '4px 10px', borderRadius: 6 }}>
                       {myLeads.length} leads assigned
                     </div>
@@ -1235,7 +1242,8 @@ export default function AnalyticsDashboard() {
             <div className="glass-card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                  🏆 Member Conversion Leaderboard (Paid Ticks by Grade)
+                  <Trophy size={16} style={{ color: '#f59e0b' }} />
+                  Member Conversion Leaderboard (Paid Ticks by Grade)
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
                   Total {totalPaidClassesCount} paid class seats converted
