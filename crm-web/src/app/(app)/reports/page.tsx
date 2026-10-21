@@ -162,6 +162,14 @@ export default function ReportsPage() {
 
   useEffect(() => {
     setMounted(true)
+  }, [])
+
+  // Grade & Standalone Courses Configuration Cache
+  const [gradeCourses, setGradeCourses] = useState<Record<number, CourseConfig[]>>(DEFAULT_GRADE_COURSES)
+  const [standaloneCourses, setStandaloneCourses] = useState<CourseConfig[]>(DEFAULT_STANDALONE_COURSES)
+
+  // Dynamic course labels hydration from database & local cache
+  useEffect(() => {
     if (typeof window !== 'undefined') {
       const active = localStorage.getItem('mathsps_active_tutor') || 'prabuddha'
       setTutorFilter(active === 'sanduni' ? 'sm' : 'ps')
@@ -174,6 +182,8 @@ export default function ReportsPage() {
           const parsed = JSON.parse(cached)
           const gc = parsed.grade_courses || parsed.gradeCourses
           const sc = parsed.standalone_courses || parsed.standaloneCourses
+          if (gc) setGradeCourses(gc)
+          if (sc) setStandaloneCourses(sc)
           if (gc || sc) {
             setCourseLabels(getAllCourseLabels(gc || DEFAULT_GRADE_COURSES, sc || DEFAULT_STANDALONE_COURSES))
           }
@@ -200,6 +210,8 @@ export default function ReportsPage() {
             const notesObj = JSON.parse(adminRecord.notes)
             const gc = notesObj.grade_courses || notesObj.gradeCourses
             const sc = notesObj.standalone_courses || notesObj.standaloneCourses
+            if (gc) setGradeCourses(gc)
+            if (sc) setStandaloneCourses(sc)
             if (gc || sc) {
               setCourseLabels(getAllCourseLabels(gc || DEFAULT_GRADE_COURSES, sc || DEFAULT_STANDALONE_COURSES))
             }
@@ -218,6 +230,21 @@ export default function ReportsPage() {
       .on('broadcast', { event: 'courses_updated' }, (payload: any) => {
         const gc = payload?.payload?.grade_courses || payload?.payload?.gradeCourses
         const sc = payload?.payload?.standalone_courses || payload?.payload?.standaloneCourses
+        if (gc) setGradeCourses(gc)
+        if (sc) setStandaloneCourses(sc)
+        if (gc || sc) {
+          setCourseLabels(getAllCourseLabels(gc || DEFAULT_GRADE_COURSES, sc || DEFAULT_STANDALONE_COURSES))
+        }
+      })
+      .subscribe()
+
+    // Also listen to global channel from /courses manager
+    const globalChannel = supabase.channel('mathsps-global-courses-sync')
+      .on('broadcast', { event: 'courses_updated' }, (payload: any) => {
+        const gc = payload?.payload?.grade_courses || payload?.payload?.gradeCourses
+        const sc = payload?.payload?.standalone_courses || payload?.payload?.standaloneCourses
+        if (gc) setGradeCourses(gc)
+        if (sc) setStandaloneCourses(sc)
         if (gc || sc) {
           setCourseLabels(getAllCourseLabels(gc || DEFAULT_GRADE_COURSES, sc || DEFAULT_STANDALONE_COURSES))
         }
@@ -226,6 +253,7 @@ export default function ReportsPage() {
 
     return () => {
       supabase.removeChannel(channel)
+      supabase.removeChannel(globalChannel)
     }
   }, [])
 
@@ -1338,6 +1366,8 @@ export default function ReportsPage() {
             searchStu={searchStu}
             setSearchStu={setSearchStu}
             courseLabels={courseLabels}
+            standaloneCourses={standaloneCourses}
+            gradeCourses={gradeCourses}
           />
         )}
 

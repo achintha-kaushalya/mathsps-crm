@@ -1,7 +1,9 @@
 'use client'
 
-import { Printer, FileSpreadsheet, Building2, Users, Calendar, Layers, BookOpen, GraduationCap, Download, CheckCircle2, TrendingUp } from 'lucide-react'
+import { useState } from 'react'
+import { Printer, FileSpreadsheet, Building2, Users, Calendar, Layers, BookOpen, GraduationCap, Download, CheckCircle2, TrendingUp, Sparkles, Filter } from 'lucide-react'
 import { MONTH_NAMES, CLASS_LABELS, extractLmsNumber } from '@/lib/types'
+import { CourseConfig } from '@/lib/courses'
 import { exportTableToCsv, exportLmsBulkCsv, TARGET_GRADES, getGradeFromPayment } from '@/lib/reports-analytics'
 
 interface MonthlyMatrixTabProps {
@@ -33,6 +35,8 @@ interface MonthlyMatrixTabProps {
   searchStu: string
   setSearchStu: (s: string) => void
   courseLabels?: Record<string, string>
+  standaloneCourses?: CourseConfig[]
+  gradeCourses?: Record<number, CourseConfig[]>
 }
 
 export default function MonthlyMatrixTab({
@@ -54,24 +58,52 @@ export default function MonthlyMatrixTab({
   gradeStats,
   searchStu,
   setSearchStu,
-  courseLabels = {}
+  courseLabels = {},
+  standaloneCourses = [],
+  gradeCourses = {}
 }: MonthlyMatrixTabProps) {
   const matrixTargetGrades = TARGET_GRADES
+
+  // Local filter for Courses & Financials subtab: 'all' | 'grade' | 'external'
+  const [courseScopeFilter, setCourseScopeFilter] = useState<'all' | 'grade' | 'external'>('all')
+
+  // Set of known standalone course codes
+  const standaloneCodeSet = new Set<string>()
+  standaloneCourses.forEach(sc => {
+    if (sc.code) standaloneCodeSet.add(sc.code)
+  })
 
   // =========================================================================
   // COURSE FINANCIAL ALIGNMENT & BREAKDOWN
   // =========================================================================
-  // 1. Group all month payments by class_type / course
+  // 1. Initialize map with ALL configured standalone / external courses so newly created courses (like 'test') appear even with 0 payments
   const coursePaymentMap = new Map<string, {
     classCode: string
     courseName: string
     grade: number
+    isStandalone: boolean
     studentIds: Set<string>
     slipsCount: number
     revenue: number
     studentsList: { name: string; mobile: string; ps_code: string; amount: number; date_paid: string }[]
   }>()
 
+  // Pre-seed all standalone / external courses
+  standaloneCourses.forEach(sc => {
+    if (!sc.code) return
+    coursePaymentMap.set(sc.code, {
+      classCode: sc.code,
+      courseName: sc.name || sc.code,
+      grade: sc.grade || 0,
+      isStandalone: true,
+      studentIds: new Set<string>(),
+      slipsCount: 0,
+      revenue: 0,
+      studentsList: []
+    })
+  })
+
+  // 2. Group all month payments by class_type / course
   allPaymentsMonth.forEach(p => {
     const rawClass = p.class_type || 'UNKNOWN'
     const amt = Number(p.amount_paid) || 0
@@ -80,12 +112,14 @@ export default function MonthlyMatrixTab({
     const studentMobile = extractLmsNumber(p.students) || p.students?.household?.parent_phone || ''
     const studentGrade = getGradeFromPayment(p) || p.students?.grade || 0
     const courseTitle = courseLabels[rawClass] || CLASS_LABELS[rawClass] || rawClass
+    const isStandalone = standaloneCodeSet.has(rawClass) || studentGrade === 0
 
     if (!coursePaymentMap.has(rawClass)) {
       coursePaymentMap.set(rawClass, {
         classCode: rawClass,
         courseName: courseTitle,
         grade: studentGrade,
+        isStandalone: isStandalone,
         studentIds: new Set<string>(),
         slipsCount: 0,
         revenue: 0,
@@ -94,6 +128,9 @@ export default function MonthlyMatrixTab({
     }
 
     const entry = coursePaymentMap.get(rawClass)!
+    if (entry.grade === 0 && studentGrade > 0) {
+      entry.grade = studentGrade
+    }
     entry.studentIds.add(ps)
     entry.slipsCount += 1
     entry.revenue += amt
@@ -106,7 +143,7 @@ export default function MonthlyMatrixTab({
     })
   })
 
-  // 2. Also incorporate newly registered students with enrolled classes
+  // 3. Also incorporate newly registered students with enrolled classes
   const courseEnrollmentMap = new Map<string, number>()
   newStudents.forEach(s => {
     (s.enrollments || []).forEach((e: any) => {
@@ -117,25 +154,43 @@ export default function MonthlyMatrixTab({
     })
   })
 
-  // 3. Flatten into course breakdown list sorted by revenue descending
-  const courseBreakdownList = Array.from(coursePaymentMap.values()).map(c => ({
+  // 4. Flatten into course breakdown list sorted by revenue descending
+  const allCourseBreakdownList = Array.from(coursePaymentMap.values()).map(c => ({
     code: c.classCode,
     name: c.courseName,
     grade: c.grade,
+    isStandalone: c.isStandalone || standaloneCodeSet.has(c.classCode),
     studentCount: c.studentIds.size,
     slipsCount: c.slipsCount,
     revenue: c.revenue,
     newEnrollments: courseEnrollmentMap.get(c.classCode) || 0,
     students: c.studentsList
-  })).sort((a, b) => b.revenue - a.revenue)
+  })).sort((a, b) => {
+    if (b.revenue !== a.revenue) return b.revenue - a.revenue
+    if (b.studentCount !== a.studentCount) return b.studentCount - a.studentCount
+    return a.name.localeCompare(b.name)
+  })
 
-  // 4. Grade-grouped courses summary
-  const gradeWiseCourseMap: Record<number, typeof courseBreakdownList> = {}
-  courseBreakdownList.forEach(c => {
+  // Apply course scope filter
+  const courseBreakdownList = allCourseBreakdownList.filter(c => {
+    if (courseScopeFilter === 'external') return c.isStandalone || c.grade === 0
+    if (courseScopeFilter === 'grade') return !c.isStandalone && c.grade > 0
+    return true
+  })
+
+  const standaloneCount = allCourseBreakdownList.filter(c => c.isStandalone || c.grade === 0).length
+  const gradeCourseCount = allCourseBreakdownList.filter(c => !c.isStandalone && c.grade > 0).length
+
+  // 5. Grade-grouped courses summary (only for grade-based courses)
+  const gradeWiseCourseMap: Record<number, typeof allCourseBreakdownList> = {}
+  allCourseBreakdownList.filter(c => !c.isStandalone && c.grade > 0).forEach(c => {
     const g = c.grade || 0
     if (!gradeWiseCourseMap[g]) gradeWiseCourseMap[g] = []
     gradeWiseCourseMap[g].push(c)
   })
+
+  // External / Standalone courses list for dedicated section
+  const standaloneCoursesList = allCourseBreakdownList.filter(c => c.isStandalone || c.grade === 0)
 
   return (
     <div className="fade-in">
@@ -669,14 +724,85 @@ export default function MonthlyMatrixTab({
 
           {/* Master Course-Wise Financial Breakdown Table */}
           <div className="glass-card" style={{ padding: 20, marginBottom: 20 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
-              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                <BookOpen size={20} style={{ color: '#8b5cf6' }} />
-                Course Performance &amp; Revenue Alignment ({MONTH_NAMES[month - 1]} {year})
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+                <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <BookOpen size={20} style={{ color: '#8b5cf6' }} />
+                  Course Performance &amp; Revenue Alignment ({MONTH_NAMES[month - 1]} {year})
+                </div>
+
+                {/* Scope Filter Pills: All / Grade / External */}
+                <div style={{ display: 'inline-flex', background: 'var(--bg-base)', padding: 3, borderRadius: 8, border: '1px solid var(--border)', gap: 3 }}>
+                  <button
+                    type="button"
+                    onClick={() => setCourseScopeFilter('all')}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      borderRadius: 6,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: courseScopeFilter === 'all' ? 'var(--accent-blue)' : 'transparent',
+                      color: courseScopeFilter === 'all' ? '#fff' : 'var(--text-secondary)'
+                    }}
+                  >
+                    🌐 All ({allCourseBreakdownList.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCourseScopeFilter('grade')}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      borderRadius: 6,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: courseScopeFilter === 'grade' ? 'var(--accent-blue)' : 'transparent',
+                      color: courseScopeFilter === 'grade' ? '#fff' : 'var(--text-secondary)'
+                    }}
+                  >
+                    📘 Grade Classes ({gradeCourseCount})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCourseScopeFilter('external')}
+                    style={{
+                      padding: '4px 10px',
+                      fontSize: 11,
+                      fontWeight: 700,
+                      borderRadius: 6,
+                      border: 'none',
+                      cursor: 'pointer',
+                      background: courseScopeFilter === 'external' ? '#8b5cf6' : 'transparent',
+                      color: courseScopeFilter === 'external' ? '#fff' : 'var(--text-secondary)'
+                    }}
+                  >
+                    ✨ External / Specialist ({standaloneCount})
+                  </button>
+                </div>
               </div>
-              <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', fontWeight: 700, fontSize: 12 }}>
-                {courseBreakdownList.length} Active Courses / Classes
-              </span>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', fontWeight: 700, fontSize: 12 }}>
+                  {courseBreakdownList.length} Courses Listed
+                </span>
+                <a
+                  href="/courses"
+                  style={{
+                    fontSize: 11,
+                    color: 'var(--accent-blue)',
+                    textDecoration: 'none',
+                    fontWeight: 600,
+                    padding: '4px 8px',
+                    borderRadius: 6,
+                    border: '1px solid var(--border)'
+                  }}
+                >
+                  Manage Courses ↗
+                </a>
+              </div>
             </div>
 
             <div style={{ overflowX: 'auto' }}>
@@ -707,9 +833,15 @@ export default function MonthlyMatrixTab({
                           </div>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <span className="badge" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)', fontWeight: 700, fontSize: 11 }}>
-                            {c.grade > 0 ? `Grade ${c.grade}` : 'Specialist'}
-                          </span>
+                          {c.isStandalone || c.grade === 0 ? (
+                            <span className="badge" style={{ background: 'rgba(139,92,246,0.15)', color: '#8b5cf6', fontWeight: 700, fontSize: 11, border: '1px solid rgba(139,92,246,0.3)' }}>
+                              ✨ External
+                            </span>
+                          ) : (
+                            <span className="badge" style={{ background: 'rgba(59,130,246,0.1)', color: 'var(--accent-blue)', fontWeight: 700, fontSize: 11 }}>
+                              Grade {c.grade}
+                            </span>
+                          )}
                         </td>
                         <td style={{ textAlign: 'center', fontWeight: 700, color: '#10b981' }}>
                           {c.studentCount}
@@ -859,6 +991,76 @@ export default function MonthlyMatrixTab({
                   </div>
                 )
               })}
+            </div>
+          </div>
+
+          {/* External & Specialist Courses Dedicated Performance Section */}
+          <div style={{ marginTop: 28 }}>
+            <div style={{ fontWeight: 700, fontSize: 16, marginBottom: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Sparkles size={20} style={{ color: '#8b5cf6' }} />
+                <span>External &amp; Specialist Courses Performance ({standaloneCoursesList.length})</span>
+              </div>
+              <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                Independent from Grade 5–11 Progression Sheet
+              </span>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16 }}>
+              {standaloneCoursesList.map(sc => (
+                <div
+                  key={sc.code}
+                  className="glass-card"
+                  style={{
+                    padding: 16,
+                    borderTop: '3px solid #8b5cf6',
+                    boxShadow: sc.revenue > 0 ? '0 4px 20px -4px rgba(139, 92, 246, 0.2)' : 'none',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'space-between'
+                  }}
+                >
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
+                      <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)' }}>
+                        {sc.name}
+                      </div>
+                      <span className="badge" style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#8b5cf6', fontSize: 10, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                        Specialist
+                      </span>
+                    </div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'monospace', marginBottom: 12 }}>
+                      {sc.code}
+                    </div>
+                  </div>
+
+                  <div style={{ borderTop: '1px solid var(--border)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
+                    <div>
+                      <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Collections</div>
+                      <div style={{ fontWeight: 800, color: sc.revenue > 0 ? '#10b981' : 'var(--text-muted)', fontSize: 16 }}>
+                        Rs. {sc.revenue.toLocaleString()}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>
+                        {sc.studentCount} paying {sc.studentCount === 1 ? 'student' : 'students'} ({sc.slipsCount} slips)
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      disabled={sc.students.length === 0}
+                      onClick={() => {
+                        const safeName = sc.name.replace(/[\s\(\)\/\:]+/g, '_')
+                        exportLmsBulkCsv(`LMS_Billing_${safeName}_${MONTH_NAMES[month - 1]}_${year}`, sc.students)
+                      }}
+                      className="btn-secondary"
+                      style={{ padding: '4px 10px', fontSize: 11, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+                      title="Export LMS Bulk CSV"
+                    >
+                      <Download size={12} style={{ color: '#8b5cf6' }} /> LMS CSV
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         </div>
