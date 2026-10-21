@@ -1336,50 +1336,90 @@ function KpiCard({ icon, iconBg, iconColor, borderColor, label, value, sub }: {
   value: string
   sub?: string
 }) {
+  const accent = borderColor || '#38bdf8'
   return (
-    <div className="stat-card bento-kpi-card" style={{
-      borderLeft: borderColor ? `4px solid ${borderColor}` : '1px solid var(--border)',
-      borderRadius: 16,
-      padding: '18px 20px',
-      boxShadow: borderColor ? `0 4px 20px -4px ${borderColor}33` : 'var(--shadow-sm)',
+    <div style={{
+      position: 'relative',
+      background: 'linear-gradient(145deg, rgba(18, 26, 47, 0.88) 0%, rgba(13, 19, 36, 0.96) 100%)',
+      backdropFilter: 'blur(20px)',
+      WebkitBackdropFilter: 'blur(20px)',
+      border: '1px solid rgba(255, 255, 255, 0.08)',
+      borderTop: `2px solid ${accent}`,
+      borderRadius: 18,
+      padding: '20px 22px',
+      boxShadow: `0 10px 30px -10px ${accent}30, 0 2px 6px 0 rgba(0, 0, 0, 0.4)`,
       display: 'flex',
       flexDirection: 'column',
       justifyContent: 'space-between',
-      position: 'relative',
-      overflow: 'hidden'
+      overflow: 'hidden',
+      transition: 'transform 0.2s ease, box-shadow 0.2s ease'
     }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
+      {/* Subtle ambient light glow corner */}
+      <div style={{
+        position: 'absolute',
+        top: -30,
+        right: -30,
+        width: 110,
+        height: 110,
+        borderRadius: '50%',
+        background: accent,
+        filter: 'blur(40px)',
+        opacity: 0.22,
+        pointerEvents: 'none'
+      }} />
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14, position: 'relative', zIndex: 1 }}>
         <div style={{
           fontSize: 11,
-          color: 'var(--text-secondary)',
+          color: '#94a3b8',
           textTransform: 'uppercase',
-          fontWeight: 700,
-          letterSpacing: '0.06em'
+          fontWeight: 800,
+          letterSpacing: '0.08em'
         }}>
           {label}
         </div>
         <div style={{
-          width: 36,
-          height: 36,
-          borderRadius: 10,
-          background: iconBg || 'var(--bg-card-hover)',
-          color: iconColor || 'var(--accent-blue)',
+          width: 38,
+          height: 38,
+          borderRadius: 12,
+          background: `radial-gradient(circle at top left, ${accent}33, ${accent}15)`,
+          border: `1px solid ${accent}45`,
+          color: accent,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           flexShrink: 0,
-          boxShadow: iconColor ? `0 2px 10px -2px ${iconColor}44` : 'none'
+          boxShadow: `0 4px 14px -2px ${accent}40`
         }}>
           {icon}
         </div>
       </div>
 
-      <div>
-        <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', lineHeight: 1.1, letterSpacing: '-0.02em' }}>
+      <div style={{ position: 'relative', zIndex: 1 }}>
+        <div style={{
+          fontSize: 28,
+          fontWeight: 900,
+          color: '#ffffff',
+          lineHeight: 1.1,
+          letterSpacing: '-0.03em',
+          textShadow: '0 2px 10px rgba(0,0,0,0.3)'
+        }}>
           {value}
         </div>
         {sub && (
-          <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--accent-green)', marginTop: 6, display: 'flex', alignItems: 'center', gap: 4 }}>
+          <div style={{
+            fontSize: 11.5,
+            fontWeight: 700,
+            color: '#34d399',
+            marginTop: 8,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 4,
+            background: 'rgba(52, 211, 153, 0.12)',
+            padding: '2px 8px',
+            borderRadius: 6,
+            border: '1px solid rgba(52, 211, 153, 0.25)'
+          }}>
             <span>↑</span> {sub}
           </div>
         )}
