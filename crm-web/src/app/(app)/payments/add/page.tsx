@@ -219,19 +219,31 @@ function AddPaymentForm() {
     }
   }, [])
 
+  const searchContainerRef = useRef<HTMLDivElement>(null)
+
+  // Click outside to dismiss search suggestions dropdown
   useEffect(() => {
-    if (psSearch) searchStudent()
+    function handleClickOutside(event: MouseEvent) {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(event.target as Node)) {
+        setShowDropdown(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
   }, [])
 
   // Live real-time search suggestions
   useEffect(() => {
-    if (!psSearch.trim()) {
+    const term = psSearch.trim()
+    if (!term || (student && (student.ps_code || '').toUpperCase() === term.toUpperCase())) {
       setSearchResults([])
       setShowDropdown(false)
       return
     }
 
-    const term = psSearch.trim()
+    let active = true
     const cleanDigits = term.replace(/\D/g, '')
     const cleanCode = term.toUpperCase().replace(/\s+/g, '')
 
@@ -242,6 +254,8 @@ function AddPaymentForm() {
       supabase.from('students').select('*, household:households(*)').or(`ps_code.eq.${cleanCode},ps_code.eq.PS${cleanDigits}`).maybeSingle(),
       supabase.from('students').select('*, household:households(*)').or(`ps_code.ilike.${cleanCode}%,ps_code.ilike.%${cleanDigits}%,full_name.ilike.%${term}%`).limit(15)
     ]).then(([{ data: exactMatch }, { data: broadMatches }]) => {
+      if (!active) return
+
       const combined = exactMatch
         ? [exactMatch, ...(broadMatches || []).filter(m => m.id !== exactMatch.id)]
         : (broadMatches || [])
@@ -275,7 +289,11 @@ function AddPaymentForm() {
       setShowDropdown(true)
       setSearching(false)
     })
-  }, [psSearch])
+
+    return () => {
+      active = false
+    }
+  }, [psSearch, student?.ps_code])
 
   function selectStudent(selectedStu: any) {
     const extractedLms = extractLmsNumber(selectedStu)
@@ -810,7 +828,7 @@ function AddPaymentForm() {
             </div>
             1. Search Student by PS Code
           </div>
-          <div style={{ position: 'relative' }}>
+          <div ref={searchContainerRef} style={{ position: 'relative' }}>
             <div style={{ display: 'flex', gap: 10 }}>
               <div style={{ position: 'relative', flex: 1 }}>
                 <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
