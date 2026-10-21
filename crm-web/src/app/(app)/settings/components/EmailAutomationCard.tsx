@@ -15,7 +15,10 @@ import {
   Sparkles,
   ExternalLink,
   ShieldCheck,
-  Server
+  Server,
+  Sun,
+  Calendar,
+  TrendingUp
 } from 'lucide-react'
 
 export default function EmailAutomationCard() {
@@ -363,25 +366,34 @@ export default function EmailAutomationCard() {
         </div>
 
         {/* Provider Switcher Tabs */}
-        <div style={{ display: 'flex', gap: 4, background: 'var(--bg-base)', padding: 4, borderRadius: 8, border: '1px solid var(--border)' }}>
+        <div style={{
+          display: 'flex',
+          gap: 4,
+          background: 'var(--bg-base)',
+          padding: '4px 6px',
+          borderRadius: 8,
+          border: '1px solid var(--border)'
+        }}>
           <button
             type="button"
             onClick={() => setProvider('smtp')}
             style={{
               padding: '6px 14px',
               fontSize: 12,
-              fontWeight: 700,
+              fontWeight: 600,
               borderRadius: 6,
-              border: 'none',
+              boxSizing: 'border-box',
+              border: provider === 'smtp' ? '1px solid #10b981' : '1px solid transparent',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              background: provider === 'smtp' ? '#10b981' : 'transparent',
-              color: provider === 'smtp' ? '#fff' : 'var(--text-muted)'
+              background: provider === 'smtp' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+              color: provider === 'smtp' ? '#10b981' : 'var(--text-muted)',
+              transition: 'background 0.15s, color 0.15s, border-color 0.15s'
             }}
           >
-            <Server size={14} /> ⚡ Gmail SMTP (Instant)
+            <Server size={14} /> <span>Gmail SMTP (Instant)</span>
           </button>
           <button
             type="button"
@@ -389,18 +401,20 @@ export default function EmailAutomationCard() {
             style={{
               padding: '6px 14px',
               fontSize: 12,
-              fontWeight: 700,
+              fontWeight: 600,
               borderRadius: 6,
-              border: 'none',
+              boxSizing: 'border-box',
+              border: provider === 'resend' ? '1px solid var(--accent-blue)' : '1px solid transparent',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
-              background: provider === 'resend' ? 'var(--accent-blue)' : 'transparent',
-              color: provider === 'resend' ? '#fff' : 'var(--text-muted)'
+              background: provider === 'resend' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+              color: provider === 'resend' ? 'var(--accent-blue)' : 'var(--text-muted)',
+              transition: 'background 0.15s, color 0.15s, border-color 0.15s'
             }}
           >
-            <Key size={14} /> 🚀 Resend API
+            <Key size={14} /> <span>Resend API</span>
           </button>
         </div>
       </div>
@@ -568,16 +582,18 @@ export default function EmailAutomationCard() {
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
               {/* 1. Morning Daily Operations Brief Schedule */}
-              <div style={{ padding: 12, background: 'rgba(59,130,246,0.06)', borderRadius: 6, border: '1px solid rgba(59,130,246,0.15)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+              <div style={{ padding: 12, background: 'rgba(56, 189, 248, 0.05)', borderRadius: 8, border: '1px solid rgba(56, 189, 248, 0.15)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 6 }}>
                   <input
                     type="checkbox"
                     checked={morningSchedule}
                     onChange={e => setMorningSchedule(e.target.checked)}
+                    style={{ accentColor: 'var(--accent-blue)' }}
                   />
-                  <span>☀️ Daily Morning Operations &amp; Progression Brief</span>
+                  <Sun size={15} style={{ color: 'var(--accent-blue)' }} />
+                  <span>Daily Morning Operations &amp; Progression Brief</span>
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 26 }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Send Time:</span>
                   <input
                     type="time"
@@ -591,20 +607,22 @@ export default function EmailAutomationCard() {
               </div>
 
               {/* 2. Mid-Month (15th) At-Risk Unpaid Students Audit */}
-              <div style={{ padding: 12, background: 'rgba(239,68,68,0.06)', borderRadius: 6, border: '1px solid rgba(239,68,68,0.15)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+              <div style={{ padding: 12, background: 'rgba(239, 68, 68, 0.05)', borderRadius: 8, border: '1px solid rgba(239, 68, 68, 0.15)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 6 }}>
                   <input
                     type="checkbox"
                     checked={atRiskSchedule}
                     onChange={e => setAtRiskSchedule(e.target.checked)}
+                    style={{ accentColor: 'var(--accent-red)' }}
                   />
-                  <span>🚨 Mid-Month At-Risk &amp; Retention Audit (Once a Month)</span>
+                  <AlertCircle size={15} style={{ color: 'var(--accent-red)' }} />
+                  <span>Mid-Month At-Risk &amp; Retention Audit (Once a Month)</span>
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24, flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 26, flexWrap: 'wrap' }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Day:</span>
                   <select
                     className="input-field"
-                    style={{ width: 80, padding: '3px 8px', fontSize: 12 }}
+                    style={{ width: 85, padding: '3px 8px', fontSize: 12 }}
                     value={atRiskDate}
                     onChange={e => setAtRiskDate(Number(e.target.value))}
                   >
@@ -625,16 +643,18 @@ export default function EmailAutomationCard() {
               </div>
 
               {/* 3. Evening Day-End Cash Summary Schedule */}
-              <div style={{ padding: 12, background: 'rgba(16,185,129,0.06)', borderRadius: 6, border: '1px solid rgba(16,185,129,0.15)' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 6 }}>
+              <div style={{ padding: 12, background: 'rgba(16, 185, 129, 0.05)', borderRadius: 8, border: '1px solid rgba(16, 185, 129, 0.15)' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 13, fontWeight: 600, cursor: 'pointer', marginBottom: 6 }}>
                   <input
                     type="checkbox"
                     checked={eveningSchedule}
                     onChange={e => setEveningSchedule(e.target.checked)}
+                    style={{ accentColor: '#10b981' }}
                   />
-                  <span>🌅 Daily Evening Cash &amp; Auditor Audit</span>
+                  <FileSpreadsheet size={15} style={{ color: '#10b981' }} />
+                  <span>Daily Evening Cash &amp; Auditor Audit</span>
                 </label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 24 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginLeft: 26 }}>
                   <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>Send Time:</span>
                   <input
                     type="time"
@@ -787,33 +807,36 @@ export default function EmailAutomationCard() {
               Click any button below to immediately generate and dispatch that report with real live database figures to your recipient emails.
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {/* Morning Test Button */}
               <button
                 type="button"
                 onClick={() => handleSendTestDigest('morning')}
                 disabled={testingType !== null}
-                className="btn-primary"
+                className="btn-secondary"
                 style={{
                   width: '100%',
-                  padding: '9px 14px',
-                  fontSize: 12,
-                  fontWeight: 700,
+                  padding: '10px 14px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #3b82f6 100%)'
+                  justifyContent: 'space-between',
+                  borderRadius: 8,
+                  borderLeft: '3px solid var(--accent-blue)',
+                  background: 'var(--bg-card)',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'background 0.15s, border-color 0.15s'
                 }}
               >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Sun size={15} style={{ color: 'var(--accent-blue)' }} />
+                  <span>Daily Morning Operations Brief</span>
+                </div>
                 {testingType === 'morning' ? (
-                  <>
-                    <RefreshCw size={14} className="spin" /> Dispatching Morning Operations Brief...
-                  </>
+                  <RefreshCw size={13} className="spin" style={{ color: 'var(--accent-blue)' }} />
                 ) : (
-                  <>
-                    <Send size={14} /> ☀️ Test Morning Operations Brief (Daily Briefing)
-                  </>
+                  <Send size={13} style={{ color: 'var(--text-muted)' }} />
                 )}
               </button>
 
@@ -822,27 +845,30 @@ export default function EmailAutomationCard() {
                 type="button"
                 onClick={() => handleSendTestDigest('at_risk')}
                 disabled={testingType !== null}
-                className="btn-primary"
+                className="btn-secondary"
                 style={{
                   width: '100%',
-                  padding: '9px 14px',
-                  fontSize: 12,
-                  fontWeight: 700,
+                  padding: '10px 14px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  background: 'linear-gradient(135deg, #7f1d1d 0%, #991b1b 50%, #dc2626 100%)'
+                  justifyContent: 'space-between',
+                  borderRadius: 8,
+                  borderLeft: '3px solid var(--accent-red)',
+                  background: 'var(--bg-card)',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'background 0.15s, border-color 0.15s'
                 }}
               >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <AlertCircle size={15} style={{ color: 'var(--accent-red)' }} />
+                  <span>Mid-Month At-Risk Audit (15th)</span>
+                </div>
                 {testingType === 'at_risk' ? (
-                  <>
-                    <RefreshCw size={14} className="spin" /> Dispatching Mid-Month At-Risk Audit...
-                  </>
+                  <RefreshCw size={13} className="spin" style={{ color: 'var(--accent-red)' }} />
                 ) : (
-                  <>
-                    <Send size={14} /> 🚨 Test Mid-Month At-Risk Report (15th of Month)
-                  </>
+                  <Send size={13} style={{ color: 'var(--text-muted)' }} />
                 )}
               </button>
 
@@ -851,27 +877,30 @@ export default function EmailAutomationCard() {
                 type="button"
                 onClick={() => handleSendTestDigest('evening')}
                 disabled={testingType !== null}
-                className="btn-primary"
+                className="btn-secondary"
                 style={{
                   width: '100%',
-                  padding: '9px 14px',
-                  fontSize: 12,
-                  fontWeight: 700,
+                  padding: '10px 14px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  background: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)'
+                  justifyContent: 'space-between',
+                  borderRadius: 8,
+                  borderLeft: '3px solid #0284c7',
+                  background: 'var(--bg-card)',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'background 0.15s, border-color 0.15s'
                 }}
               >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <FileSpreadsheet size={15} style={{ color: '#0284c7' }} />
+                  <span>Evening Day-End Summary (Audit Slips)</span>
+                </div>
                 {testingType === 'evening' ? (
-                  <>
-                    <RefreshCw size={14} className="spin" /> Dispatching Evening Summary...
-                  </>
+                  <RefreshCw size={13} className="spin" style={{ color: '#0284c7' }} />
                 ) : (
-                  <>
-                    <Send size={14} /> 🌅 Test Evening Day-End Summary (Audit Slips)
-                  </>
+                  <Send size={13} style={{ color: 'var(--text-muted)' }} />
                 )}
               </button>
 
@@ -880,27 +909,30 @@ export default function EmailAutomationCard() {
                 type="button"
                 onClick={() => handleSendTestDigest('weekly')}
                 disabled={testingType !== null}
-                className="btn-primary"
+                className="btn-secondary"
                 style={{
                   width: '100%',
-                  padding: '9px 14px',
-                  fontSize: 12,
-                  fontWeight: 700,
+                  padding: '10px 14px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  background: 'linear-gradient(135deg, #3730a3 0%, #4f46e5 100%)'
+                  justifyContent: 'space-between',
+                  borderRadius: 8,
+                  borderLeft: '3px solid var(--accent-purple)',
+                  background: 'var(--bg-card)',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'background 0.15s, border-color 0.15s'
                 }}
               >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Calendar size={15} style={{ color: 'var(--accent-purple)' }} />
+                  <span>Weekly Velocity Digest (7-Day Rolling)</span>
+                </div>
                 {testingType === 'weekly' ? (
-                  <>
-                    <RefreshCw size={14} className="spin" /> Dispatching Weekly Digest...
-                  </>
+                  <RefreshCw size={13} className="spin" style={{ color: 'var(--accent-purple)' }} />
                 ) : (
-                  <>
-                    <Send size={14} /> 📅 Test Weekly Velocity Digest (7-Day Rolling)
-                  </>
+                  <Send size={13} style={{ color: 'var(--text-muted)' }} />
                 )}
               </button>
 
@@ -909,27 +941,30 @@ export default function EmailAutomationCard() {
                 type="button"
                 onClick={() => handleSendTestDigest('monthly')}
                 disabled={testingType !== null}
-                className="btn-primary"
+                className="btn-secondary"
                 style={{
                   width: '100%',
-                  padding: '9px 14px',
-                  fontSize: 12,
-                  fontWeight: 700,
+                  padding: '10px 14px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  background: 'linear-gradient(135deg, #064e3b 0%, #059669 100%)'
+                  justifyContent: 'space-between',
+                  borderRadius: 8,
+                  borderLeft: '3px solid var(--accent-green)',
+                  background: 'var(--bg-card)',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'background 0.15s, border-color 0.15s'
                 }}
               >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <CheckCircle2 size={15} style={{ color: 'var(--accent-green)' }} />
+                  <span>Monthly Financial Close (Ledger &amp; Retention)</span>
+                </div>
                 {testingType === 'monthly' ? (
-                  <>
-                    <RefreshCw size={14} className="spin" /> Dispatching Monthly Close...
-                  </>
+                  <RefreshCw size={13} className="spin" style={{ color: 'var(--accent-green)' }} />
                 ) : (
-                  <>
-                    <Send size={14} /> 📊 Test Monthly Financial Close (Ledger &amp; Retention)
-                  </>
+                  <Send size={13} style={{ color: 'var(--text-muted)' }} />
                 )}
               </button>
 
@@ -938,27 +973,30 @@ export default function EmailAutomationCard() {
                 type="button"
                 onClick={() => handleSendTestDigest('yearly')}
                 disabled={testingType !== null}
-                className="btn-primary"
+                className="btn-secondary"
                 style={{
                   width: '100%',
-                  padding: '9px 14px',
-                  fontSize: 12,
-                  fontWeight: 700,
+                  padding: '10px 14px',
+                  fontSize: 12.5,
+                  fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: 8,
-                  background: 'linear-gradient(135deg, #78350f 0%, #d97706 100%)'
+                  justifyContent: 'space-between',
+                  borderRadius: 8,
+                  borderLeft: '3px solid var(--accent-orange)',
+                  background: 'var(--bg-card)',
+                  boxShadow: 'var(--shadow-sm)',
+                  transition: 'background 0.15s, border-color 0.15s'
                 }}
               >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <TrendingUp size={15} style={{ color: 'var(--accent-orange)' }} />
+                  <span>Annual Strategic Review (Full Year)</span>
+                </div>
                 {testingType === 'yearly' ? (
-                  <>
-                    <RefreshCw size={14} className="spin" /> Dispatching Annual Review...
-                  </>
+                  <RefreshCw size={13} className="spin" style={{ color: 'var(--accent-orange)' }} />
                 ) : (
-                  <>
-                    <Send size={14} /> 🏆 Test Annual Strategic Review (Full Year)
-                  </>
+                  <Send size={13} style={{ color: 'var(--text-muted)' }} />
                 )}
               </button>
             </div>
