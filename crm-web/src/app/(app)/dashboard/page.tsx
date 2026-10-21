@@ -627,6 +627,34 @@ export default function AnalyticsDashboard() {
     return c
   }, [myLeads])
 
+  // Member's Own Live Active Commission Calculation (G6-8: 65, G9: 70, G10-11: 75)
+  const myActivePaidLeads = useMemo(() => {
+    return myPaidLeads.filter(l => !(l.comments && l.comments.includes('[SETTLED:')))
+  }, [myPaidLeads])
+
+  const myCommissionAmount = useMemo(() => {
+    let g6_8 = 0
+    let g9 = 0
+    let g10_11 = 0
+    let other = 0
+
+    myActivePaidLeads.forEach(l => {
+      const gradesInLead = extractGrades(l.grade)
+      if (gradesInLead.length > 0) {
+        gradesInLead.forEach(g => {
+          if (['6', '7', '8'].includes(g)) g6_8 += 1
+          else if (g === '9') g9 += 1
+          else if (['10', '11'].includes(g)) g10_11 += 1
+          else other += 1
+        })
+      } else {
+        other += 1
+      }
+    })
+
+    return (g6_8 * rateG6_8) + (g9 * rateG9) + (g10_11 * rateG10_11) + (other * rateG6_8)
+  }, [myActivePaidLeads, rateG6_8, rateG9, rateG10_11])
+
   // Export CSV Helper
   function exportCsv(filename: string, headers: string[], rows: string[][]) {
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n')
@@ -1014,6 +1042,15 @@ export default function AnalyticsDashboard() {
                   label="Conversion Rate"
                   value={`${myConversionRate}%`}
                   sub="Target: >20%"
+                />
+                <KpiCard
+                  icon={<DollarSign size={18} />}
+                  iconBg="rgba(16, 185, 129, 0.15)"
+                  iconColor="#34d399"
+                  borderColor="#10b981"
+                  label="My Live Commission"
+                  value={`Rs. ${myCommissionAmount.toLocaleString()}`}
+                  sub={`${myActivePaidLeads.length} active seats in cycle`}
                 />
               </div>
             )}
