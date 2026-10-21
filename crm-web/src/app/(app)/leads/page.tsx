@@ -424,11 +424,8 @@ export default function MasterLeadsSpreadsheet() {
       {/* Header */}
       <div className="page-header">
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
             Master Leads Grid
-            <span style={{ fontSize: 11, background: '#10b98120', color: '#10b981', padding: '3px 8px', borderRadius: 12, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Sparkles size={12} /> Live Multiplayer Sync
-            </span>
           </h1>
           <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
             <span>Logged in as: <b>{currentMemberName || 'Staff'}</b></span>
