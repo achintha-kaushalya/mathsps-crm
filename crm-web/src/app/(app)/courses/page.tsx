@@ -592,7 +592,7 @@ export default function CoursesManagerPage() {
             </div>
           </div>
 
-          {/* Realtime Status */}
+          {/* Total Fee Streams / Currency */}
           <div className="stat-card" style={{
             padding: '16px 20px',
             borderRadius: 16,
@@ -604,20 +604,19 @@ export default function CoursesManagerPage() {
           }}>
             <div>
               <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                CRM Integration
+                Tuition Fee Streams
               </div>
-              <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ width: 8, height: 8, borderRadius: 4, background: '#10b981', display: 'inline-block' }} />
-                Real-Time Synced
+              <div style={{ fontSize: 26, fontWeight: 800, color: 'var(--text-primary)', marginTop: 4 }}>
+                {paymentMethods.length} <span style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-secondary)' }}>payment methods</span>
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>Auto-applied to new student forms</div>
+              <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginTop: 2 }}>{banks.length} bank deposit channels configured</div>
             </div>
             <div style={{
               width: 36, height: 36, borderRadius: 10,
               background: 'rgba(249, 115, 22, 0.15)', color: '#ea580c',
               display: 'flex', alignItems: 'center', justifyContent: 'center'
             }}>
-              <Radio size={19} />
+              <CreditCard size={19} />
             </div>
           </div>
         </div>
@@ -637,10 +636,10 @@ export default function CoursesManagerPage() {
           <button
             onClick={() => setSelectedGradeTab('standalone')}
             style={{
-              padding: '9px 18px',
+              padding: '8px 16px',
               borderRadius: 8,
               border: selectedGradeTab === 'standalone' ? '1px solid var(--accent-blue)' : '1px solid transparent',
-              background: selectedGradeTab === 'standalone' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+              background: selectedGradeTab === 'standalone' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
               color: selectedGradeTab === 'standalone' ? 'var(--accent-blue)' : 'var(--text-secondary)',
               fontWeight: selectedGradeTab === 'standalone' ? 700 : 500,
               fontSize: 13,
@@ -667,7 +666,7 @@ export default function CoursesManagerPage() {
             </span>
           </button>
 
-          <div style={{ width: 1, height: 24, background: 'var(--border)', margin: 'auto 4px' }} />
+          <div style={{ width: 1, height: 22, background: 'var(--border)', margin: 'auto 4px' }} />
 
           {grades.map(g => {
             const count = (gradeCourses[g] || []).length
@@ -678,17 +677,17 @@ export default function CoursesManagerPage() {
                 key={g}
                 onClick={() => setSelectedGradeTab(g)}
                 style={{
-                  padding: '9px 18px',
+                  padding: '8px 14px',
                   borderRadius: 8,
                   border: isSelected ? '1px solid var(--accent-blue)' : '1px solid transparent',
-                  background: isSelected ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                  background: isSelected ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
                   color: isSelected ? 'var(--accent-blue)' : 'var(--text-secondary)',
                   fontWeight: isSelected ? 700 : 500,
                   fontSize: 13,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 8,
+                  gap: 7,
                   whiteSpace: 'nowrap',
                   transition: 'all 0.15s ease'
                 }}
@@ -709,16 +708,16 @@ export default function CoursesManagerPage() {
             )
           })}
 
-          <div style={{ width: 1, height: 24, background: 'var(--border)', margin: 'auto 4px' }} />
+          <div style={{ width: 1, height: 22, background: 'var(--border)', margin: 'auto 4px' }} />
 
           {/* Payment Methods & Banks Tab */}
           <button
             onClick={() => setSelectedGradeTab('payments')}
             style={{
-              padding: '9px 18px',
+              padding: '8px 16px',
               borderRadius: 8,
               border: selectedGradeTab === 'payments' ? '1px solid var(--accent-blue)' : '1px solid transparent',
-              background: selectedGradeTab === 'payments' ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+              background: selectedGradeTab === 'payments' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
               color: selectedGradeTab === 'payments' ? 'var(--accent-blue)' : 'var(--text-secondary)',
               fontWeight: selectedGradeTab === 'payments' ? 700 : 500,
               fontSize: 13,
@@ -1026,8 +1025,7 @@ export default function CoursesManagerPage() {
                 const isRevision = c.name.toLowerCase().includes('revision') && !isCombo
                 const isStandalone = Boolean(c.isStandalone)
 
-                const cardBorderColor = isStandalone ? '#3b82f6' : isCombo ? '#fcd34d' : isPaper ? '#818cf8' : isRevision ? '#c084fc' : '#38bdf8'
-                const cardShadowColor = isStandalone ? 'rgba(59, 130, 246, 0.16)' : isCombo ? 'rgba(252, 211, 77, 0.16)' : isPaper ? 'rgba(129, 140, 248, 0.16)' : isRevision ? 'rgba(192, 132, 252, 0.16)' : 'rgba(56, 189, 248, 0.16)'
+                const cardBorderColor = isStandalone ? 'var(--accent-blue)' : isCombo ? '#f59e0b' : isPaper ? '#818cf8' : isRevision ? '#c084fc' : '#10b981'
 
                 return (
                   <div
@@ -1035,15 +1033,15 @@ export default function CoursesManagerPage() {
                     className="stat-card"
                     style={{
                       padding: 18,
-                      borderRadius: 16,
+                      borderRadius: 14,
                       border: '1px solid var(--border)',
-                      borderLeft: `4px solid ${cardBorderColor}`,
+                      borderTop: `3px solid ${cardBorderColor}`,
                       background: 'var(--bg-card)',
                       display: 'flex',
                       flexDirection: 'column',
                       justifyContent: 'space-between',
                       gap: 14,
-                      boxShadow: `0 4px 18px -4px ${cardShadowColor}`,
+                      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
                       transition: 'all 0.2s ease'
                     }}
                   >
@@ -1056,8 +1054,8 @@ export default function CoursesManagerPage() {
                         <span style={{
                           fontSize: 10,
                           color: 'var(--accent-blue)',
-                          background: 'rgba(56, 189, 248, 0.15)',
-                          border: '1px solid rgba(56, 189, 248, 0.3)',
+                          background: 'rgba(56, 189, 248, 0.12)',
+                          border: '1px solid rgba(56, 189, 248, 0.25)',
                           padding: '2px 7px',
                           borderRadius: 6,
                           fontWeight: 700,
@@ -1086,9 +1084,9 @@ export default function CoursesManagerPage() {
                           fontWeight: 700,
                           padding: '3px 8px',
                           borderRadius: 6,
-                          background: c.billingType === 'ONE_TIME' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(56, 189, 248, 0.15)',
+                          background: c.billingType === 'ONE_TIME' ? 'rgba(16, 185, 129, 0.12)' : 'rgba(56, 189, 248, 0.12)',
                           color: c.billingType === 'ONE_TIME' ? '#10b981' : 'var(--accent-blue)',
-                          border: `1px solid ${c.billingType === 'ONE_TIME' ? 'rgba(16, 185, 129, 0.3)' : 'rgba(56, 189, 248, 0.3)'}`
+                          border: `1px solid ${c.billingType === 'ONE_TIME' ? 'rgba(16, 185, 129, 0.25)' : 'rgba(56, 189, 248, 0.25)'}`
                         }}>
                           {c.billingType === 'ONE_TIME' ? 'ONE-TIME' : 'MONTHLY'}
                         </span>
@@ -1113,9 +1111,12 @@ export default function CoursesManagerPage() {
                         <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 600 }}>
                           {c.billingType === 'ONE_TIME' ? 'Full Course Fee:' : 'Monthly Tuition:'}
                         </span>
-                        <span style={{ fontSize: 16, fontWeight: 800, color: '#10b981' }}>
-                          Rs. {c.defaultFee.toLocaleString()}
-                        </span>
+                        <div style={{ display: 'flex', alignItems: 'baseline', gap: 3 }}>
+                          <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)' }}>Rs.</span>
+                          <span style={{ fontSize: 17, fontWeight: 800, color: 'var(--text-primary)' }}>
+                            {c.defaultFee.toLocaleString()}
+                          </span>
+                        </div>
                       </div>
                     </div>
 

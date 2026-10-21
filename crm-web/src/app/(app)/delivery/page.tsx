@@ -750,7 +750,8 @@ export default function DeliveryPage() {
                   background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
                   display: 'flex', alignItems: 'center', gap: 8,
                   fontWeight: 600, padding: '9px 18px',
-                  boxShadow: '0 4px 12px rgba(16,185,129,0.25)',
+                  boxShadow: '0 2px 8px rgba(16,185,129,0.2)',
+                  border: '1px solid rgba(16,185,129,0.3)',
                   opacity: selectedCount === 0 ? 0.6 : 1
                 }}
               >
@@ -765,7 +766,8 @@ export default function DeliveryPage() {
                   background: 'linear-gradient(135deg, #2563eb 0%, #38bdf8 100%)',
                   display: 'flex', alignItems: 'center', gap: 8,
                   fontWeight: 600, padding: '9px 18px',
-                  boxShadow: '0 4px 12px rgba(56,189,248,0.25)',
+                  boxShadow: '0 2px 8px rgba(56,189,248,0.2)',
+                  border: '1px solid rgba(56,189,248,0.3)',
                   opacity: selectedCount === 0 ? 0.6 : 1
                 }}
                 title="Export dedicated LMS numbers CSV for your LMS student access portal"
@@ -780,7 +782,8 @@ export default function DeliveryPage() {
                   background: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
                   display: 'flex', alignItems: 'center', gap: 8,
                   fontWeight: 600, padding: '9px 18px',
-                  boxShadow: '0 4px 12px rgba(245,158,11,0.25)',
+                  boxShadow: '0 2px 8px rgba(245,158,11,0.2)',
+                  border: '1px solid rgba(245,158,11,0.3)',
                   opacity: selectedCount === 0 ? 0.6 : 1
                 }}
               >
@@ -1151,10 +1154,10 @@ export default function DeliveryPage() {
                 Search Recipient / PS Code / Address
               </label>
               <div style={{ position: 'relative' }}>
-                <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+                <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
                 <input
                   className="input-field"
-                  style={{ paddingLeft: 34, width: '100%' }}
+                  style={{ paddingLeft: 34, width: '100%', height: 38, fontSize: 13 }}
                   placeholder="Type name, phone, address, course, or PS code..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
@@ -1525,7 +1528,7 @@ export default function DeliveryPage() {
                         {activeTab === 'unexported' ? 'Tutes in this Pack:' : 'Enclosed Tutes:'}
                       </div>
 
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {g.students.map(st => {
                           const isPending = !st.dispatched
 
@@ -1538,28 +1541,28 @@ export default function DeliveryPage() {
                                 justifyContent: 'space-between',
                                 gap: 8,
                                 fontSize: 12,
-                                padding: '6px 10px',
+                                padding: '8px 12px',
                                 borderRadius: 8,
-                                background: isPending ? 'rgba(249,115,22,0.1)' : 'var(--bg-card-hover)',
-                                border: `1px solid ${isPending ? 'rgba(249,115,22,0.25)' : 'var(--border)'}`
+                                background: isPending ? 'rgba(249,115,22,0.08)' : 'var(--bg-card-hover)',
+                                border: `1px solid ${isPending ? 'rgba(249,115,22,0.22)' : 'var(--border)'}`
                               }}
                             >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                                <Package size={13} style={{ color: isPending ? '#f97316' : '#10b981', flexShrink: 0 }} />
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                                <Package size={14} style={{ color: isPending ? '#ea580c' : '#10b981', flexShrink: 0 }} />
                                 <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>
-                                  <strong style={{ color: 'var(--accent-blue)' }}>{st.ps_code}</strong> · {st.full_name} <span style={{ color: 'var(--text-secondary)' }}>(Gr {st.grade})</span> — {courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type}
+                                  <strong style={{ color: 'var(--accent-blue)', marginRight: 4 }}>{st.ps_code}</strong> · {st.full_name} <span style={{ color: 'var(--text-secondary)' }}>(Gr {st.grade})</span> — {courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type}
                                 </span>
                               </div>
 
                               <span style={{
-                                fontSize: 9,
+                                fontSize: 10,
                                 fontWeight: 700,
-                                padding: '2px 6px',
-                                borderRadius: 4,
+                                padding: '2px 7px',
+                                borderRadius: 5,
                                 whiteSpace: 'nowrap',
-                                background: isPending ? 'rgba(249, 115, 22, 0.2)' : 'rgba(16, 185, 129, 0.2)',
-                                color: isPending ? '#f97316' : '#10b981',
-                                border: `1px solid ${isPending ? 'rgba(249, 115, 22, 0.35)' : 'rgba(16, 185, 129, 0.35)'}`
+                                background: isPending ? 'rgba(249, 115, 22, 0.15)' : 'rgba(16, 185, 129, 0.15)',
+                                color: isPending ? '#ea580c' : '#10b981',
+                                border: `1px solid ${isPending ? 'rgba(249, 115, 22, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
                               }}>
                                 {isPending ? 'READY' : 'DISPATCHED'}
                               </span>
