@@ -464,11 +464,11 @@ export default function MasterLeadsSpreadsheet() {
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        <select className="input-field" style={{ width: 130, height: 32, fontSize: 12, padding: '4px 8px' }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+        <select className="input-field" style={{ width: 136, height: 32, fontSize: 12, paddingLeft: 10 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
           <option value="">All Statuses</option>
           {LEAD_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
         </select>
-        <select className="input-field" style={{ width: 140, height: 32, fontSize: 12, padding: '4px 8px' }} value={memberFilter} onChange={e => setMemberFilter(e.target.value)}>
+        <select className="input-field" style={{ width: 148, height: 32, fontSize: 12, paddingLeft: 10 }} value={memberFilter} onChange={e => setMemberFilter(e.target.value)}>
           <option value="">{isAdmin || canViewAll ? 'All Members' : 'My Visible Team'}</option>
           {members
             .filter(m => isAdmin || canViewAll || [currentMemberName, ...allowedMembers].includes(m))
