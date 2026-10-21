@@ -955,7 +955,7 @@ export default function DeliveryPage() {
           </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'nowrap' }}>
           {activeTab === 'unexported' ? (
             <>
               <button
@@ -964,15 +964,18 @@ export default function DeliveryPage() {
                 className="btn-primary"
                 style={{
                   background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)',
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  fontWeight: 600, padding: '9px 18px',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontWeight: 600, fontSize: 12.5, padding: '7px 13px',
                   boxShadow: '0 2px 8px rgba(16,185,129,0.2)',
                   border: '1px solid rgba(16,185,129,0.3)',
+                  whiteSpace: 'nowrap',
+                  borderRadius: 8,
                   opacity: selectedCount === 0 ? 0.6 : 1
                 }}
+                title="Export Post Office CSV format"
               >
-                <FileSpreadsheet size={16} />
-                {marking ? 'Exporting...' : `Export Post Office CSV (${selectedCount})`}
+                <FileSpreadsheet size={14} />
+                {marking ? 'Exporting...' : `Export Post CSV (${selectedCount})`}
               </button>
               <button
                 onClick={exportLmsNumbersBatch}
@@ -980,15 +983,17 @@ export default function DeliveryPage() {
                 className="btn-primary"
                 style={{
                   background: 'linear-gradient(135deg, #2563eb 0%, #38bdf8 100%)',
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  fontWeight: 600, padding: '9px 18px',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontWeight: 600, fontSize: 12.5, padding: '7px 13px',
                   boxShadow: '0 2px 8px rgba(56,189,248,0.2)',
                   border: '1px solid rgba(56,189,248,0.3)',
+                  whiteSpace: 'nowrap',
+                  borderRadius: 8,
                   opacity: selectedCount === 0 ? 0.6 : 1
                 }}
                 title="Export dedicated LMS numbers CSV for your LMS student access portal"
               >
-                <FileSpreadsheet size={16} /> Export LMS Numbers ({selectedCount})
+                <FileSpreadsheet size={14} /> LMS Numbers ({selectedCount})
               </button>
               <button
                 onClick={printBatchEnvelopes}
@@ -996,14 +1001,17 @@ export default function DeliveryPage() {
                 className="btn-primary"
                 style={{
                   background: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  fontWeight: 600, padding: '9px 18px',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontWeight: 600, fontSize: 12.5, padding: '7px 13px',
                   boxShadow: '0 2px 8px rgba(245,158,11,0.2)',
                   border: '1px solid rgba(245,158,11,0.3)',
+                  whiteSpace: 'nowrap',
+                  borderRadius: 8,
                   opacity: selectedCount === 0 ? 0.6 : 1
                 }}
+                title="Print 2x2 Envelopes per A4 Page"
               >
-                <Printer size={16} /> Print Envelopes ({selectedCount})
+                <Printer size={14} /> Print Envelopes ({selectedCount})
               </button>
               <button
                 onClick={exportBatchEnvelopesWord}
@@ -1011,15 +1019,17 @@ export default function DeliveryPage() {
                 className="btn-primary"
                 style={{
                   background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
-                  display: 'flex', alignItems: 'center', gap: 8,
-                  fontWeight: 600, padding: '9px 18px',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontWeight: 600, fontSize: 12.5, padding: '7px 13px',
                   boxShadow: '0 2px 8px rgba(99,102,241,0.2)',
                   border: '1px solid rgba(99,102,241,0.3)',
+                  whiteSpace: 'nowrap',
+                  borderRadius: 8,
                   opacity: selectedCount === 0 ? 0.6 : 1
                 }}
                 title="Export envelopes to editable Microsoft Word (.doc) format"
               >
-                <FileText size={16} /> Export Word (.doc)
+                <FileText size={14} /> Export Word (.doc)
               </button>
             </>
           ) : (
@@ -1028,17 +1038,17 @@ export default function DeliveryPage() {
                 onClick={printBatchEnvelopes}
                 disabled={selectedCount === 0}
                 className="btn-secondary"
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', fontWeight: 600 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', borderRadius: 8 }}
               >
-                <Printer size={16} /> Print Selected Envelopes ({selectedCount})
+                <Printer size={14} /> Print Envelopes ({selectedCount})
               </button>
               <button
                 onClick={exportBatchEnvelopesWord}
                 disabled={selectedCount === 0}
                 className="btn-secondary"
-                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', fontWeight: 600 }}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 6, padding: '7px 14px', fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', borderRadius: 8 }}
               >
-                <FileText size={16} /> Export Word (.doc)
+                <FileText size={14} /> Export Word (.doc)
               </button>
             </>
           )}
