@@ -234,12 +234,7 @@ export default function MonthlyMatrixTab({
                   type="button"
                   onClick={() => {
                     const monthTitle = MONTH_NAMES[month - 1]
-                    const headers = [
-                      'Date',
-                      'Gr 5', 'Gr 6', 'Gr 7', 'Gr 8', 'Gr 9', 'Gr 10', 'Gr 11',
-                      'Geometry Full', 'Term Booster (Gr 9)', 'Short Qn Bank', 'Super Revision',
-                      'Total Cumulative', 'Daily Increment'
-                    ]
+                    const headers = ['Date', '5', '6', '7', '8', '9', '10', '11', 'Total', 'Daily Increment']
                     const rows = cumulativeMatrixRows.map(r => [
                       `"${r.dateStr}"`,
                       `"${r.counts[5] || 0}"`,
@@ -249,10 +244,6 @@ export default function MonthlyMatrixTab({
                       `"${r.counts[9] || 0}"`,
                       `"${r.counts[10] || 0}"`,
                       `"${r.counts[11] || 0}"`,
-                      `"${r.courseCounts?.GEOMETRY_FULL || 0}"`,
-                      `"${r.courseCounts?.BODMAS_MASTER || 0}"`,
-                      `"${r.courseCounts?.SHORT_QN_BANK || 0}"`,
-                      `"${r.courseCounts?.SUPER_REVISION || 0}"`,
                       `"${r.cumulativeTotal}"`,
                       `"${r.dailyCountTotal}"`
                     ])
@@ -559,37 +550,22 @@ export default function MonthlyMatrixTab({
               }}>
                 <thead>
                   <tr style={{ background: '#2e7d32', color: '#fff', fontWeight: 800 }}>
-                    <th rowSpan={2} style={{ padding: '12px 14px', border: '1px solid #1b5e20', width: 110 }}>
+                    <th rowSpan={2} style={{ padding: '12px 16px', border: '1px solid #1b5e20', width: 130 }}>
                       Date
                     </th>
-                    <th colSpan={matrixTargetGrades.length} style={{ padding: '8px 12px', border: '1px solid #1b5e20', fontSize: 13, letterSpacing: 0.5 }}>
-                      {MONTH_NAMES[month - 1]} Regular Grades (5–11)
+                    <th colSpan={matrixTargetGrades.length} style={{ padding: '8px 12px', border: '1px solid #1b5e20', fontSize: 14, letterSpacing: 1 }}>
+                      {MONTH_NAMES[month - 1]} (Grades)
                     </th>
-                    <th colSpan={4} style={{ padding: '8px 12px', border: '1px solid #1b5e20', background: '#5b21b6', fontSize: 13, letterSpacing: 0.5 }}>
-                      Specialist Standalone Courses (4 Courses)
-                    </th>
-                    <th rowSpan={2} style={{ padding: '12px 14px', border: '1px solid #1b5e20', width: 95, background: '#1b5e20' }}>
+                    <th rowSpan={2} style={{ padding: '12px 16px', border: '1px solid #1b5e20', width: 110, background: '#1b5e20' }}>
                       Total
                     </th>
                   </tr>
                   <tr style={{ background: '#388e3c', color: '#fff', fontWeight: 700 }}>
                     {matrixTargetGrades.map(g => (
-                      <th key={g} style={{ padding: '8px 10px', border: '1px solid #1b5e20', minWidth: 50 }}>
-                        Gr {g}
+                      <th key={g} style={{ padding: '8px 12px', border: '1px solid #1b5e20', minWidth: 65 }}>
+                        {g}
                       </th>
                     ))}
-                    <th style={{ padding: '8px 10px', border: '1px solid #1b5e20', background: '#6d28d9', minWidth: 78 }} title="Geometry Full Course (ජ්‍යාමිතිය සම්පූර්ණ පාඨමාලාව)">
-                      Geometry
-                    </th>
-                    <th style={{ padding: '8px 10px', border: '1px solid #1b5e20', background: '#6d28d9', minWidth: 78 }} title="Final Term booster (9 වසර)">
-                      Booster (Gr 9)
-                    </th>
-                    <th style={{ padding: '8px 10px', border: '1px solid #1b5e20', background: '#6d28d9', minWidth: 78 }} title="Short Questions Bank (කෙටි ප්‍රශ්න සංග්‍රහය)">
-                      Short Qns
-                    </th>
-                    <th style={{ padding: '8px 10px', border: '1px solid #1b5e20', background: '#6d28d9', minWidth: 78 }} title="Super Revision Masterclass (අවසාන පුනරීක්ෂණය)">
-                      Super Revision
-                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -619,14 +595,13 @@ export default function MonthlyMatrixTab({
                           {r.dateStr}
                         </td>
 
-                        {/* Grade Columns */}
                         {matrixTargetGrades.map(g => {
                           const count = r.counts[g] || 0
                           return (
                             <td
                               key={g}
                               style={{
-                                padding: '10px 10px',
+                                padding: '10px 12px',
                                 borderRight: '1px solid var(--border)',
                                 fontWeight: count > 0 ? 600 : 400,
                                 color: count > 0 ? 'var(--text-primary)' : 'var(--text-muted)'
@@ -637,48 +612,6 @@ export default function MonthlyMatrixTab({
                           )
                         })}
 
-                        {/* Standalone Course Columns */}
-                        <td style={{
-                          padding: '10px 8px',
-                          borderRight: '1px solid var(--border)',
-                          background: (r.courseCounts?.GEOMETRY_FULL || 0) > 0 ? 'rgba(124, 58, 237, 0.08)' : 'transparent',
-                          fontWeight: (r.courseCounts?.GEOMETRY_FULL || 0) > 0 ? 700 : 400,
-                          color: (r.courseCounts?.GEOMETRY_FULL || 0) > 0 ? '#c084fc' : 'var(--text-muted)'
-                        }}>
-                          {r.courseCounts?.GEOMETRY_FULL || 0}
-                        </td>
-
-                        <td style={{
-                          padding: '10px 8px',
-                          borderRight: '1px solid var(--border)',
-                          background: (r.courseCounts?.BODMAS_MASTER || 0) > 0 ? 'rgba(124, 58, 237, 0.08)' : 'transparent',
-                          fontWeight: (r.courseCounts?.BODMAS_MASTER || 0) > 0 ? 700 : 400,
-                          color: (r.courseCounts?.BODMAS_MASTER || 0) > 0 ? '#c084fc' : 'var(--text-muted)'
-                        }}>
-                          {r.courseCounts?.BODMAS_MASTER || 0}
-                        </td>
-
-                        <td style={{
-                          padding: '10px 8px',
-                          borderRight: '1px solid var(--border)',
-                          background: (r.courseCounts?.SHORT_QN_BANK || 0) > 0 ? 'rgba(124, 58, 237, 0.08)' : 'transparent',
-                          fontWeight: (r.courseCounts?.SHORT_QN_BANK || 0) > 0 ? 700 : 400,
-                          color: (r.courseCounts?.SHORT_QN_BANK || 0) > 0 ? '#c084fc' : 'var(--text-muted)'
-                        }}>
-                          {r.courseCounts?.SHORT_QN_BANK || 0}
-                        </td>
-
-                        <td style={{
-                          padding: '10px 8px',
-                          borderRight: '1px solid var(--border)',
-                          background: (r.courseCounts?.SUPER_REVISION || 0) > 0 ? 'rgba(124, 58, 237, 0.08)' : 'transparent',
-                          fontWeight: (r.courseCounts?.SUPER_REVISION || 0) > 0 ? 700 : 400,
-                          color: (r.courseCounts?.SUPER_REVISION || 0) > 0 ? '#c084fc' : 'var(--text-muted)'
-                        }}>
-                          {r.courseCounts?.SUPER_REVISION || 0}
-                        </td>
-
-                        {/* Total Column */}
                         <td style={{
                           padding: '10px 14px',
                           fontWeight: 800,

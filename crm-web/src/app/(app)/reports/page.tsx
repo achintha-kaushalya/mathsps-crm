@@ -690,22 +690,14 @@ export default function ReportsPage() {
   ).filter(g => g > 0).sort((a, b) => a - b)
 
   // -------------------------------------------------------------------------
-  // 2. MONTHLY CUMULATIVE MATRIX CALCULATIONS (Grades 5–11 + 4 Standalone Courses)
+  // 2. MONTHLY CUMULATIVE MATRIX CALCULATIONS (Grades 5–11)
   // -------------------------------------------------------------------------
   const daysInSelectedMonth = new Date(year, month, 0).getDate()
   const matrixTargetGrades = TARGET_GRADES
-  const standaloneCodes = ['GEOMETRY_FULL', 'BODMAS_MASTER', 'SHORT_QN_BANK', 'SUPER_REVISION'] as const
 
   const rawDailyCounts: Record<number, Record<number, number>> = {}
-  const rawDailyCourseCounts: Record<number, Record<string, number>> = {}
   for (let d = 1; d <= daysInSelectedMonth; d++) {
     rawDailyCounts[d] = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
-    rawDailyCourseCounts[d] = {
-      GEOMETRY_FULL: 0,
-      BODMAS_MASTER: 0,
-      SHORT_QN_BANK: 0,
-      SUPER_REVISION: 0
-    }
   }
 
   if (matrixMode === 'registrations') {
@@ -727,30 +719,29 @@ export default function ReportsPage() {
       if (rawDailyCounts[d] && rawDailyCounts[d][g] !== undefined) {
         rawDailyCounts[d][g] += 1
       }
-
-      // Check if student enrolled in any of the standalone courses
-      (s.enrollments || []).forEach((e: any) => {
-        const cCode = e.class_type
-        if (rawDailyCourseCounts[d] && rawDailyCourseCounts[d][cCode] !== undefined) {
-          rawDailyCourseCounts[d][cCode] += 1
-        }
-      })
     })
   } else {
-    // Unique students paid for this month
+    // Unique students paid for this month:
+    // Uses getGradeFromPayment(p) to map payment class_type (e.g. GR6_THEORY) to its respective grade column.
+    // If paid before day 1 of the selected month (e.g. advance payment in August for September month),
+    // it counts on Day 1 (01/MM).
+    // If paid on or after day 1 of the selected month, it counts on its respective day.
     const monthStartIso = `${year}-${String(month).padStart(2, '0')}-01`
+    
+    // Group unique students by grade and day so multiple class payments by same student don't double count if measuring students
     const seenStudentDay = new Set<string>()
 
     allPaymentsMonth.forEach(p => {
       const psCode = p.students?.ps_code || p.student_id || p.id
       const g = getGradeFromPayment(p)
-      const cType = p.class_type || ''
+      if (!matrixTargetGrades.includes(g as any)) return
 
       const paidDateStr = p.date_paid || (p.created_at ? p.created_at.slice(0, 10) : '')
       
       let targetDay = 1
       if (paidDateStr) {
         if (paidDateStr < monthStartIso) {
+          // Advance payment made before this month started (e.g., Aug 31 for Sept month) -> starts on Day 1
           targetDay = 1
         } else {
           const parts = paidDateStr.split('-')
@@ -765,29 +756,19 @@ export default function ReportsPage() {
       if (targetDay < 1) targetDay = 1
       if (targetDay > daysInSelectedMonth) targetDay = daysInSelectedMonth
 
-      // Track grade counts (deduped per student per grade on that day)
-      if (matrixTargetGrades.includes(g as any)) {
-        const dedupeKey = `${psCode}_G${g}`
-        if (!seenStudentDay.has(dedupeKey)) {
-          seenStudentDay.add(dedupeKey)
-          if (rawDailyCounts[targetDay] && rawDailyCounts[targetDay][g] !== undefined) {
-            rawDailyCounts[targetDay][g] += 1
-          }
-        }
-      }
-
-      // Track Standalone Courses
-      if (rawDailyCourseCounts[targetDay] && rawDailyCourseCounts[targetDay][cType] !== undefined) {
-        const courseDedupe = `${psCode}_C_${cType}`
-        if (!seenStudentDay.has(courseDedupe)) {
-          seenStudentDay.add(courseDedupe)
-          rawDailyCourseCounts[targetDay][cType] += 1
+      const dedupeKey = `${psCode}_G${g}`
+      if (!seenStudentDay.has(dedupeKey)) {
+        seenStudentDay.add(dedupeKey)
+        if (rawDailyCounts[targetDay] && rawDailyCounts[targetDay][g] !== undefined) {
+          rawDailyCounts[targetDay][g] += 1
         }
       }
     })
   }
 
-  // Calculate max days to display in table
+  // Calculate max days to display in table:
+  // If viewing current year & current month, only show up to today's date so future days are not repeated.
+  // If viewing a past month/year, show all days of that month.
   const today = new Date()
   const isCurrentMonthAndYear = (today.getFullYear() === year && (today.getMonth() + 1) === month)
   const isFutureMonthAndYear = (year > today.getFullYear() || (year === today.getFullYear() && month > (today.getMonth() + 1)))
@@ -802,7 +783,6 @@ export default function ReportsPage() {
     day: number
     dateStr: string
     counts: Record<number, number>
-    courseCounts: Record<string, number>
     dailyCountTotal: number
     cumulativeTotal: number
     isWeekend: boolean
@@ -810,12 +790,6 @@ export default function ReportsPage() {
   }[] = []
 
   const runningGradeTotals: Record<number, number> = { 5: 0, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0, 11: 0 }
-  const runningCourseTotals: Record<string, number> = {
-    GEOMETRY_FULL: 0,
-    BODMAS_MASTER: 0,
-    SHORT_QN_BANK: 0,
-    SUPER_REVISION: 0
-  }
 
   for (let d = 1; d <= maxDisplayDays; d++) {
     const dayDate = new Date(year, month - 1, d)
@@ -829,19 +803,12 @@ export default function ReportsPage() {
       dayRawSum += rawCount
     })
 
-    standaloneCodes.forEach(code => {
-      const cCount = rawDailyCourseCounts[d][code] || 0
-      runningCourseTotals[code] += cCount
-      dayRawSum += cCount
-    })
-
-    const cumTotal = Object.values(runningGradeTotals).reduce((a, b) => a + b, 0) + Object.values(runningCourseTotals).reduce((a, b) => a + b, 0)
+    const cumTotal = Object.values(runningGradeTotals).reduce((a, b) => a + b, 0)
 
     cumulativeMatrixRows.push({
       day: d,
       dateStr: dateFormatted,
       counts: { ...runningGradeTotals },
-      courseCounts: { ...runningCourseTotals },
       dailyCountTotal: dayRawSum,
       cumulativeTotal: cumTotal,
       isWeekend,
