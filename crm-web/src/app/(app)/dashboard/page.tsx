@@ -6,7 +6,7 @@ import {
   Users, Phone, TrendingUp, Activity, BarChart2,
   RefreshCw, CheckCircle, CreditCard, Calendar,
   CheckCircle2, FileSpreadsheet, Target, Award, Clock, ArrowRight,
-  Sparkles, Trophy, Layers
+  Sparkles, Trophy, Layers, DollarSign, History, AlertCircle
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -24,6 +24,7 @@ const STATUS_GROUPS = {
 }
 
 interface LeadRow {
+  id?: string
   assigned_member: string | null
   grade: string | null
   status: string
@@ -31,6 +32,7 @@ interface LeadRow {
   date_added: string | null
   created_at?: string | null
   paid?: boolean
+  comments?: string | null
 }
 
 export default function AnalyticsDashboard() {
@@ -42,6 +44,18 @@ export default function AnalyticsDashboard() {
   const [userSubRole, setUserSubRole] = useState<string>('')
   const [allowedMembers, setAllowedMembers] = useState<string[]>([])
   const [canViewAll, setCanViewAll] = useState<boolean>(false)
+
+  // Commission Rates State (Configurable by Admin)
+  // Grade 6-8: Rs. 65 | Grade 9: Rs. 70 | Grade 10-11: Rs. 75
+  const [rateG6_8, setRateG6_8] = useState<number>(65)
+  const [rateG9, setRateG9] = useState<number>(70)
+  const [rateG10_11, setRateG10_11] = useState<number>(75)
+  const [commissionViewFilter, setCommissionViewFilter] = useState<'current_active' | 'all_paid'>('current_active')
+  const [settlementSuccess, setSettlementSuccess] = useState<string>('')
+  const [settlingModalOpen, setSettlingModalOpen] = useState(false)
+  const [settlingLoading, setSettlingLoading] = useState(false)
+  const [adminPasswordForSettle, setAdminPasswordForSettle] = useState('')
+  const [settleError, setSettleError] = useState('')
 
   // Primary Tab Switcher
   const [activeTab, setActiveTab] = useState<'overview' | 'daily_member_tracking' | 'master_paid_report'>('overview')
@@ -73,7 +87,7 @@ export default function AnalyticsDashboard() {
     while (hasMore) {
       const { data, error } = await supabase
         .from('leads')
-        .select('assigned_member,grade,status,campaign,date_added,created_at,paid')
+        .select('id,assigned_member,grade,status,campaign,date_added,created_at,paid,comments')
         .range(from, from + pageSize - 1)
 
       if (error) {
@@ -242,6 +256,95 @@ export default function AnalyticsDashboard() {
     return found
   }
 
+  // Settle / Clear Current Active Commissions and log history
+  async function executeCommissionSettlement(e: React.FormEvent) {
+    e.preventDefault()
+    if (!adminPasswordForSettle) {
+      setSettleError('Admin password is required to settle commissions.')
+      return
+    }
+
+    setSettlingLoading(true)
+    setSettleError('')
+
+    try {
+      const now = new Date()
+      const timeStampStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}`
+      const batchId = `COMM_${timeStampStr}`
+
+      // 1. Prepare settlement record
+      const memberBreakdown = paidMembersList.map(m => ({
+        member_name: m.name,
+        paid_classes: m.totalPaidClasses,
+        commission_amount: m.commissionAmount,
+        grades: paidMemberGradeMatrix[m.name] || {}
+      }))
+
+      const settlementRecord = {
+        batch_id: batchId,
+        settled_at: now.toISOString(),
+        settled_by: currentMemberName || 'Admin',
+        lead_count: totalPaidConversions,
+        total_paid_classes: totalPaidClassesCount,
+        total_commission_amount: totalCommissionAmount,
+        rates_used: { g6_8: rateG6_8, g9: rateG9, g10_11: rateG10_11 },
+        member_breakdown: memberBreakdown
+      }
+
+      // 2. Save settlement history to admin member notes
+      const { data: adminRecord } = await supabase.from('members').select('id, notes').eq('name', 'Admin User').maybeSingle()
+      let existingNotes: any = {}
+      try {
+        if (adminRecord?.notes) existingNotes = JSON.parse(adminRecord.notes)
+      } catch {}
+
+      const existingHistory = existingNotes.commission_settlements || []
+      const updatedNotes = {
+        ...existingNotes,
+        commission_settlements: [settlementRecord, ...existingHistory]
+      }
+
+      const saveHistRes = await fetch('/api/members/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_custom_courses',
+          adminPassword: adminPasswordForSettle,
+          memberId: adminRecord?.id || 'admin_user_auto',
+          courses: existingNotes.courses || [],
+          fees: existingNotes.fees || {},
+          grade_courses: existingNotes.grade_courses || existingNotes.gradeCourses,
+          standalone_courses: existingNotes.standalone_courses || existingNotes.standaloneCourses,
+          ...updatedNotes
+        })
+      })
+
+      if (!saveHistRes.ok) {
+        const errJson = await saveHistRes.json()
+        throw new Error(errJson.error || 'Failed to authenticate admin or save settlement history.')
+      }
+
+      // 3. Mark current unsettled leads with [SETTLED: batchId] tag in comments
+      const leadsToMark = paidLeads.filter(l => l.id)
+      for (const l of leadsToMark) {
+        const oldComments = (l.comments || '').trim()
+        const newComments = oldComments ? `${oldComments} [SETTLED:${batchId}]` : `[SETTLED:${batchId}]`
+        await supabase.from('leads').update({ comments: newComments }).eq('id', l.id)
+      }
+
+      setSettlingModalOpen(false)
+      setAdminPasswordForSettle('')
+      setSettlementSuccess(`✓ Successfully cleared commissions (${batchId})! Total settled: Rs. ${totalCommissionAmount.toLocaleString()}`)
+      setTimeout(() => setSettlementSuccess(''), 8000)
+
+      await loadData()
+    } catch (err: any) {
+      setSettleError(err.message)
+    } finally {
+      setSettlingLoading(false)
+    }
+  }
+
   // Filtered leads based on Date Range
   const filtered = useMemo(() => {
     if (!filterStart && !filterEnd) return leads
@@ -366,11 +469,19 @@ export default function AnalyticsDashboard() {
   }, [dayLeads])
 
   // =========================================================================
-  // 2. MASTER LEAD PAID TICK REPORT COMPUTATIONS (MEMBERS × GRADE × COUNT)
+  // 2. MASTER LEAD PAID TICK REPORT COMPUTATIONS (MEMBERS × GRADE × COUNT & COMMISSIONS)
   // =========================================================================
-  const paidLeads = useMemo(() => {
+  const allPaidLeads = useMemo(() => {
     return filtered.filter(l => Boolean(l.paid))
   }, [filtered])
+
+  // If viewing 'current_active', filter out leads whose comments already indicate settlement [SETTLED: ...]
+  const paidLeads = useMemo(() => {
+    if (commissionViewFilter === 'all_paid') {
+      return allPaidLeads
+    }
+    return allPaidLeads.filter(l => !(l.comments && l.comments.includes('[SETTLED:')))
+  }, [allPaidLeads, commissionViewFilter])
 
   const paidMemberGradeMatrix = useMemo(() => {
     const matrix: Record<string, Record<string, number>> = {}
@@ -405,6 +516,17 @@ export default function AnalyticsDashboard() {
     return t
   }, [paidLeads])
 
+  // Helper to compute commission for a given grade count distribution
+  // G6-8: rateG6_8 (default Rs. 65), G9: rateG9 (default Rs. 70), G10-11: rateG10_11 (default Rs. 75)
+  function computeCommissionFromGradeCounts(row: Record<string, number>): number {
+    const g6_8Count = (row['6'] || 0) + (row['7'] || 0) + (row['8'] || 0)
+    const g9Count = row['9'] || 0
+    const g10_11Count = (row['10'] || 0) + (row['11'] || 0)
+    // Any other unmapped grade counted at G6-8 base rate
+    const otherCount = row['Other'] || 0
+    return (g6_8Count * rateG6_8) + (g9Count * rateG9) + (g10_11Count * rateG10_11) + (otherCount * rateG6_8)
+  }
+
   const paidMembersList = useMemo(() => {
     const counts: Record<string, number> = {}
     paidLeads.forEach(l => {
@@ -413,11 +535,16 @@ export default function AnalyticsDashboard() {
       const count = Math.max(1, gradesToCount.length)
       counts[m] = (counts[m] || 0) + count
     })
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, totalPaidClasses]) => ({ name, totalPaidClasses }))
-  }, [paidLeads])
+    return Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([name, totalPaidClasses]) => {
+      const gradeCounts = paidMemberGradeMatrix[name] || {}
+      const commissionAmount = computeCommissionFromGradeCounts(gradeCounts)
+      return { name, totalPaidClasses, commissionAmount }
+    })
+  }, [paidLeads, paidMemberGradeMatrix, rateG6_8, rateG9, rateG10_11])
 
   const totalPaidConversions = paidLeads.length
   const totalPaidClassesCount = Object.values(paidGradeTotals).reduce((sum, c) => sum + c, 0)
+  const totalCommissionAmount = paidMembersList.reduce((acc, m) => acc + m.commissionAmount, 0)
 
   // =========================================================================
   // 3. PERSONALIZED AGENT WORKSTATION COMPUTATIONS (FOR NON-ADMIN USERS)
@@ -1247,26 +1374,108 @@ export default function AnalyticsDashboard() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: MASTER LEAD PAID TICK REPORT (MEMBERS × GRADE × COUNT)             */}
+        {/* TAB 3: MASTER LEAD PAID TICK REPORT & MEMBER COMMISSIONS                  */}
         {/* ========================================================================= */}
         {activeTab === 'master_paid_report' && (
           <div className="fade-in">
-            {/* Header / Filter / Export Bar */}
-            <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
-              <div style={{ display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <CheckCircle2 size={20} style={{ color: 'var(--accent-blue)' }} />
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--text-primary)' }}>Master Lead Paid Conversions</div>
-                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Counts leads with Paid Tick enabled across assigned members &amp; grades</div>
+            {/* Success Message Banner */}
+            {settlementSuccess && (
+              <div style={{
+                padding: '12px 18px', background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)',
+                borderRadius: 10, color: '#059669', fontSize: 13, fontWeight: 700, marginBottom: 16,
+                display: 'flex', alignItems: 'center', gap: 10
+              }}>
+                <CheckCircle2 size={18} /> {settlementSuccess}
+              </div>
+            )}
+
+            {/* Header / Filter / Settle / Export Bar */}
+            <div className="glass-card" style={{ padding: 18, marginBottom: 16, display: 'flex', gap: 14, alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                  <div style={{
+                    width: 36, height: 36, borderRadius: 10,
+                    background: 'rgba(56, 189, 248, 0.12)', color: 'var(--accent-blue)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}>
+                    <DollarSign size={20} />
                   </div>
+                  <div>
+                    <div style={{ fontSize: 15, fontWeight: 800, color: 'var(--text-primary)' }}>Master Lead Paid &amp; Commission Ledger</div>
+                    <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Live commission calculation, grade-based payout rates &amp; settlement lifecycle</div>
+                  </div>
+                </div>
+
+                {/* Filter Toggle: Current Active Period vs All Paid Leads */}
+                <div style={{
+                  display: 'flex', background: 'var(--bg-base, #f1f5f9)', padding: 3, borderRadius: 8,
+                  border: '1px solid var(--border)'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => setCommissionViewFilter('current_active')}
+                    style={{
+                      border: 'none',
+                      background: commissionViewFilter === 'current_active' ? 'var(--bg-card, #ffffff)' : 'transparent',
+                      color: commissionViewFilter === 'current_active' ? 'var(--accent-blue)' : 'var(--text-muted)',
+                      fontWeight: 700, fontSize: 11.5, padding: '5px 12px', borderRadius: 6, cursor: 'pointer',
+                      boxShadow: commissionViewFilter === 'current_active' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none'
+                    }}
+                  >
+                    Active Unsettled Period
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setCommissionViewFilter('all_paid')}
+                    style={{
+                      border: 'none',
+                      background: commissionViewFilter === 'all_paid' ? 'var(--bg-card, #ffffff)' : 'transparent',
+                      color: commissionViewFilter === 'all_paid' ? 'var(--accent-blue)' : 'var(--text-muted)',
+                      fontWeight: 700, fontSize: 11.5, padding: '5px 12px', borderRadius: 6, cursor: 'pointer',
+                      boxShadow: commissionViewFilter === 'all_paid' ? '0 1px 4px rgba(0,0,0,0.08)' : 'none'
+                    }}
+                  >
+                    All-Time Paid Leads
+                  </button>
                 </div>
               </div>
 
-              <div>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
+                {userRole === 'admin' && (
+                  <button
+                    onClick={() => {
+                      setSettlingModalOpen(true)
+                      setAdminPasswordForSettle('')
+                      setSettleError('')
+                    }}
+                    disabled={totalPaidConversions === 0 || commissionViewFilter !== 'current_active'}
+                    className="btn-primary"
+                    style={{
+                      background: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)',
+                      display: 'flex', alignItems: 'center', gap: 6,
+                      padding: '8px 16px', fontWeight: 700, fontSize: 12.5,
+                      boxShadow: '0 2px 8px rgba(245,158,11,0.2)',
+                      border: '1px solid rgba(245,158,11,0.3)',
+                      opacity: (totalPaidConversions === 0 || commissionViewFilter !== 'current_active') ? 0.5 : 1
+                    }}
+                    title="Clear current paid leads and settle commissions (resets calculation to 0 for next cycle)"
+                  >
+                    <CheckCircle size={15} /> Clear &amp; Settle Commissions
+                  </button>
+                )}
+
                 <button
                   onClick={() => {
-                    const headers = ['MEMBER', ...GRADES.map(g => `GRADE ${g} PAID`), 'TOTAL PAID CLASSES', 'SHARE %']
+                    const headers = [
+                      'MEMBER',
+                      ...GRADES.map(g => `GRADE ${g} PAID`),
+                      'TOTAL PAID SEATS',
+                      'RATE G6-8 (Rs.)',
+                      'RATE G9 (Rs.)',
+                      'RATE G10-11 (Rs.)',
+                      'TOTAL COMMISSION (Rs.)',
+                      'SHARE %'
+                    ]
                     const rows = paidMembersList.map(m => {
                       const r = paidMemberGradeMatrix[m.name] || {}
                       const share = totalPaidClassesCount > 0 ? ((m.totalPaidClasses / totalPaidClassesCount) * 100).toFixed(1) : '0.0'
@@ -1274,44 +1483,118 @@ export default function AnalyticsDashboard() {
                         `"${m.name}"`,
                         ...GRADES.map(g => `"${r[g] || 0}"`),
                         `"${m.totalPaidClasses}"`,
+                        `"${rateG6_8}"`,
+                        `"${rateG9}"`,
+                        `"${rateG10_11}"`,
+                        `"${m.commissionAmount}"`,
                         `"${share}%"`
                       ]
                     })
-                    exportCsv(`Master_Lead_Paid_Report_Members_Grades`, headers, rows)
+                    exportCsv(`Master_Lead_Paid_Commissions_${commissionViewFilter}`, headers, rows)
                   }}
-                  className="btn-primary"
-                  style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+                  className="btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 14px', fontSize: 12.5 }}
                 >
-                  <FileSpreadsheet size={16} /> Export Excel
+                  <FileSpreadsheet size={15} /> Export CSV
                 </button>
               </div>
             </div>
 
-            {/* Paid Conversions Grade Stats Grid */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 20 }}>
-              <div className="stat-card" style={{ padding: '12px 14px' }}>
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Total Paid Leads</div>
-                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{totalPaidConversions}</div>
+            {/* Dynamic Commission Rate Configurator Bar */}
+            <div className="glass-card" style={{ padding: '12px 18px', marginBottom: 16, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Commission Rate Rules:
+                </span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                  (Adjust rates live to re-compute commission balances)
+                </span>
               </div>
+
+              <div style={{ display: 'flex', gap: 16, alignItems: 'center', flexWrap: 'wrap' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Grade 6 – 8:</label>
+                  <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 6px' }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 3 }}>Rs.</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={rateG6_8}
+                      onChange={e => setRateG6_8(Number(e.target.value) || 0)}
+                      disabled={userRole !== 'admin'}
+                      style={{ width: 50, border: 'none', background: 'transparent', fontWeight: 800, fontSize: 12.5, color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Grade 9:</label>
+                  <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 6px' }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 3 }}>Rs.</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={rateG9}
+                      onChange={e => setRateG9(Number(e.target.value) || 0)}
+                      disabled={userRole !== 'admin'}
+                      style={{ width: 50, border: 'none', background: 'transparent', fontWeight: 800, fontSize: 12.5, color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)' }}>Grade 10 – 11:</label>
+                  <div style={{ display: 'flex', alignItems: 'center', background: 'var(--bg-base)', border: '1px solid var(--border)', borderRadius: 6, padding: '2px 6px' }}>
+                    <span style={{ fontSize: 11, color: 'var(--text-muted)', marginRight: 3 }}>Rs.</span>
+                    <input
+                      type="number"
+                      min="0"
+                      value={rateG10_11}
+                      onChange={e => setRateG10_11(Number(e.target.value) || 0)}
+                      disabled={userRole !== 'admin'}
+                      style={{ width: 50, border: 'none', background: 'transparent', fontWeight: 800, fontSize: 12.5, color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Paid Conversions & Total Commission KPI Grid */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: 12, marginBottom: 20 }}>
+              <div className="stat-card" style={{ padding: '12px 14px', borderTop: '2px solid var(--accent-blue)' }}>
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase' }}>Paid Leads</div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)' }}>{totalPaidConversions}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{commissionViewFilter === 'current_active' ? 'Active Cycle' : 'All-Time'}</div>
+              </div>
+
+              <div className="stat-card" style={{ padding: '12px 14px', borderTop: '2px solid #10b981' }}>
+                <div style={{ fontSize: 11, color: '#059669', textTransform: 'uppercase', fontWeight: 700 }}>Total Commission</div>
+                <div style={{ fontSize: 22, fontWeight: 900, color: '#059669' }}>Rs. {totalCommissionAmount.toLocaleString()}</div>
+                <div style={{ fontSize: 10.5, color: 'var(--text-muted)' }}>{paidMembersList.length} members eligible</div>
+              </div>
+
               {GRADES.map((g) => (
                 <div key={g} className="stat-card" style={{ padding: '12px 14px' }}>
                   <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Gr {g} Paid</div>
                   <div style={{ fontSize: 20, fontWeight: 700, color: (paidGradeTotals[g] || 0) > 0 ? 'var(--text-primary)' : 'var(--text-muted)' }}>
                     {paidGradeTotals[g] || 0}
                   </div>
+                  <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    @ Rs. {['6','7','8'].includes(g) ? rateG6_8 : g === '9' ? rateG9 : rateG10_11}
+                  </div>
                 </div>
               ))}
             </div>
 
-            {/* Paid Members × Grade Matrix Table */}
+            {/* Paid Members × Grade Matrix Table with Commission Column */}
             <div className="glass-card" style={{ overflow: 'hidden' }}>
               <div style={{ padding: '16px 20px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8 }}>
                   <Trophy size={16} style={{ color: '#f59e0b' }} />
-                  Member Conversion Leaderboard (Paid Ticks by Grade)
+                  Member Conversion &amp; Payout Leaderboard
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Total {totalPaidClassesCount} paid class seats converted
+                  Total {totalPaidClassesCount} paid class seats converted &bull; Rs. {totalCommissionAmount.toLocaleString()} payable
                 </div>
               </div>
 
@@ -1321,10 +1604,11 @@ export default function AnalyticsDashboard() {
                     <tr>
                       <th style={{ width: 160, textAlign: 'left' }}>Member Name</th>
                       {GRADES.map((g) => (
-                        <th key={g} style={{ textAlign: 'center' }}>Grade {g} Paid</th>
+                        <th key={g} style={{ textAlign: 'center' }}>Gr {g}</th>
                       ))}
                       <th style={{ textAlign: 'center', fontWeight: 700 }}>Total Paid Seats</th>
-                      <th style={{ textAlign: 'right', fontWeight: 700 }}>Conversion Share</th>
+                      <th style={{ textAlign: 'right', fontWeight: 800, color: '#059669', width: 150 }}>Commission (Rs.)</th>
+                      <th style={{ textAlign: 'right', fontWeight: 700, width: 90 }}>Share %</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1360,6 +1644,9 @@ export default function AnalyticsDashboard() {
                           <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--text-primary)', fontSize: 15 }}>
                             {m.totalPaidClasses}
                           </td>
+                          <td style={{ textAlign: 'right', fontWeight: 800, fontSize: 14, color: '#059669' }}>
+                            Rs. {m.commissionAmount.toLocaleString()}
+                          </td>
                           <td style={{ textAlign: 'right', fontWeight: 600, fontSize: 13, color: 'var(--text-secondary)' }}>
                             {share}%
                           </td>
@@ -1369,7 +1656,7 @@ export default function AnalyticsDashboard() {
                   </tbody>
                   <tfoot>
                     <tr style={{ fontWeight: 800, borderTop: '2px solid var(--border)', background: 'rgba(255,255,255,0.02)' }}>
-                      <td style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.05em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>TOTAL PAID TICKS</td>
+                      <td style={{ fontWeight: 700, fontSize: 12, letterSpacing: '0.05em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>TOTALS</td>
                       {GRADES.map((g) => (
                         <td key={g} style={{ textAlign: 'center', fontWeight: 800, color: 'var(--text-primary)' }}>
                           {(paidGradeTotals[g] || 0).toLocaleString()}
@@ -1377,6 +1664,9 @@ export default function AnalyticsDashboard() {
                       ))}
                       <td style={{ textAlign: 'center', fontWeight: 900, color: 'var(--text-primary)', fontSize: 16 }}>
                         {totalPaidClassesCount.toLocaleString()}
+                      </td>
+                      <td style={{ textAlign: 'right', fontWeight: 900, color: '#059669', fontSize: 16 }}>
+                        Rs. {totalCommissionAmount.toLocaleString()}
                       </td>
                       <td style={{ textAlign: 'right', fontWeight: 700, color: 'var(--text-secondary)' }}>100.0%</td>
                     </tr>
@@ -1386,10 +1676,84 @@ export default function AnalyticsDashboard() {
 
               {paidMembersList.length === 0 && (
                 <div style={{ padding: 30, textAlign: 'center', color: 'var(--text-muted)' }}>
-                  No leads with Paid ticks found in current filter.
+                  {commissionViewFilter === 'current_active'
+                    ? 'All past commissions have been cleared! No unsettled paid leads in current cycle.'
+                    : 'No leads with Paid ticks found in database.'}
                 </div>
               )}
             </div>
+
+            {/* Settle Commissions Confirmation Modal */}
+            {settlingModalOpen && (
+              <div style={{
+                position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16
+              }}>
+                <div className="glass-card" style={{ maxWidth: 460, width: '100%', padding: 24, borderRadius: 16, background: '#ffffff', color: '#0f172a' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
+                    <div style={{ width: 36, height: 36, borderRadius: 8, background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <DollarSign size={20} />
+                    </div>
+                    <div>
+                      <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800 }}>Clear &amp; Settle Commissions</h3>
+                      <div style={{ fontSize: 12, color: '#64748b' }}>Confirm payout settlement for current period</div>
+                    </div>
+                  </div>
+
+                  <div style={{ padding: 14, background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0', marginBottom: 16, fontSize: 13, lineHeight: 1.5 }}>
+                    <div><b>Total Payable:</b> <span style={{ color: '#059669', fontWeight: 800 }}>Rs. {totalCommissionAmount.toLocaleString()}</span></div>
+                    <div><b>Paid Leads Being Settled:</b> {totalPaidConversions} leads ({totalPaidClassesCount} seats)</div>
+                    <div><b>Eligible Members:</b> {paidMembersList.length} members</div>
+                    <div style={{ fontSize: 11.5, color: '#64748b', marginTop: 6 }}>
+                      ⚠️ Once cleared, these leads will be marked as settled. The live commission balance will reset to 0 for the new period. A settlement log will be archived in Member profiles.
+                    </div>
+                  </div>
+
+                  {settleError && (
+                    <div style={{ padding: '8px 12px', background: '#fef2f2', border: '1px solid #fee2e2', borderRadius: 8, color: '#dc2626', fontSize: 12, marginBottom: 14 }}>
+                      ⚠️ {settleError}
+                    </div>
+                  )}
+
+                  <form onSubmit={executeCommissionSettlement}>
+                    <div style={{ marginBottom: 16 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: '#475569', textTransform: 'uppercase', display: 'block', marginBottom: 6 }}>
+                        Enter Admin Password to Authorize *
+                      </label>
+                      <input
+                        type="password"
+                        className="input-field"
+                        placeholder="Admin password"
+                        required
+                        autoFocus
+                        value={adminPasswordForSettle}
+                        onChange={e => setAdminPasswordForSettle(e.target.value)}
+                        style={{ height: 38 }}
+                      />
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                      <button
+                        type="button"
+                        className="btn-secondary"
+                        onClick={() => setSettlingModalOpen(false)}
+                        disabled={settlingLoading}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        type="submit"
+                        className="btn-primary"
+                        disabled={settlingLoading}
+                        style={{ background: 'linear-gradient(135deg, #d97706 0%, #f59e0b 100%)', border: 'none' }}
+                      >
+                        {settlingLoading ? 'Settling...' : '✓ Confirm & Clear Commissions'}
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

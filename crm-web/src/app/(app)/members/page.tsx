@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Users, UserPlus, Shield, Check, Lock, Mail, Eye, EyeOff } from 'lucide-react'
+import { Users, UserPlus, Shield, Check, Lock, Mail, Eye, EyeOff, DollarSign, History, Calendar, Award } from 'lucide-react'
 import { Member } from '@/lib/types'
 
 export default function MembersPage() {
@@ -20,6 +20,10 @@ export default function MembersPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [successMsg, setSuccessMsg] = useState('')
+
+  // Member Commission History Modal State
+  const [historyModalMember, setHistoryModalMember] = useState<Member | null>(null)
+  const [allSettlements, setAllSettlements] = useState<any[]>([])
 
   useEffect(() => {
     loadMembers()
@@ -40,6 +44,18 @@ export default function MembersPage() {
     setLoading(true)
     const { data } = await supabase.from('members').select('*').order('name')
     setMembers(data || [])
+
+    // Load archived commission settlements
+    try {
+      const adminMem = (data || []).find(m => m.name === 'Admin User' || m.role === 'admin')
+      if (adminMem?.notes) {
+        const parsed = JSON.parse(adminMem.notes)
+        if (parsed.commission_settlements) {
+          setAllSettlements(parsed.commission_settlements)
+        }
+      }
+    } catch {}
+
     setLoading(false)
   }
 
@@ -189,9 +205,10 @@ export default function MembersPage() {
                     <tr>
                       <th style={{ paddingLeft: 16 }}>Member Name</th>
                       <th>Email Account</th>
-                      <th style={{ textAlign: 'center', width: 115 }}>Role</th>
-                      <th style={{ textAlign: 'center', width: 140 }}>Lead Visibility</th>
-                      <th style={{ textAlign: 'center', width: 70 }}>Status</th>
+                      <th style={{ textAlign: 'center', width: 110 }}>Role</th>
+                      <th style={{ textAlign: 'center', width: 135 }}>Lead Visibility</th>
+                      <th style={{ textAlign: 'center', width: 115 }}>Commissions</th>
+                      <th style={{ textAlign: 'center', width: 65 }}>Status</th>
                       <th style={{ textAlign: 'center', width: 95, paddingRight: 16 }}>Actions</th>
                     </tr>
                   </thead>
@@ -278,6 +295,25 @@ export default function MembersPage() {
                           >
                             <span>{isAll ? '🌐 All Leads' : allowed.length > 0 ? `👥 Own + ${allowed.length}` : '🔒 Own leads'}</span>
                             <span style={{ fontSize: 9, opacity: 0.7 }}>⚙</span>
+                          </button>
+                        </td>
+
+                        {/* Commission History Button Column */}
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            onClick={() => setHistoryModalMember(m)}
+                            style={{
+                              background: '#ecfdf5',
+                              border: '1px solid #a7f3d0',
+                              color: '#059669',
+                              padding: '2px 8px', borderRadius: 6, fontSize: 11, fontWeight: 700,
+                              cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: 4,
+                              transition: 'all 0.15s'
+                            }}
+                            title={`View Commission settlement history for ${m.name}`}
+                          >
+                            <DollarSign size={12} />
+                            <span>History</span>
                           </button>
                         </td>
 
@@ -697,6 +733,139 @@ export default function MembersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Member Commission History Modal */}
+      {historyModalMember && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999, padding: 16
+        }}>
+          <div className="glass-card" style={{ maxWidth: 700, width: '100%', maxHeight: '85vh', display: 'flex', flexDirection: 'column', padding: 24, borderRadius: 16, background: '#ffffff', color: '#0f172a' }}>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, borderBottom: '1px solid #e2e8f0', paddingBottom: 14 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <DollarSign size={22} />
+                </div>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: 17, fontWeight: 800, color: '#0f172a' }}>
+                    Commission Payout History — {historyModalMember.name}
+                  </h3>
+                  <div style={{ fontSize: 12, color: '#64748b' }}>
+                    Archive of cleared commissions and settlement batches
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setHistoryModalMember(null)}
+                style={{ background: 'none', border: 'none', fontSize: 20, color: '#94a3b8', cursor: 'pointer', padding: 4 }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Modal Scrollable Body */}
+            <div style={{ flex: 1, overflowY: 'auto', paddingRight: 4 }}>
+              {(() => {
+                // Filter settlements that contain records for this member
+                const memberSettlements = allSettlements.filter((s: any) => {
+                  const b = s.member_breakdown || []
+                  return b.some((mb: any) => mb.member_name?.toLowerCase() === historyModalMember.name?.toLowerCase())
+                })
+
+                if (memberSettlements.length === 0) {
+                  return (
+                    <div style={{ padding: 40, textAlign: 'center', color: '#64748b', fontSize: 13 }}>
+                      <History size={32} style={{ margin: '0 auto 12px', opacity: 0.4 }} />
+                      <div>No past commission settlements found for <b>{historyModalMember.name}</b>.</div>
+                      <div style={{ fontSize: 11.5, color: '#94a3b8', marginTop: 4 }}>
+                        When commissions are cleared from the Dashboard, settlement records will appear here.
+                      </div>
+                    </div>
+                  )
+                }
+
+                const totalPaidToMember = memberSettlements.reduce((acc: number, s: any) => {
+                  const mb = (s.member_breakdown || []).find((b: any) => b.member_name?.toLowerCase() === historyModalMember.name?.toLowerCase())
+                  return acc + (mb?.commission_amount || 0)
+                }, 0)
+
+                return (
+                  <div>
+                    {/* Summary Card */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 16 }}>
+                      <div style={{ padding: 14, background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                        <div style={{ fontSize: 11, color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>Total Settlements</div>
+                        <div style={{ fontSize: 20, fontWeight: 800, color: '#0f172a' }}>{memberSettlements.length} Batches</div>
+                      </div>
+                      <div style={{ padding: 14, background: '#ecfdf5', borderRadius: 10, border: '1px solid #a7f3d0' }}>
+                        <div style={{ fontSize: 11, color: '#059669', textTransform: 'uppercase', fontWeight: 700 }}>Cumulative Commission Paid</div>
+                        <div style={{ fontSize: 20, fontWeight: 900, color: '#059669' }}>Rs. {totalPaidToMember.toLocaleString()}</div>
+                      </div>
+                    </div>
+
+                    {/* Settlement Timeline Table */}
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12 }}>
+                      <thead>
+                        <tr style={{ borderBottom: '2px solid #e2e8f0', textAlign: 'left', color: '#64748b', fontSize: 11, textTransform: 'uppercase' }}>
+                          <th style={{ padding: '8px 6px' }}>Date &amp; Batch</th>
+                          <th style={{ padding: '8px 6px', textAlign: 'center' }}>Paid Classes</th>
+                          <th style={{ padding: '8px 6px' }}>Grade Breakdown</th>
+                          <th style={{ padding: '8px 6px', textAlign: 'right' }}>Commission (Rs.)</th>
+                          <th style={{ padding: '8px 6px', textAlign: 'right' }}>Settled By</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {memberSettlements.map((s: any, idx: number) => {
+                          const mb = (s.member_breakdown || []).find((b: any) => b.member_name?.toLowerCase() === historyModalMember.name?.toLowerCase())
+                          const dateFormatted = new Date(s.settled_at).toLocaleDateString('en-US', {
+                            year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+                          })
+                          const grades = mb?.grades || {}
+                          const gradeParts = Object.entries(grades).filter(([_, c]) => (c as number) > 0).map(([g, c]) => `Gr ${g}: ${c}`).join(', ')
+
+                          return (
+                            <tr key={idx} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '10px 6px' }}>
+                                <div style={{ fontWeight: 700, color: '#0f172a' }}>{dateFormatted}</div>
+                                <div style={{ fontSize: 10, color: '#64748b', fontFamily: 'monospace' }}>{s.batch_id}</div>
+                              </td>
+                              <td style={{ padding: '10px 6px', textAlign: 'center', fontWeight: 800 }}>
+                                {mb?.paid_classes || 0}
+                              </td>
+                              <td style={{ padding: '10px 6px', color: '#475569', fontSize: 11 }}>
+                                {gradeParts || '—'}
+                              </td>
+                              <td style={{ padding: '10px 6px', textAlign: 'right', fontWeight: 900, color: '#059669', fontSize: 13 }}>
+                                Rs. {(mb?.commission_amount || 0).toLocaleString()}
+                              </td>
+                              <td style={{ padding: '10px 6px', textAlign: 'right', color: '#64748b', fontSize: 11 }}>
+                                {s.settled_by || 'Admin'}
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              })()}
+            </div>
+
+            {/* Modal Footer */}
+            <div style={{ marginTop: 16, borderTop: '1px solid #e2e8f0', paddingTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setHistoryModalMember(null)}
+              >
+                Close
+              </button>
+            </div>
           </div>
         </div>
       )}

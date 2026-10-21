@@ -53,7 +53,7 @@ export default function Sidebar() {
       group: 'CRM — Leads',
       items: [
         { label: 'Leads', href: '/leads', icon: Phone },
-        ...(isAdmin ? [{ label: 'Members', href: '/members', icon: Users }] : []),
+        ...(isAdmin ? [{ label: 'Team & Access', href: '/members', icon: Users }] : []),
       ]
     }] : []),
     ...(!isCallCenterOnly ? [{

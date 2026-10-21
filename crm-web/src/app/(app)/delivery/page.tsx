@@ -28,7 +28,8 @@ import {
   GraduationCap,
   BookOpen,
   CheckSquare,
-  Square
+  Square,
+  FileText
 } from 'lucide-react'
 import { CLASS_LABELS, MONTH_NAMES, extractLmsNumber } from '@/lib/types'
 import {
@@ -486,19 +487,16 @@ export default function DeliveryPage() {
     const humanTime = now.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
     const batchTag = `BATCH_${timeStampStr}`
 
-    // 1. Generate Post Office CSV
+    // 1. Generate Post Office CSV strictly in specified column sequence:
+    // (Pscode, Grade, Student Name, Parents name, Address, phone number, Enroll Classes & Tute)
     const headers = [
-      'BATCH ID',
-      'DISPATCH TIME',
-      'PS CODE',
-      'STUDENT NAME',
-      'GRADE',
-      'PARENT / RECIPIENT',
-      'PHONE',
-      'DELIVERY ADDRESS',
-      'AREA / ROUTE',
-      'ENROLLED CLASSES & TUTES',
-      'MONTH / YEAR',
+      'PS Code',
+      'Grade',
+      'Student Name',
+      'Parents Name',
+      'Address',
+      'Phone Number',
+      'Enroll Classes & Tute',
     ]
 
     const rows: string[][] = []
@@ -511,17 +509,13 @@ export default function DeliveryPage() {
         paymentIdsToUpdate.push(st.paymentId)
         const courseName = courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type
         rows.push([
-          `"${batchTag}"`,
-          `"${humanTime}"`,
           `"${st.ps_code}"`,
-          `"${(st.full_name || '').replace(/"/g, '""')}"`,
           `"Grade ${st.grade || '?'}"`,
+          `"${(st.full_name || '').replace(/"/g, '""')}"`,
           `"${(g.parent_name || '').replace(/"/g, '""')}"`,
-          `"${(g.parent_phone || '').replace(/"/g, '""')}"`,
           `"${(g.address || '').replace(/"/g, '""')}"`,
-          `"${(g.area || '').replace(/"/g, '""')}"`,
+          `"${(g.parent_phone || '').replace(/"/g, '""')}"`,
           `"${courseName.replace(/"/g, '""')}"`,
-          `"${MONTH_NAMES[month - 1]} ${year}"`,
         ])
       })
     })
@@ -630,6 +624,17 @@ export default function DeliveryPage() {
     }
   }
 
+  // Helper to format address: splits comma-separated address so that the last location/town is placed on a new line
+  function formatEnvelopeAddress(rawAddr: string): string {
+    if (!rawAddr) return ''
+    const trimmed = rawAddr.trim()
+    const parts = trimmed.split(',').map(p => p.trim()).filter(Boolean)
+    if (parts.length <= 1) return trimmed
+    const lastPart = parts[parts.length - 1]
+    const firstPart = parts.slice(0, parts.length - 1).join(', ')
+    return `${firstPart}<br/><span style="display:inline-block; margin-top:2px; font-weight:700;">${lastPart}</span>`
+  }
+
   function printBatchEnvelopes() {
     const targetGroups = visibleGroups.filter(g => selectedHouseholds.has(g.household_id))
     if (targetGroups.length === 0) {
@@ -639,33 +644,114 @@ export default function DeliveryPage() {
 
     const win = window.open('', '_blank')
     win?.document.write(`
+      <!DOCTYPE html>
       <html>
         <head>
+          <meta charset="utf-8" />
           <title>Tute Delivery Envelopes — ${MONTH_NAMES[month - 1]} ${year}</title>
           <style>
-            @page { size: A4 portrait; margin: 10mm; }
-            body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #fff; color: #000; }
-            .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; }
+            @page {
+              size: A4 portrait;
+              margin: 8mm;
+            }
+            * { box-sizing: border-box; }
+            body {
+              font-family: Arial, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              margin: 0;
+              padding: 0;
+              background: #fff;
+              color: #000;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            .grid {
+              display: grid;
+              grid-template-columns: 1fr 1fr;
+              gap: 8mm;
+            }
             .card {
               border: 2px solid #000;
-              border-radius: 8px;
-              padding: 16px;
-              box-sizing: border-box;
+              border-radius: 6px;
+              padding: 12px 14px;
               page-break-inside: avoid;
-              min-height: 120mm;
+              break-inside: avoid;
+              min-height: 85mm;
               display: flex;
               flex-direction: column;
               justify-content: space-between;
+              background: #fff;
             }
-            .header { border-bottom: 2px dashed #000; padding-bottom: 8px; margin-bottom: 12px; }
-            .title { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 1px; color: #555; }
-            .to-name { font-size: 16px; font-weight: bold; margin-top: 4px; }
-            .phone { font-size: 13px; font-weight: bold; color: #222; margin-top: 2px; }
-            .address { font-size: 14px; line-height: 1.4; margin-top: 6px; white-space: pre-line; }
-            .area { font-size: 12px; font-weight: bold; margin-top: 6px; background: #eee; padding: 2px 6px; display: inline-block; border-radius: 4px; }
-            .pack-list { border-top: 1px solid #ccc; padding-top: 10px; margin-top: 10px; }
-            .pack-title { font-size: 11px; font-weight: bold; text-transform: uppercase; margin-bottom: 6px; }
-            .item { font-size: 12px; margin-bottom: 4px; }
+            .top-left {
+              text-align: left;
+            }
+            .envelope-badge {
+              font-size: 9px;
+              font-weight: 800;
+              text-transform: uppercase;
+              letter-spacing: 0.5px;
+              color: #444;
+              border-bottom: 1.5px solid #000;
+              padding-bottom: 4px;
+              margin-bottom: 8px;
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+            }
+            .recipient-name {
+              font-size: 15px;
+              font-weight: 800;
+              color: #000;
+              line-height: 1.2;
+              margin-bottom: 4px;
+            }
+            .recipient-address {
+              font-size: 13px;
+              color: #111;
+              line-height: 1.35;
+              margin-bottom: 6px;
+            }
+            .recipient-phone {
+              font-size: 13px;
+              font-weight: 700;
+              color: #000;
+              display: flex;
+              align-items: center;
+              gap: 4px;
+            }
+            .bottom-right {
+              margin-top: 10px;
+              border-top: 1.5px dashed #000;
+              padding-top: 8px;
+              text-align: right;
+            }
+            .ps-code-pill {
+              display: inline-block;
+              font-size: 13px;
+              font-weight: 900;
+              color: #000;
+              background: #f1f5f9;
+              border: 1.5px solid #000;
+              padding: 2px 8px;
+              border-radius: 4px;
+              letter-spacing: 0.5px;
+              margin-bottom: 6px;
+            }
+            .courses-container {
+              display: flex;
+              flex-direction: column;
+              gap: 3px;
+              align-items: flex-end;
+            }
+            .course-row {
+              font-size: 11.5px;
+              line-height: 1.25;
+              color: #000;
+              font-weight: 600;
+            }
+            .course-row span.tute {
+              font-weight: 700;
+              color: #000;
+            }
           </style>
         </head>
         <body onload="window.print()">
@@ -675,26 +761,36 @@ export default function DeliveryPage() {
                 ? g.students.filter(st => !st.dispatched)
                 : g.students
 
+              const uniquePsCodes = Array.from(new Set(studentsToPrint.map(s => s.ps_code))).join(', ')
+
               return `
               <div class="card">
-                <div>
-                  <div class="header">
-                    <div class="title">TUTE DELIVERY ENVELOPE (ONE PACK PER HOUSE)</div>
-                    <div class="to-name">To: ${g.parent_name}</div>
-                    ${g.parent_phone ? `<div class="phone">📞 Phone: ${g.parent_phone}</div>` : ''}
-                    <div class="address">${g.address}</div>
-                    <div class="area">AREA: ${g.area}</div>
+                <!-- TOP LEFT: Name, Address (with last town on new line), Phone -->
+                <div class="top-left">
+                  <div class="envelope-badge">
+                    <span>TO / DELIVER TO:</span>
+                    <span>${g.area ? g.area.toUpperCase() : ''}</span>
                   </div>
+                  <div class="recipient-name">${g.parent_name || 'Guardian / Student'}</div>
+                  <div class="recipient-address">${formatEnvelopeAddress(g.address || '')}</div>
+                  ${g.parent_phone ? `<div class="recipient-phone">☎ ${g.parent_phone}</div>` : ''}
                 </div>
-                <div class="pack-list">
-                  <div class="pack-title">TUTES INSIDE THIS ENVELOPE:</div>
-                  ${studentsToPrint.map(st => {
-                    const cName = courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type
-                    return `
-                    <div class="item">
-                      ✔ <b>[${st.ps_code}]</b> ${st.full_name} (Gr ${st.grade}) — ${cName}
-                    </div>
-                  `}).join('')}
+
+                <!-- BOTTOM RIGHT: PS Code & Bought Courses / Tutes List -->
+                <div class="bottom-right">
+                  <div>
+                    <span class="ps-code-pill">${uniquePsCodes ? `PS: ${uniquePsCodes}` : 'PS CODE'}</span>
+                  </div>
+                  <div class="courses-container">
+                    ${studentsToPrint.map(st => {
+                      const cName = courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type
+                      return `
+                      <div class="course-row">
+                        <span>Gr ${st.grade || '—'}</span> &bull;
+                        <span class="tute">${cName}</span>
+                      </div>
+                    `}).join('')}
+                  </div>
                 </div>
               </div>
             `}).join('')}
@@ -702,6 +798,126 @@ export default function DeliveryPage() {
         </body>
       </html>
     `)
+  }
+
+  // Export Envelope labels directly to Microsoft Word (.doc format)
+  function exportBatchEnvelopesWord() {
+    const targetGroups = visibleGroups.filter(g => selectedHouseholds.has(g.household_id))
+    if (targetGroups.length === 0) {
+      alert('No envelopes selected to export.')
+      return
+    }
+
+    const now = new Date()
+    const timeStampStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`
+
+    let tableRows = ''
+    for (let i = 0; i < targetGroups.length; i += 2) {
+      const g1 = targetGroups[i]
+      const g2 = targetGroups[i + 1]
+
+      const renderCard = (g: typeof g1) => {
+        if (!g) return '<td style="width:50%; border:none;"></td>'
+        const studentsToPrint = activeTab === 'unexported'
+          ? g.students.filter(st => !st.dispatched)
+          : g.students
+        const uniquePsCodes = Array.from(new Set(studentsToPrint.map(s => s.ps_code))).join(', ')
+        const addrFormatted = formatEnvelopeAddress(g.address || '')
+
+        const courseLines = studentsToPrint.map(st => {
+          const cName = courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type
+          return `Gr ${st.grade || '—'} &bull; <b>${cName}</b>`
+        }).join('<br/>')
+
+        return `
+          <td style="width:50%; vertical-align:top; padding:8px;">
+            <table style="width:100%; border:2px solid #000; border-collapse:collapse; padding:12px; font-family:Arial, sans-serif;">
+              <tr>
+                <td style="padding:10px; vertical-align:top;">
+                  <div style="font-size:9pt; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:3px; margin-bottom:6px; color:#333;">
+                    TO / DELIVER TO: ${g.area ? `[${g.area.toUpperCase()}]` : ''}
+                  </div>
+                  <div style="font-size:12pt; font-weight:bold; color:#000; margin-bottom:4px;">
+                    ${g.parent_name || 'Guardian / Student'}
+                  </div>
+                  <div style="font-size:10pt; color:#111; line-height:1.35; margin-bottom:6px;">
+                    ${addrFormatted}
+                  </div>
+                  ${g.parent_phone ? `<div style="font-size:10pt; font-weight:bold;">☎ ${g.parent_phone}</div>` : ''}
+                </td>
+              </tr>
+              <tr>
+                <td style="padding:10px; border-top:1.5px dashed #000; text-align:right; vertical-align:bottom;">
+                  <div style="display:inline-block; border:1.5px solid #000; padding:2px 8px; font-size:10pt; font-weight:bold; margin-bottom:4px;">
+                    PS: ${uniquePsCodes || '—'}
+                  </div>
+                  <div style="font-size:9.5pt; line-height:1.3; color:#111;">
+                    ${courseLines}
+                  </div>
+                </td>
+              </tr>
+            </table>
+          </td>
+        `
+      }
+
+      tableRows += `
+        <tr>
+          ${renderCard(g1)}
+          ${renderCard(g2)}
+        </tr>
+      `
+    }
+
+    const wordContent = `
+      <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+          <meta charset="utf-8">
+          <title>Delivery Envelopes</title>
+          <!--[if gte mso 9]>
+          <xml>
+            <w:WordDocument>
+              <w:View>Print</w:View>
+              <w:Zoom>100</w:Zoom>
+              <w:DoNotOptimizeForBrowser/>
+            </w:WordDocument>
+          </xml>
+          <![endif]-->
+          <style>
+            @page {
+              size: A4 portrait;
+              margin: 10mm 10mm 10mm 10mm;
+              mso-page-orientation: portrait;
+            }
+            body {
+              font-family: Arial, sans-serif;
+              margin: 0;
+              padding: 0;
+            }
+            table {
+              border-collapse: collapse;
+              mso-table-lspace: 0pt;
+              mso-table-rspace: 0pt;
+            }
+          </style>
+        </head>
+        <body>
+          <table style="width:100%; border-collapse:collapse;" cellpadding="0" cellspacing="0">
+            ${tableRows}
+          </table>
+        </body>
+      </html>
+    `
+
+    const blob = new Blob(['\uFEFF' + wordContent], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `Delivery_Envelopes_${MONTH_NAMES[month - 1]}_${year}_(${targetGroups.length}_Houses).doc`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
   }
 
   const selectedCount = visibleGroups.filter(g => selectedHouseholds.has(g.household_id)).length
@@ -789,16 +1005,42 @@ export default function DeliveryPage() {
               >
                 <Printer size={16} /> Print Envelopes ({selectedCount})
               </button>
+              <button
+                onClick={exportBatchEnvelopesWord}
+                disabled={selectedCount === 0}
+                className="btn-primary"
+                style={{
+                  background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 100%)',
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  fontWeight: 600, padding: '9px 18px',
+                  boxShadow: '0 2px 8px rgba(99,102,241,0.2)',
+                  border: '1px solid rgba(99,102,241,0.3)',
+                  opacity: selectedCount === 0 ? 0.6 : 1
+                }}
+                title="Export envelopes to editable Microsoft Word (.doc) format"
+              >
+                <FileText size={16} /> Export Word (.doc)
+              </button>
             </>
           ) : (
-            <button
-              onClick={printBatchEnvelopes}
-              disabled={selectedCount === 0}
-              className="btn-secondary"
-              style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', fontWeight: 600 }}
-            >
-              <Printer size={16} /> Print Selected Envelopes ({selectedCount})
-            </button>
+            <>
+              <button
+                onClick={printBatchEnvelopes}
+                disabled={selectedCount === 0}
+                className="btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', fontWeight: 600 }}
+              >
+                <Printer size={16} /> Print Selected Envelopes ({selectedCount})
+              </button>
+              <button
+                onClick={exportBatchEnvelopesWord}
+                disabled={selectedCount === 0}
+                className="btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '9px 18px', fontWeight: 600 }}
+              >
+                <FileText size={16} /> Export Word (.doc)
+              </button>
+            </>
           )}
         </div>
       </div>
