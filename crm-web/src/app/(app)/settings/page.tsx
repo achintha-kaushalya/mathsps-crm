@@ -78,11 +78,17 @@ export default function SettingsPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
         setEmail(user.email || '')
         setName(user.user_metadata?.full_name || 'Staff Member')
-        setRole(user.user_metadata?.role || 'member')
+        let uRole = user.user_metadata?.role || (user.email?.toLowerCase().includes('admin') ? 'admin' : 'member')
+        if (user.email) {
+          const { data: dbMem } = await supabase.from('members').select('role, notes').eq('email', user.email).single()
+          if (dbMem?.role) uRole = dbMem.role
+        }
+        if (user.email?.toLowerCase().includes('admin')) uRole = 'admin'
+        setRole(uRole)
       }
     })
 
@@ -93,6 +99,8 @@ export default function SettingsPage() {
 
     loadDatabaseSummaryCounts()
   }, [])
+
+  const isAdmin = role === 'admin' || role === 'owner' || (email && email.toLowerCase().includes('admin'))
 
   async function loadDatabaseSummaryCounts() {
     setStatsLoading(true)
@@ -344,8 +352,6 @@ export default function SettingsPage() {
     }
   }
 
-  const isAdmin = role === 'admin'
-
   return (
     <div className="fade-in" style={{ paddingBottom: 60 }}>
       {/* Header */}
@@ -397,89 +403,95 @@ export default function SettingsPage() {
             <span>Account &amp; Security</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('database_backup')}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              boxSizing: 'border-box',
-              border: activeTab === 'database_backup' ? '1px solid var(--accent-blue)' : '1px solid transparent',
-              background: activeTab === 'database_backup' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
-              color: activeTab === 'database_backup' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              whiteSpace: 'nowrap',
-              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
-            }}
-          >
-            <Database size={15} />
-            <span>Database Backup &amp; Recovery</span>
-            <span style={{
-              fontSize: 11,
-              padding: '2px 7px',
-              borderRadius: 10,
-              boxSizing: 'border-box',
-              background: activeTab === 'database_backup' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
-              color: activeTab === 'database_backup' ? '#fff' : 'var(--text-muted)',
-              border: '1px solid ' + (activeTab === 'database_backup' ? 'var(--accent-blue)' : 'var(--border)'),
-              fontWeight: 600
-            }}>
-              {dbCounts.students} students
-            </span>
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('database_backup')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                boxSizing: 'border-box',
+                border: activeTab === 'database_backup' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+                background: activeTab === 'database_backup' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+                color: activeTab === 'database_backup' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                whiteSpace: 'nowrap',
+                transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+              }}
+            >
+              <Database size={15} />
+              <span>Database Backup &amp; Recovery</span>
+              <span style={{
+                fontSize: 11,
+                padding: '2px 7px',
+                borderRadius: 10,
+                boxSizing: 'border-box',
+                background: activeTab === 'database_backup' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
+                color: activeTab === 'database_backup' ? '#fff' : 'var(--text-muted)',
+                border: '1px solid ' + (activeTab === 'database_backup' ? 'var(--accent-blue)' : 'var(--border)'),
+                fontWeight: 600
+              }}>
+                {dbCounts.students} students
+              </span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('email_automation')}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              boxSizing: 'border-box',
-              border: activeTab === 'email_automation' ? '1px solid var(--accent-blue)' : '1px solid transparent',
-              background: activeTab === 'email_automation' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
-              color: activeTab === 'email_automation' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              whiteSpace: 'nowrap',
-              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
-            }}
-          >
-            <Mail size={15} />
-            <span>Email Reports &amp; Dispatch</span>
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('email_automation')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                boxSizing: 'border-box',
+                border: activeTab === 'email_automation' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+                background: activeTab === 'email_automation' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+                color: activeTab === 'email_automation' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                whiteSpace: 'nowrap',
+                transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+              }}
+            >
+              <Mail size={15} />
+              <span>Email Reports &amp; Dispatch</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('diagnostics')}
-            style={{
-              padding: '8px 16px',
-              borderRadius: 8,
-              boxSizing: 'border-box',
-              border: activeTab === 'diagnostics' ? '1px solid var(--accent-blue)' : '1px solid transparent',
-              background: activeTab === 'diagnostics' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
-              color: activeTab === 'diagnostics' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8,
-              whiteSpace: 'nowrap',
-              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
-            }}
-          >
-            <Cpu size={15} />
-            <span>System Diagnostics</span>
-          </button>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('diagnostics')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                boxSizing: 'border-box',
+                border: activeTab === 'diagnostics' ? '1px solid var(--accent-blue)' : '1px solid transparent',
+                background: activeTab === 'diagnostics' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
+                color: activeTab === 'diagnostics' ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                whiteSpace: 'nowrap',
+                transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+              }}
+            >
+              <Cpu size={15} />
+              <span>System Diagnostics</span>
+            </button>
+          )}
         </div>
 
         {/* ========================================================================= */}
@@ -623,9 +635,9 @@ export default function SettingsPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 2: DATABASE BACKUP & RECOVERY                                         */}
+        {/* TAB 2: DATABASE BACKUP & RECOVERY (ADMIN ONLY)                            */}
         {/* ========================================================================= */}
-        {activeTab === 'database_backup' && (
+        {isAdmin && activeTab === 'database_backup' && (
           <div className="fade-in">
             {/* Health & Live Record Stats */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14, marginBottom: 20 }}>
@@ -737,18 +749,18 @@ export default function SettingsPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 3: EMAIL REPORTS & DISPATCH CENTER                                    */}
+        {/* TAB 3: EMAIL REPORTS & DISPATCH CENTER (ADMIN ONLY)                       */}
         {/* ========================================================================= */}
-        {activeTab === 'email_automation' && (
+        {isAdmin && activeTab === 'email_automation' && (
           <div className="fade-in">
             <EmailAutomationCard />
           </div>
         )}
 
         {/* ========================================================================= */}
-        {/* TAB 4: SYSTEM DIAGNOSTICS                                                 */}
+        {/* TAB 4: SYSTEM DIAGNOSTICS (ADMIN ONLY)                                    */}
         {/* ========================================================================= */}
-        {activeTab === 'diagnostics' && (
+        {isAdmin && activeTab === 'diagnostics' && (
           <div className="fade-in" style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: 20 }}>
             {/* System Info Card */}
             <div className="glass-card" style={{ padding: 24, borderLeft: '4px solid #fcd34d', boxShadow: '0 4px 20px -4px rgba(245, 158, 11, 0.25)' }}>

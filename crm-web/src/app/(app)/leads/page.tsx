@@ -427,67 +427,83 @@ export default function MasterLeadsSpreadsheet() {
   }
 
   return (
-    <div className="fade-in" style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+    <div className="fade-in" style={{ paddingBottom: 60 }}>
       {/* Header */}
-      <div className="page-header">
+      <div className="page-header" style={{ marginBottom: 16 }}>
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 700, margin: 0 }}>
+          <h1 style={{ fontSize: 22, fontWeight: 800, margin: 0, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 10 }}>
+            <Phone size={22} style={{ color: 'var(--accent-blue)' }} />
             Master Leads Grid
           </h1>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 3, display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span>Logged in as: <b>{currentMemberName || 'Staff'}</b></span>
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, background: 'var(--bg-base)', padding: '2px 8px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 12 }}>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span>Logged in as: <b style={{ color: 'var(--text-primary)' }}>{currentMemberName || 'Staff'}</b></span>
+            <span style={{
+              display: 'inline-flex', alignItems: 'center', gap: 5,
+              background: isAdmin ? 'rgba(56, 189, 248, 0.12)' : 'rgba(148, 163, 184, 0.12)',
+              color: isAdmin ? 'var(--accent-blue)' : 'var(--text-secondary)',
+              padding: '3px 10px', borderRadius: 8,
+              border: `1px solid ${isAdmin ? 'rgba(56, 189, 248, 0.3)' : 'var(--border)'}`,
+              fontSize: 12, fontWeight: 700
+            }}>
               {isAdmin ? (
                 <>
-                  <Shield size={12} style={{ color: 'var(--accent-blue)' }} /> Admin Access
+                  <Shield size={13} style={{ color: 'var(--accent-blue)' }} /> Admin Access (Global Leads)
                 </>
               ) : (
                 <>
-                  <Lock size={12} style={{ color: 'var(--text-muted)' }} /> Member Access — Can edit own assigned records
+                  <Lock size={13} style={{ color: 'var(--text-muted)' }} /> Member Access (Edit Assigned Records)
                 </>
               )}
             </span>
           </div>
         </div>
         <div style={{ display: 'flex', gap: 10 }}>
-          <button onClick={() => loadLeads(page)} className="btn-secondary">
-            <RefreshCw size={14} /> Refresh
+          <button onClick={() => loadLeads(page)} className="btn-secondary" style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} /> Refresh Grid
           </button>
         </div>
       </div>
 
-      {/* Filters */}
-      <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
-        <div style={{ position: 'relative', flex: 1, maxWidth: 320 }}>
-          <Search size={14} style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-          <input
-            className="search-bar"
-            style={{ paddingLeft: 32, height: 32, fontSize: 12.5 }}
-            placeholder="Search phone, F-code, campaign, comments..."
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-          />
+      {/* Main Glassmorphic Spreadsheet Container */}
+      <div className="glass-card" style={{ padding: 0, overflow: 'hidden', border: '1px solid var(--border)' }}>
+        {/* Filters Bar */}
+        <div style={{
+          padding: '12px 20px',
+          borderBottom: '1px solid var(--border)',
+          display: 'flex', gap: 12, alignItems: 'center',
+          flexWrap: 'wrap',
+          background: 'rgba(255, 255, 255, 0.02)'
+        }}>
+          <div style={{ position: 'relative', flex: 1, minWidth: 240, maxWidth: 360 }}>
+            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              className="search-bar"
+              style={{ paddingLeft: 34, height: 34, fontSize: 12.5 }}
+              placeholder="Search phone, F-code, campaign, comments..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          <select className="input-field" style={{ width: 140, height: 34, fontSize: 12, paddingLeft: 10 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="">All Statuses</option>
+            {LEAD_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select className="input-field" style={{ width: 160, height: 34, fontSize: 12, paddingLeft: 10 }} value={memberFilter} onChange={e => setMemberFilter(e.target.value)}>
+            <option value="">{isAdmin || canViewAll ? 'All Members' : 'My Visible Team'}</option>
+            {members
+              .filter(m => isAdmin || canViewAll || [currentMemberName, ...allowedMembers].includes(m))
+              .map(m => <option key={m} value={m}>{m}</option>)}
+          </select>
+          <div style={{ marginLeft: 'auto', fontSize: 12, color: 'var(--text-muted)', whiteSpace: 'nowrap', fontWeight: 600 }}>
+            Page {page + 1} of {Math.max(1, Math.ceil(total / PAGE_SIZE))} &bull; <span style={{ color: 'var(--text-primary)' }}>{total.toLocaleString()}</span> leads
+          </div>
         </div>
-        <select className="input-field" style={{ width: 136, height: 32, fontSize: 12, paddingLeft: 10 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          <option value="">All Statuses</option>
-          {LEAD_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-        </select>
-        <select className="input-field" style={{ width: 148, height: 32, fontSize: 12, paddingLeft: 10 }} value={memberFilter} onChange={e => setMemberFilter(e.target.value)}>
-          <option value="">{isAdmin || canViewAll ? 'All Members' : 'My Visible Team'}</option>
-          {members
-            .filter(m => isAdmin || canViewAll || [currentMemberName, ...allowedMembers].includes(m))
-            .map(m => <option key={m} value={m}>{m}</option>)}
-        </select>
-        <div style={{ fontSize: 11.5, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-          Page {page + 1} of {Math.ceil(total / PAGE_SIZE)} ({total.toLocaleString()} total)
-        </div>
-      </div>
 
-      {/* Data Grid */}
-      <div style={{ flex: 1, overflowX: 'auto', overflowY: 'auto' }}>
-        <table className="data-table" style={{ fontSize: 11.5, width: '100%', minWidth: '100%' }}>
-          <thead>
-            <tr style={{ background: '#f8fafc' }}>
+        {/* Data Grid Table */}
+        <div style={{ overflowX: 'auto', maxHeight: 'calc(100vh - 280px)' }}>
+          <table className="data-table" style={{ fontSize: 11.5, width: '100%', minWidth: '100%' }}>
+            <thead>
+              <tr style={{ background: 'var(--table-header-bg, #0d1424)' }}>
               <th style={{ width: 28, textAlign: 'center', whiteSpace: 'nowrap' }}>
                 <Lock size={12} style={{ margin: '0 auto', color: 'var(--text-muted)' }} />
               </th>
@@ -831,12 +847,13 @@ export default function MasterLeadsSpreadsheet() {
       </div>
 
       {/* Pagination */}
-      <div style={{ padding: '12px 28px', borderTop: '1px solid var(--border)', display: 'flex', gap: 10, alignItems: 'center' }}>
+      <div style={{ padding: '12px 24px', borderTop: '1px solid var(--border)', display: 'flex', gap: 12, alignItems: 'center', background: 'rgba(255, 255, 255, 0.01)' }}>
         <button className="btn-secondary" onClick={() => setPage(p => Math.max(0, p - 1))} disabled={page === 0}>← Prev</button>
         <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>
           Showing {page * PAGE_SIZE + 1}–{Math.min((page + 1) * PAGE_SIZE, total)} of {total.toLocaleString()}
         </span>
         <button className="btn-secondary" onClick={() => setPage(p => p + 1)} disabled={(page + 1) * PAGE_SIZE >= total}>Next →</button>
+      </div>
       </div>
 
       {/* Confirmation Modal */}
