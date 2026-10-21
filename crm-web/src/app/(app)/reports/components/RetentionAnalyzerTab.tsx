@@ -71,7 +71,7 @@ export default function RetentionAnalyzerTab({
   const paginatedList = filteredRetentionList.slice((safePage - 1) * pageSize, safePage * pageSize)
 
   return (
-    <div className="fade-in">
+    <div>
       {/* Filter & Export Bar */}
       <div className="glass-card" style={{ padding: 18, marginBottom: 20, display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 14, alignItems: 'center', flexWrap: 'wrap' }}>

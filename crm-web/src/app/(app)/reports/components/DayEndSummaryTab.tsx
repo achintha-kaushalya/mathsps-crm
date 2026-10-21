@@ -82,7 +82,7 @@ export default function DayEndSummaryTab({
   const periodLabel = isSingleDay ? startDate : `${startDate} to ${endDate}`
 
   return (
-    <div className="fade-in">
+    <div>
       {/* Control & Date Bar */}
       <div className="glass-card" style={{ padding: 18, marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'flex-end', justifyContent: 'space-between', marginBottom: 14 }}>

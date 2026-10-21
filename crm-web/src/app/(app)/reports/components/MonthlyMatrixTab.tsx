@@ -193,7 +193,7 @@ export default function MonthlyMatrixTab({
   const standaloneCoursesList = allCourseBreakdownList.filter(c => c.isStandalone || c.grade === 0)
 
   return (
-    <div className="fade-in">
+    <div>
       {/* Filter & Sub-view Switcher Bar */}
       <div className="glass-card" style={{ padding: 18, marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>

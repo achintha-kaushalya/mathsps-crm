@@ -68,7 +68,7 @@ export default function MultiMonthTrendsTab({
   const gradeColorMap = GRADE_COLOR_MAP
 
   return (
-    <div className="fade-in">
+    <div>
       {/* Control & Filter Dashboard */}
       <div className="glass-card" style={{ padding: 18, marginBottom: 20 }}>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>

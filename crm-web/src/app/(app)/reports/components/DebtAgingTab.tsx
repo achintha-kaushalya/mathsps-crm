@@ -138,7 +138,7 @@ export default function DebtAgingTab({
   }, [processedDebtors])
 
   return (
-    <div className="fade-in">
+    <div>
       {/* 1. Header & Summary Stats */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
         <div className="stat-card" style={{ borderLeft: '4px solid #ef4444', boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)' }}>

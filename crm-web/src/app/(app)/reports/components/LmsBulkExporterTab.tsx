@@ -336,7 +336,7 @@ export default function LmsBulkExporterTab({
   const yearOptions = [currentActualYear + 1, currentActualYear, currentActualYear - 1, currentActualYear - 2, currentActualYear - 3]
 
   return (
-    <div className="fade-in">
+    <div>
       {/* Top Banner */}
       <div className="glass-card" style={{ padding: 20, marginBottom: 20, borderLeft: '4px solid var(--accent-blue)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 14 }}>
         <div>

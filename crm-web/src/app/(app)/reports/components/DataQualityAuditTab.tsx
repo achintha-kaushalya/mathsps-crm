@@ -129,7 +129,7 @@ export default function DataQualityAuditTab({
   }, [allPaymentsMonth])
 
   return (
-    <div className="fade-in">
+    <div>
       {/* 1. Quality Scanner Metric Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 14, marginBottom: 20 }}>
         {/* Missing LMS Card */}
