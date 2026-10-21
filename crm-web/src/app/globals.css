@@ -292,7 +292,7 @@ select {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 .btn-primary:hover { background: var(--accent-blue-dark); }
-.btn-primary:active { transform: scale(0.98); }
+.btn-primary:active { opacity: 0.92; }
 
 .btn-secondary {
   background: var(--bg-card);
@@ -524,11 +524,11 @@ select {
 }
 
 /* Animations */
-@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
-.fade-in { animation: fadeIn 0.2s ease forwards; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.fade-in { animation: fadeIn 0.15s ease forwards; }
 
-@keyframes slideIn { from { transform: translateX(-8px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-.slide-in { animation: slideIn 0.2s ease forwards; }
+@keyframes slideIn { from { opacity: 0; } to { opacity: 1; } }
+.slide-in { animation: slideIn 0.15s ease forwards; }
 
 /* Responsive */
 @media (max-width: 768px) {

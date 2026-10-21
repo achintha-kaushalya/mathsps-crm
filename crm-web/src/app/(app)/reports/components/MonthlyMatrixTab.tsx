@@ -396,15 +396,17 @@ export default function MonthlyMatrixTab({
             style={{
               padding: '6px 14px',
               fontSize: 12,
-              fontWeight: 700,
+              fontWeight: 600,
               borderRadius: 8,
-              border: 'none',
+              boxSizing: 'border-box',
+              border: monthlySubTab === 'matrix' ? '1px solid var(--accent-blue)' : '1px solid var(--border)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
               background: monthlySubTab === 'matrix' ? 'var(--accent-blue)' : 'var(--bg-base)',
-              color: monthlySubTab === 'matrix' ? '#fff' : 'var(--text-secondary)'
+              color: monthlySubTab === 'matrix' ? '#fff' : 'var(--text-secondary)',
+              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
             }}
           >
             <Calendar size={15} />
@@ -417,15 +419,17 @@ export default function MonthlyMatrixTab({
             style={{
               padding: '6px 14px',
               fontSize: 12,
-              fontWeight: 700,
+              fontWeight: 600,
               borderRadius: 8,
-              border: 'none',
+              boxSizing: 'border-box',
+              border: monthlySubTab === 'courses' ? '1px solid #7c3aed' : '1px solid var(--border)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
               background: monthlySubTab === 'courses' ? '#7c3aed' : 'var(--bg-base)',
-              color: monthlySubTab === 'courses' ? '#fff' : 'var(--text-secondary)'
+              color: monthlySubTab === 'courses' ? '#fff' : 'var(--text-secondary)',
+              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
             }}
           >
             <BookOpen size={15} />
@@ -438,15 +442,17 @@ export default function MonthlyMatrixTab({
             style={{
               padding: '6px 14px',
               fontSize: 12,
-              fontWeight: 700,
+              fontWeight: 600,
               borderRadius: 8,
-              border: 'none',
+              boxSizing: 'border-box',
+              border: monthlySubTab === 'bank' ? '1px solid var(--accent-blue)' : '1px solid var(--border)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
               background: monthlySubTab === 'bank' ? 'var(--accent-blue)' : 'var(--bg-base)',
-              color: monthlySubTab === 'bank' ? '#fff' : 'var(--text-secondary)'
+              color: monthlySubTab === 'bank' ? '#fff' : 'var(--text-secondary)',
+              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
             }}
           >
             <Building2 size={15} />
@@ -459,15 +465,17 @@ export default function MonthlyMatrixTab({
             style={{
               padding: '6px 14px',
               fontSize: 12,
-              fontWeight: 700,
+              fontWeight: 600,
               borderRadius: 8,
-              border: 'none',
+              boxSizing: 'border-box',
+              border: monthlySubTab === 'registrations' ? '1px solid var(--accent-blue)' : '1px solid var(--border)',
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 6,
               background: monthlySubTab === 'registrations' ? 'var(--accent-blue)' : 'var(--bg-base)',
-              color: monthlySubTab === 'registrations' ? '#fff' : 'var(--text-secondary)'
+              color: monthlySubTab === 'registrations' ? '#fff' : 'var(--text-secondary)',
+              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
             }}
           >
             <Users size={15} />

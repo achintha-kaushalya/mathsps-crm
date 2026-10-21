@@ -638,17 +638,18 @@ export default function CoursesManagerPage() {
             style={{
               padding: '8px 16px',
               borderRadius: 8,
+              boxSizing: 'border-box',
               border: selectedGradeTab === 'standalone' ? '1px solid var(--accent-blue)' : '1px solid transparent',
               background: selectedGradeTab === 'standalone' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
               color: selectedGradeTab === 'standalone' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-              fontWeight: selectedGradeTab === 'standalone' ? 700 : 500,
+              fontWeight: 600,
               fontSize: 13,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 8,
               whiteSpace: 'nowrap',
-              transition: 'all 0.15s ease'
+              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
             }}
           >
             <BookOpen size={15} />
@@ -657,10 +658,11 @@ export default function CoursesManagerPage() {
               fontSize: 11,
               padding: '2px 7px',
               borderRadius: 10,
+              boxSizing: 'border-box',
               background: selectedGradeTab === 'standalone' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
               color: selectedGradeTab === 'standalone' ? '#fff' : 'var(--text-muted)',
-              border: selectedGradeTab === 'standalone' ? 'none' : '1px solid var(--border)',
-              fontWeight: 700
+              border: '1px solid ' + (selectedGradeTab === 'standalone' ? 'var(--accent-blue)' : 'var(--border)'),
+              fontWeight: 600
             }}>
               {standaloneCourses.length}
             </span>
@@ -679,17 +681,18 @@ export default function CoursesManagerPage() {
                 style={{
                   padding: '8px 14px',
                   borderRadius: 8,
+                  boxSizing: 'border-box',
                   border: isSelected ? '1px solid var(--accent-blue)' : '1px solid transparent',
                   background: isSelected ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
                   color: isSelected ? 'var(--accent-blue)' : 'var(--text-secondary)',
-                  fontWeight: isSelected ? 700 : 500,
+                  fontWeight: 600,
                   fontSize: 13,
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
                   gap: 7,
                   whiteSpace: 'nowrap',
-                  transition: 'all 0.15s ease'
+                  transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
                 }}
               >
                 <span>Grade {g}</span>
@@ -697,10 +700,11 @@ export default function CoursesManagerPage() {
                   fontSize: 11,
                   padding: '2px 7px',
                   borderRadius: 10,
+                  boxSizing: 'border-box',
                   background: isSelected ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
                   color: isSelected ? '#fff' : 'var(--text-muted)',
-                  border: isSelected ? 'none' : '1px solid var(--border)',
-                  fontWeight: 700
+                  border: '1px solid ' + (isSelected ? 'var(--accent-blue)' : 'var(--border)'),
+                  fontWeight: 600
                 }}>
                   {count}
                 </span>
@@ -716,17 +720,18 @@ export default function CoursesManagerPage() {
             style={{
               padding: '8px 16px',
               borderRadius: 8,
+              boxSizing: 'border-box',
               border: selectedGradeTab === 'payments' ? '1px solid var(--accent-blue)' : '1px solid transparent',
               background: selectedGradeTab === 'payments' ? 'rgba(56, 189, 248, 0.12)' : 'transparent',
               color: selectedGradeTab === 'payments' ? 'var(--accent-blue)' : 'var(--text-secondary)',
-              fontWeight: selectedGradeTab === 'payments' ? 700 : 500,
+              fontWeight: 600,
               fontSize: 13,
               cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
               gap: 8,
               whiteSpace: 'nowrap',
-              transition: 'all 0.15s ease'
+              transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
             }}
           >
             <CreditCard size={15} />
@@ -735,10 +740,11 @@ export default function CoursesManagerPage() {
               fontSize: 11,
               padding: '2px 7px',
               borderRadius: 10,
+              boxSizing: 'border-box',
               background: selectedGradeTab === 'payments' ? 'var(--accent-blue)' : 'var(--bg-card-hover)',
               color: selectedGradeTab === 'payments' ? '#fff' : 'var(--text-muted)',
-              border: selectedGradeTab === 'payments' ? 'none' : '1px solid var(--border)',
-              fontWeight: 700
+              border: '1px solid ' + (selectedGradeTab === 'payments' ? 'var(--accent-blue)' : 'var(--border)'),
+              fontWeight: 600
             }}>
               {paymentMethods.length + banks.length}
             </span>

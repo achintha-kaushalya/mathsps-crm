@@ -229,7 +229,7 @@ export default function Sidebar() {
                         background: active ? '#f0fdfa' : 'transparent',
                         border: active ? '1.5px solid #0d9488' : '1.5px solid transparent',
                         color: active ? '#0f766e' : '#475569',
-                        fontWeight: active ? 700 : 600,
+                        fontWeight: 600,
                         fontSize: 13,
                         transition: 'all 0.15s ease'
                       }}

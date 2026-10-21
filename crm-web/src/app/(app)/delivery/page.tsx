@@ -1193,12 +1193,13 @@ export default function DeliveryPage() {
                   padding: '4px 10px',
                   borderRadius: 20,
                   fontSize: 12,
-                  fontWeight: selectedGrades.length === 0 && !includeStandaloneOnly ? 700 : 500,
+                  boxSizing: 'border-box',
+                  fontWeight: 600,
                   cursor: 'pointer',
                   border: selectedGrades.length === 0 && !includeStandaloneOnly ? '1px solid #f97316' : '1px solid var(--border)',
                   background: selectedGrades.length === 0 && !includeStandaloneOnly ? '#f97316' : 'var(--bg-base)',
                   color: selectedGrades.length === 0 && !includeStandaloneOnly ? '#fff' : 'var(--text-secondary)',
-                  transition: 'all 0.15s ease'
+                  transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
                 }}
               >
                 All
@@ -1223,7 +1224,8 @@ export default function DeliveryPage() {
                       padding: '4px 9px',
                       borderRadius: 20,
                       fontSize: 12,
-                      fontWeight: isSelected ? 700 : 500,
+                      boxSizing: 'border-box',
+                      fontWeight: 600,
                       cursor: 'pointer',
                       border: isSelected ? '1px solid #f97316' : '1px solid var(--border)',
                       background: isSelected ? 'rgba(249, 115, 22, 0.15)' : 'var(--bg-base)',
@@ -1231,7 +1233,7 @@ export default function DeliveryPage() {
                       display: 'inline-flex',
                       alignItems: 'center',
                       gap: 4,
-                      transition: 'all 0.15s ease'
+                      transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
                     }}
                   >
                     {isSelected && <Check size={11} />} Gr {gr}
@@ -1250,7 +1252,8 @@ export default function DeliveryPage() {
                   padding: '4px 10px',
                   borderRadius: 20,
                   fontSize: 12,
-                  fontWeight: includeStandaloneOnly ? 700 : 500,
+                  boxSizing: 'border-box',
+                  fontWeight: 600,
                   cursor: 'pointer',
                   border: includeStandaloneOnly ? '1px solid var(--accent-blue)' : '1px solid var(--border)',
                   background: includeStandaloneOnly ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-base)',
@@ -1646,10 +1649,11 @@ export default function DeliveryPage() {
                           width: 34,
                           height: 34,
                           borderRadius: 8,
+                          boxSizing: 'border-box',
                           border: pageNum === currentPage ? '1px solid #f97316' : '1px solid var(--border)',
                           background: pageNum === currentPage ? '#f97316' : 'var(--bg-base)',
                           color: pageNum === currentPage ? '#fff' : 'var(--text-primary)',
-                          fontWeight: pageNum === currentPage ? 700 : 500,
+                          fontWeight: 600,
                           fontSize: 13,
                           cursor: 'pointer'
                         }}
