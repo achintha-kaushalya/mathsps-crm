@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { Search, Plus, RefreshCw, Lock, AlertTriangle, Sparkles, UserCheck, Repeat, Shield, Phone, Edit2, Trash2, User } from 'lucide-react'
+import { Search, Plus, RefreshCw, Lock, AlertTriangle, Sparkles, UserCheck, Repeat, Shield, Phone, Edit2, Trash2, User, ChevronDown } from 'lucide-react'
 import { Lead, LEAD_STATUSES } from '@/lib/types'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -82,12 +82,13 @@ export default function MasterLeadsSpreadsheet() {
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (user) {
-        const uName = user.user_metadata?.full_name || user.email?.split('@')[0] || ''
+        let uName = user.user_metadata?.full_name || user.email?.split('@')[0] || ''
         let uRole = user.user_metadata?.role || (user.email?.toLowerCase().includes('admin') ? 'admin' : 'member')
 
         if (user.email) {
-          const { data: dbMem } = await supabase.from('members').select('role, notes').eq('email', user.email).single()
+          const { data: dbMem } = await supabase.from('members').select('name, role, notes').eq('email', user.email).single()
           if (dbMem) {
+            if (dbMem.name) uName = dbMem.name
             if (dbMem.role) uRole = dbMem.role
             try {
               if (dbMem.notes) {
@@ -678,16 +679,38 @@ export default function MasterLeadsSpreadsheet() {
                   </td>
 
                   {/* Assigned Member */}
-                  <td style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  <td style={{ maxWidth: 84, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {isAdmin ? (
-                      <GridSelect
-                        editable={true}
-                        value={lead.assigned_member || 'unassigned'}
-                        options={members}
-                        onSave={v => saveCell(lead.id, 'assigned_member', v, lead)}
-                      />
+                      <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center', width: '100%' }}>
+                        <select
+                          value={lead.assigned_member || 'unassigned'}
+                          onChange={e => saveCell(lead.id, 'assigned_member', e.target.value, lead)}
+                          style={{
+                            fontSize: 11,
+                            padding: '2px 14px 2px 4px',
+                            borderRadius: 4,
+                            background: 'transparent',
+                            color: lead.assigned_member === currentMemberName ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                            border: '1px solid transparent',
+                            outline: 'none',
+                            cursor: 'pointer',
+                            width: '100%',
+                            appearance: 'none',
+                            WebkitAppearance: 'none',
+                          }}
+                          onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+                          onMouseLeave={e => (e.currentTarget.style.borderColor = 'transparent')}
+                          title="Click to reassign member"
+                        >
+                          <option value="unassigned" style={{ background: '#0f172a' }}>unassigned</option>
+                          {members.map(m => (
+                            <option key={m} value={m} style={{ background: '#0f172a' }}>{m}</option>
+                          ))}
+                        </select>
+                        <ChevronDown size={10} style={{ position: 'absolute', right: 2, pointerEvents: 'none', opacity: 0.5 }} />
+                      </div>
                     ) : (
-                      <span style={{ fontSize: 11.5, color: lead.assigned_member === currentMemberName ? 'var(--accent-blue)' : 'var(--text-secondary)' }}>
+                      <span style={{ fontSize: 11.5, color: lead.assigned_member === currentMemberName ? 'var(--accent-blue)' : 'var(--text-secondary)', fontWeight: lead.assigned_member === currentMemberName ? 600 : 400 }}>
                         {lead.assigned_member || '—'}
                       </span>
                     )}
@@ -936,18 +959,63 @@ function GridCell({ editable, value, onSave, onFocus }: { editable: boolean; val
 
 function GridSelect({ editable, value, options, badgeClass, onSave }: { editable: boolean; value: string; options: string[]; badgeClass?: string; onSave: (v: string) => void }) {
   if (!editable) {
-    return <span className={`badge ${badgeClass || 'status-default'}`} style={{ fontSize: 10.5, padding: '2px 6px' }}>{value}</span>
+    return (
+      <span
+        className={`badge ${badgeClass || 'status-default'}`}
+        style={{
+          fontSize: 11,
+          padding: '3px 8px',
+          fontWeight: 600,
+          borderRadius: 6,
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 4,
+          opacity: 0.9,
+          cursor: 'default',
+        }}
+      >
+        {value}
+      </span>
+    )
   }
 
   return (
-    <select
-      className="input-field"
-      style={{ padding: '1px 4px', fontSize: 11, height: 22, background: 'transparent' }}
-      value={value}
-      onChange={e => onSave(e.target.value)}
-    >
-      {options.map(o => <option key={o} value={o} style={{ background: '#0d1424' }}>{o}</option>)}
-    </select>
+    <div style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+      <select
+        value={value}
+        onChange={e => onSave(e.target.value)}
+        className={`badge ${badgeClass || 'status-default'}`}
+        style={{
+          fontSize: 11,
+          padding: '3px 20px 3px 8px',
+          fontWeight: 600,
+          borderRadius: 6,
+          cursor: 'pointer',
+          appearance: 'none',
+          WebkitAppearance: 'none',
+          MozAppearance: 'none',
+          border: '1px solid currentColor',
+          outline: 'none',
+          transition: 'all 0.15s ease',
+        }}
+        title="Click to change status"
+      >
+        {options.map(o => (
+          <option key={o} value={o} style={{ background: '#0f172a', color: '#f8fafc', fontWeight: 500 }}>
+            {o}
+          </option>
+        ))}
+      </select>
+      <ChevronDown
+        size={11}
+        style={{
+          position: 'absolute',
+          right: 6,
+          pointerEvents: 'none',
+          opacity: 0.7,
+        }}
+      />
+    </div>
   )
 }
 
