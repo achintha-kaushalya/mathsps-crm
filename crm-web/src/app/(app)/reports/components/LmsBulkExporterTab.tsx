@@ -382,34 +382,48 @@ export default function LmsBulkExporterTab({
             <label style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 6, fontWeight: 700 }}>
               1. Access Period / Source
             </label>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              <button
-                type="button"
-                onClick={() => setSourceType('monthly')}
-                className={sourceType === 'monthly' ? 'btn-primary' : 'btn-secondary'}
-                style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <Video size={14} />
-                Monthly / Previous Month Recording
-              </button>
-              <button
-                type="button"
-                onClick={() => setSourceType('daily')}
-                className={sourceType === 'daily' ? 'btn-primary' : 'btn-secondary'}
-                style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <Calendar size={14} />
-                Day-End / Range ({startDate === endDate ? startDate : `${startDate} to ${endDate}`})
-              </button>
-              <button
-                type="button"
-                onClick={() => setSourceType('registrations')}
-                className={sourceType === 'registrations' ? 'btn-primary' : 'btn-secondary'}
-                style={{ padding: '6px 14px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <GraduationCap size={14} />
-                New Registrations
-              </button>
+            <div style={{
+              display: 'flex',
+              gap: 4,
+              flexWrap: 'wrap',
+              background: 'var(--bg-base)',
+              padding: '4px 6px',
+              borderRadius: 10,
+              border: '1px solid var(--border)'
+            }}>
+              {[
+                { key: 'monthly', icon: <Video size={14} />, label: 'Monthly / Previous Month Recording' },
+                { key: 'daily', icon: <Calendar size={14} />, label: `Day-End / Range (${startDate === endDate ? startDate : `${startDate} to ${endDate}`})` },
+                { key: 'registrations', icon: <GraduationCap size={14} />, label: 'New Registrations' }
+              ].map(item => {
+                const isSelected = sourceType === item.key
+                return (
+                  <button
+                    key={item.key}
+                    type="button"
+                    onClick={() => setSourceType(item.key as any)}
+                    style={{
+                      padding: '6px 14px',
+                      fontSize: 12,
+                      borderRadius: 6,
+                      boxSizing: 'border-box',
+                      border: isSelected ? '1px solid var(--accent-blue)' : '1px solid transparent',
+                      background: isSelected ? 'rgba(56, 189, 248, 0.15)' : 'transparent',
+                      color: isSelected ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6,
+                      whiteSpace: 'nowrap',
+                      transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+                    }}
+                  >
+                    {item.icon}
+                    <span>{item.label}</span>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -418,19 +432,19 @@ export default function LmsBulkExporterTab({
             <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: 8,
-              background: 'rgba(56,189,248,0.08)',
+              gap: 10,
+              background: 'rgba(56, 189, 248, 0.08)',
               padding: '6px 12px',
               borderRadius: 10,
-              border: '1px solid rgba(56,189,248,0.25)'
+              border: '1px solid rgba(56, 189, 248, 0.25)'
             }}>
               <div>
-                <label style={{ fontSize: 10, color: 'var(--accent-blue)', textTransform: 'uppercase', display: 'block', marginBottom: 2, fontWeight: 800 }}>
+                <label style={{ fontSize: 10, color: 'var(--accent-blue)', textTransform: 'uppercase', display: 'block', marginBottom: 3, fontWeight: 700 }}>
                   Select Month
                 </label>
                 <select
-                  className="select-input"
-                  style={{ padding: '4px 8px', fontSize: 12, fontWeight: 700, minWidth: 120 }}
+                  className="input-field"
+                  style={{ padding: '6px 28px 6px 10px', fontSize: 12, fontWeight: 600, minWidth: 125, height: 34 }}
                   value={selectedMonth}
                   onChange={e => {
                     const newM = Number(e.target.value)
@@ -447,12 +461,12 @@ export default function LmsBulkExporterTab({
               </div>
 
               <div>
-                <label style={{ fontSize: 10, color: 'var(--accent-blue)', textTransform: 'uppercase', display: 'block', marginBottom: 2, fontWeight: 800 }}>
+                <label style={{ fontSize: 10, color: 'var(--accent-blue)', textTransform: 'uppercase', display: 'block', marginBottom: 3, fontWeight: 700 }}>
                   Year
                 </label>
                 <select
-                  className="select-input"
-                  style={{ padding: '4px 8px', fontSize: 12, fontWeight: 700, minWidth: 80 }}
+                  className="input-field"
+                  style={{ padding: '6px 28px 6px 10px', fontSize: 12, fontWeight: 600, minWidth: 88, height: 34 }}
                   value={selectedYear}
                   onChange={e => {
                     const newY = Number(e.target.value)
@@ -482,8 +496,8 @@ export default function LmsBulkExporterTab({
               2. Filter Grade
             </label>
             <select
-              className="select-input"
-              style={{ padding: '6px 12px', minWidth: 150 }}
+              className="input-field"
+              style={{ padding: '6px 28px 6px 12px', minWidth: 155, height: 34, fontSize: 12.5, fontWeight: 600 }}
               value={selectedGrade}
               onChange={e => setSelectedGrade(e.target.value)}
             >
@@ -502,8 +516,8 @@ export default function LmsBulkExporterTab({
               3. Filter Course / Subject
             </label>
             <select
-              className="select-input"
-              style={{ padding: '6px 12px', minWidth: 260 }}
+              className="input-field"
+              style={{ padding: '6px 28px 6px 12px', minWidth: 260, height: 34, fontSize: 12.5, fontWeight: 600 }}
               value={selectedClassType}
               onChange={e => setSelectedClassType(e.target.value)}
             >
