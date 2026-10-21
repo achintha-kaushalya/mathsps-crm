@@ -20,11 +20,11 @@ const GRADE_BADGE_STYLES: Record<number, { bg: string; color: string; border: st
 }
 
 const AVATAR_PALETTES = [
-  { bg: '#eff6ff', color: '#2563eb', border: '#bfdbfe' },
-  { bg: '#faf5ff', color: '#7c3aed', border: '#ddd6fe' },
-  { bg: '#ecfdf5', color: '#059669', border: '#a7f3d0' },
-  { bg: '#fffbeb', color: '#d97706', border: '#fde68a' },
-  { bg: '#fdf2f8', color: '#db2777', border: '#fbcfe8' },
+  { bg: 'color-mix(in srgb, var(--accent-blue) 14%, var(--bg-card))', color: 'var(--accent-blue)', border: 'color-mix(in srgb, var(--accent-blue) 30%, var(--border))' },
+  { bg: 'color-mix(in srgb, var(--accent-purple) 14%, var(--bg-card))', color: 'var(--accent-purple)', border: 'color-mix(in srgb, var(--accent-purple) 30%, var(--border))' },
+  { bg: 'color-mix(in srgb, var(--accent-green) 14%, var(--bg-card))', color: 'var(--accent-green)', border: 'color-mix(in srgb, var(--accent-green) 30%, var(--border))' },
+  { bg: 'color-mix(in srgb, var(--accent-orange) 14%, var(--bg-card))', color: 'var(--accent-orange)', border: 'color-mix(in srgb, var(--accent-orange) 30%, var(--border))' },
+  { bg: 'color-mix(in srgb, #ec4899 14%, var(--bg-card))', color: '#ec4899', border: 'color-mix(in srgb, #ec4899 30%, var(--border))' },
 ]
 
 export default function StudentsPage() {
@@ -386,85 +386,73 @@ export default function StudentsPage() {
         gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
         gap: 14,
         padding: '16px 28px',
-        background: '#ffffff',
+        background: 'var(--bg-base)',
         borderBottom: '1px solid var(--border)'
       }}>
         {/* KPI 1 */}
         <div className="stat-card" style={{
-          padding: '14px 18px',
-          borderRadius: 16,
-          border: '1px solid var(--border)',
-          borderLeft: '4px solid #38bdf8',
-          boxShadow: '0 4px 20px -4px rgba(56, 189, 248, 0.16)',
+          borderTop: '2px solid var(--accent-blue)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          justifyContent: 'space-between',
+          minHeight: 82
         }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Total Enrolled</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: 'var(--text-primary)', marginTop: 2 }}>{kpiStats.totalStudents.toLocaleString()}</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--text-primary)', marginTop: 2, letterSpacing: '-0.02em' }}>{kpiStats.totalStudents.toLocaleString()}</div>
           </div>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(56, 189, 248, 0.15)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'color-mix(in srgb, var(--accent-blue) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-blue) 25%, var(--border))', color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <User size={18} />
           </div>
         </div>
 
         {/* KPI 2 */}
         <div className="stat-card" style={{
-          padding: '14px 18px',
-          borderRadius: 16,
-          border: '1px solid var(--border)',
-          borderLeft: '4px solid #4ade80',
-          boxShadow: '0 4px 20px -4px rgba(74, 222, 128, 0.16)',
+          borderTop: '2px solid var(--accent-green)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          justifyContent: 'space-between',
+          minHeight: 82
         }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Active This Month</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#10b981', marginTop: 2 }}>{kpiStats.activeThisMonth.toLocaleString()}</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent-green)', marginTop: 2, letterSpacing: '-0.02em' }}>{kpiStats.activeThisMonth.toLocaleString()}</div>
           </div>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(16, 185, 129, 0.15)', color: '#10b981', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'color-mix(in srgb, var(--accent-green) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-green) 25%, var(--border))', color: 'var(--accent-green)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <CheckCircle2 size={18} />
           </div>
         </div>
 
         {/* KPI 3 */}
         <div className="stat-card" style={{
-          padding: '14px 18px',
-          borderRadius: 16,
-          border: '1px solid var(--border)',
-          borderLeft: '4px solid #818cf8',
-          boxShadow: '0 4px 20px -4px rgba(129, 140, 248, 0.16)',
+          borderTop: '2px solid var(--accent-purple)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          justifyContent: 'space-between',
+          minHeight: 82
         }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Grade 10 Batch</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#818cf8', marginTop: 2 }}>{kpiStats.grade10Count.toLocaleString()}</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent-purple)', marginTop: 2, letterSpacing: '-0.02em' }}>{kpiStats.grade10Count.toLocaleString()}</div>
           </div>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(129, 140, 248, 0.15)', color: '#818cf8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'color-mix(in srgb, var(--accent-purple) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-purple) 25%, var(--border))', color: 'var(--accent-purple)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <BookOpen size={18} />
           </div>
         </div>
 
         {/* KPI 4 */}
         <div className="stat-card" style={{
-          padding: '14px 18px',
-          borderRadius: 16,
-          border: '1px solid var(--border)',
-          borderLeft: '4px solid #fcd34d',
-          boxShadow: '0 4px 20px -4px rgba(252, 211, 77, 0.20)',
+          borderTop: '2px solid var(--accent-orange)',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'space-between'
+          justifyContent: 'space-between',
+          minHeight: 82
         }}>
           <div>
             <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Grade 11 Batch</div>
-            <div style={{ fontSize: 22, fontWeight: 800, color: '#f59e0b', marginTop: 2 }}>{kpiStats.grade11Count.toLocaleString()}</div>
+            <div style={{ fontSize: 24, fontWeight: 800, color: 'var(--accent-orange)', marginTop: 2, letterSpacing: '-0.02em' }}>{kpiStats.grade11Count.toLocaleString()}</div>
           </div>
-          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <div style={{ width: 36, height: 36, borderRadius: 10, background: 'color-mix(in srgb, var(--accent-orange) 12%, transparent)', border: '1px solid color-mix(in srgb, var(--accent-orange) 25%, var(--border))', color: 'var(--accent-orange)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
             <Building2 size={18} />
           </div>
         </div>
@@ -737,15 +725,16 @@ export default function StudentsPage() {
                           gap: 4,
                           padding: '4px 9px',
                           borderRadius: 8,
-                          background: 'var(--bg-glass)',
+                          background: 'var(--bg-base)',
+                          border: '1px solid var(--border)',
                           color: 'var(--text-primary)',
                           fontSize: 11.5,
                           fontWeight: 700,
                           textDecoration: 'none',
                           transition: 'all 0.15s ease'
                         }}
-                        onMouseEnter={e => { e.currentTarget.style.background = '#090d16'; e.currentTarget.style.color = '#ffffff' }}
-                        onMouseLeave={e => { e.currentTarget.style.background = '#f1f5f9'; e.currentTarget.style.color = '#334155' }}
+                        onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--accent-blue)'; e.currentTarget.style.color = 'var(--accent-blue)' }}
+                        onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.color = 'var(--text-primary)' }}
                       >
                         Profile <ChevronRight size={12} />
                       </a>

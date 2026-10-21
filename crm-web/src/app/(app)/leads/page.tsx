@@ -506,13 +506,13 @@ export default function MasterLeadsSpreadsheet() {
           </thead>
           <tbody>
             {/* QUICK ADD ROW AT TOP */}
-            <tr style={{ background: 'rgba(59,130,246,0.06)', borderBottom: '2px solid var(--accent-blue)' }}>
-              <td style={{ textAlign: 'center', color: 'var(--accent-blue)' }}><Plus size={14} /></td>
-              <td style={{ color: 'var(--text-muted)', fontSize: 9.5, fontWeight: 700, whiteSpace: 'nowrap' }}>AUTO F-CODE</td>
+            <tr style={{ background: 'var(--bg-card)', borderBottom: '1px solid var(--border)' }}>
+              <td style={{ textAlign: 'center', color: 'var(--accent-blue)' }}><Plus size={13} /></td>
+              <td style={{ color: 'var(--text-muted)', fontSize: 9.5, fontWeight: 700, whiteSpace: 'nowrap' }}>AUTO</td>
               <td>
                 <input
                   className="input-field"
-                  style={{ padding: '2px 4px', fontSize: 11, height: 24 }}
+                  style={{ padding: '2px 6px', fontSize: 11, height: 26, borderRadius: 6 }}
                   placeholder="Raw Phone.."
                   value={newPhone}
                   onChange={e => setNewPhone(e.target.value)}
@@ -527,7 +527,7 @@ export default function MasterLeadsSpreadsheet() {
               <td>
                 <input
                   className="input-field"
-                  style={{ padding: '2px 4px', fontSize: 11, height: 24, textAlign: 'center' }}
+                  style={{ padding: '2px 4px', fontSize: 11, height: 26, textAlign: 'center', borderRadius: 6 }}
                   placeholder="Gr"
                   value={newGrade}
                   onChange={e => setNewGrade(e.target.value)}
@@ -536,7 +536,7 @@ export default function MasterLeadsSpreadsheet() {
               <td>
                 <input
                   className="input-field"
-                  style={{ padding: '2px 4px', fontSize: 11, height: 24 }}
+                  style={{ padding: '2px 6px', fontSize: 11, height: 26, borderRadius: 6 }}
                   placeholder="S26"
                   value={newCampaign}
                   onChange={e => setNewCampaign(e.target.value)}
@@ -546,7 +546,7 @@ export default function MasterLeadsSpreadsheet() {
               <td>
                 <input
                   className="input-field"
-                  style={{ padding: '2px 4px', fontSize: 11, height: 24, width: '100%' }}
+                  style={{ padding: '2px 6px', fontSize: 11, height: 26, width: '100%', borderRadius: 6 }}
                   placeholder="Comments / Call notes..."
                   value={newComment}
                   onChange={e => setNewComment(e.target.value)}
@@ -554,7 +554,7 @@ export default function MasterLeadsSpreadsheet() {
                 />
               </td>
               {/* Duplicate Check */}
-              <td style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Auto Checked</td>
+              <td style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Auto</td>
               {/* Repeat */}
               <td style={{ textAlign: 'center', fontSize: 10, color: 'var(--text-muted)' }}>—</td>
               {/* 2nd Call */}
@@ -563,7 +563,7 @@ export default function MasterLeadsSpreadsheet() {
               <td>
                 <input
                   className="input-field"
-                  style={{ padding: '2px 4px', fontSize: 11, height: 24, width: '100%' }}
+                  style={{ padding: '2px 6px', fontSize: 11, height: 26, width: '100%', borderRadius: 6 }}
                   placeholder="2nd call note..."
                   value={newSecondCallNotes}
                   onChange={e => setNewSecondCallNotes(e.target.value)}
@@ -578,7 +578,7 @@ export default function MasterLeadsSpreadsheet() {
               <td style={{ textAlign: 'center' }}>
                 <button
                   className="btn-primary"
-                  style={{ padding: '2px 6px', fontSize: 10.5, whiteSpace: 'nowrap', height: 24 }}
+                  style={{ padding: '2px 8px', fontSize: 11, fontWeight: 700, whiteSpace: 'nowrap', height: 26, borderRadius: 6 }}
                   onClick={handleAddNewRow}
                   disabled={addingRow || !newPhone.trim()}
                 >
@@ -928,7 +928,13 @@ function GridCheckbox({ editable, checked, onSave }: { editable: boolean; checke
       disabled={!editable}
       checked={!!checked}
       onChange={e => onSave(e.target.checked)}
-      style={{ width: 13, height: 13, cursor: editable ? 'pointer' : 'not-allowed' }}
+      style={{
+        width: 14,
+        height: 14,
+        accentColor: 'var(--accent-blue)',
+        cursor: editable ? 'pointer' : 'not-allowed',
+        borderRadius: 4
+      }}
     />
   )
 }
