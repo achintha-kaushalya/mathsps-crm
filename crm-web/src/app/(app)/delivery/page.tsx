@@ -31,7 +31,6 @@ import {
   Square,
   FileText
 } from 'lucide-react'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 import { CLASS_LABELS, MONTH_NAMES, extractLmsNumber } from '@/lib/types'
 import {
   DEFAULT_GRADE_COURSES,
@@ -1406,16 +1405,16 @@ export default function DeliveryPage() {
               <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
                 Search Recipient / PS Code / Address
               </label>
-              <InputGroup>
-                <InputGroupAddon>
-                  <Search size={15} />
-                </InputGroupAddon>
-                <InputGroupInput
+              <div style={{ position: 'relative' }}>
+                <Search size={15} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+                <input
+                  className="input-field"
+                  style={{ paddingLeft: 34, width: '100%', height: 38, fontSize: 13 }}
                   placeholder="Type name, phone, address, course, or PS code..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />
-              </InputGroup>
+              </div>
             </div>
           </div>
 

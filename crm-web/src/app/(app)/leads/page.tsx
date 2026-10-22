@@ -14,7 +14,6 @@ import {
   AlertDialogAction,
   AlertDialogCancel,
 } from '@/components/ui/alert-dialog'
-import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 
 const STATUS_COLOR: Record<string, string> = {
   'New': 'status-new',
@@ -488,17 +487,15 @@ export default function MasterLeadsSpreadsheet() {
           flexWrap: 'wrap',
           background: 'rgba(255, 255, 255, 0.02)'
         }}>
-          <div style={{ flex: 1, minWidth: 240, maxWidth: 360 }}>
-            <InputGroup>
-              <InputGroupAddon>
-                <Search size={14} />
-              </InputGroupAddon>
-              <InputGroupInput
-                placeholder="Search phone, F-code, campaign, comments..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-              />
-            </InputGroup>
+          <div style={{ position: 'relative', flex: 1, minWidth: 240, maxWidth: 360 }}>
+            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
+            <input
+              className="search-bar"
+              style={{ paddingLeft: 34, height: 34, fontSize: 12.5 }}
+              placeholder="Search phone, F-code, campaign, comments..."
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+            />
           </div>
           <select className="input-field" style={{ width: 140, height: 34, fontSize: 12, paddingLeft: 10 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">All Statuses</option>
