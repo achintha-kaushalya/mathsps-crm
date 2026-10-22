@@ -66,13 +66,13 @@ export const AlertDialogContent = React.forwardRef<HTMLDivElement, React.HTMLAtt
   ({ className, style, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("p-6 transition-all", className)}
+      className={cn("p-5 transition-all text-slate-100", className)}
       style={{
-        background: '#090d16',
+        background: '#0b0f17',
         border: '1px solid #1e293b',
-        borderRadius: '14px',
-        boxShadow: '0 20px 40px -15px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.05)',
-        color: '#f8fafc',
+        borderRadius: '12px',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04)',
+        color: '#f1f5f9',
         ...style,
       }}
       {...props}
@@ -85,7 +85,7 @@ export const AlertDialogHeader = React.forwardRef<HTMLDivElement, React.HTMLAttr
   ({ className, style, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("flex flex-col gap-2.5 text-left", className)}
+      className={cn("flex flex-col gap-3 text-left", className)}
       style={{ ...style }}
       {...props}
     />
@@ -97,13 +97,14 @@ export const AlertDialogTitle = React.forwardRef<HTMLHeadingElement, React.HTMLA
   ({ className, style, ...props }, ref) => (
     <h2
       ref={ref}
-      className={cn("font-bold flex items-center gap-2", className)}
+      className={cn("font-semibold text-slate-100", className)}
       style={{
         color: '#f8fafc',
         fontSize: '15px',
         fontWeight: 600,
-        letterSpacing: '-0.01em',
+        letterSpacing: '-0.015em',
         margin: 0,
+        lineHeight: 1.25,
         ...style,
       }}
       {...props}
@@ -116,12 +117,12 @@ export const AlertDialogDescription = React.forwardRef<HTMLParagraphElement, Rea
   ({ className, style, ...props }, ref) => (
     <p
       ref={ref}
-      className={cn("leading-relaxed", className)}
+      className={cn("text-slate-400 text-sm leading-normal", className)}
       style={{
         color: '#94a3b8',
         fontSize: '13px',
         lineHeight: 1.5,
-        margin: '2px 0 0',
+        margin: 0,
         ...style,
       }}
       {...props}
@@ -134,9 +135,11 @@ export const AlertDialogFooter = React.forwardRef<HTMLDivElement, React.HTMLAttr
   ({ className, style, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("flex items-center justify-end gap-2.5", className)}
+      className={cn("flex items-center justify-end gap-2 pt-4 mt-1 border-t border-slate-800/60", className)}
       style={{
-        marginTop: '20px',
+        marginTop: '16px',
+        paddingTop: '14px',
+        borderTop: '1px solid rgba(30, 41, 59, 0.7)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
@@ -155,17 +158,17 @@ export const AlertDialogAction = React.forwardRef<HTMLButtonElement, React.Butto
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 rounded-lg font-medium cursor-pointer active:scale-98 transition-all disabled:opacity-50",
+        "inline-flex items-center justify-center gap-1.5 font-medium cursor-pointer active:scale-95 transition-all disabled:opacity-50 select-none",
         className
       )}
       style={{
-        background: '#e11d48',
+        background: '#dc2626',
         color: '#ffffff',
-        border: '1px solid rgba(225, 29, 72, 0.4)',
+        border: '1px solid rgba(239, 68, 68, 0.3)',
         padding: '7px 14px',
         fontSize: '12px',
-        borderRadius: '7px',
-        fontWeight: 600,
+        borderRadius: '6px',
+        fontWeight: 500,
         boxShadow: '0 1px 2px rgba(0, 0, 0, 0.2)',
         cursor: 'pointer',
         ...style,
@@ -182,16 +185,16 @@ export const AlertDialogCancel = React.forwardRef<HTMLButtonElement, React.Butto
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center rounded-lg font-medium cursor-pointer active:scale-98 transition-all disabled:opacity-50",
+        "inline-flex items-center justify-center font-medium cursor-pointer active:scale-95 transition-all disabled:opacity-50 select-none",
         className
       )}
       style={{
-        background: '#1e293b',
-        color: '#cbd5e1',
+        background: 'transparent',
+        color: '#94a3b8',
         border: '1px solid #334155',
         padding: '7px 14px',
         fontSize: '12px',
-        borderRadius: '7px',
+        borderRadius: '6px',
         fontWeight: 500,
         cursor: 'pointer',
         ...style,

@@ -909,38 +909,23 @@ export default function MasterLeadsSpreadsheet() {
       <AlertDialog open={!!deleteTargetLead} onOpenChange={(open) => !open && setDeleteTargetLead(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <div
-                style={{
-                  width: 36,
-                  height: 36,
-                  borderRadius: 10,
-                  background: 'rgba(239, 68, 68, 0.1)',
-                  border: '1px solid rgba(239, 68, 68, 0.2)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  color: '#ef4444',
-                  flexShrink: 0,
-                }}
-              >
-                <AlertTriangle size={18} />
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/20 flex items-center justify-center text-red-500 shrink-0">
+                <AlertTriangle size={16} />
               </div>
               <div>
-                <AlertDialogTitle>Delete Lead</AlertDialogTitle>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>
-                  This action cannot be undone
-                </div>
+                <AlertDialogTitle>Delete lead record</AlertDialogTitle>
+                <p className="text-[12px] text-slate-400 mt-0.5">This action cannot be undone.</p>
               </div>
             </div>
 
-            <AlertDialogDescription>
+            <AlertDialogDescription className="pt-2 text-slate-300">
               Are you sure you want to permanently delete lead{' '}
-              <strong style={{ color: '#38bdf8', fontFamily: 'monospace', fontWeight: 700, background: 'rgba(56, 189, 248, 0.1)', padding: '2px 6px', borderRadius: 4 }}>
-                {deleteTargetLead?.fcode}
-              </strong>
+              <span className="font-mono font-medium text-sky-400 bg-sky-950/60 border border-sky-800/50 px-1.5 py-0.5 rounded text-xs">
+                {deleteTargetLead?.fcode || 'selected'}
+              </span>
               {deleteTargetLead?.normalized_phone || deleteTargetLead?.raw_phone ? (
-                <span> ({deleteTargetLead.normalized_phone || deleteTargetLead.raw_phone})</span>
+                <span className="text-slate-400"> ({deleteTargetLead.normalized_phone || deleteTargetLead.raw_phone})</span>
               ) : null}
               ?
             </AlertDialogDescription>
