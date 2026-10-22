@@ -6,8 +6,8 @@ export const dynamic = 'force-dynamic'
 export async function GET(req: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-    const supabase = createClient(supabaseUrl, serviceKey, {
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!
+    const supabase = createClient(supabaseUrl, key, {
       auth: { persistSession: false }
     })
 
