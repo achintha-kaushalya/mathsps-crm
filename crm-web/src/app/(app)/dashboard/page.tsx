@@ -78,32 +78,27 @@ export default function AnalyticsDashboard() {
   const [paidThisMonth, setPaidThisMonth] = useState(0)
   const [totalStudents, setTotalStudents] = useState(0)
 
-  // Fetch all leads using sequential pagination
+  // Fetch all leads using fast parallel chunking
   async function fetchAllLeadsSequential(): Promise<LeadRow[]> {
-    let allLeads: LeadRow[] = []
     const pageSize = 1000
-    let from = 0
-    let hasMore = true
+    // Get total count first to spawn exact parallel chunks
+    const { count } = await supabase.from('leads').select('id', { count: 'exact', head: true })
+    const totalCount = count || 20000
+    const numBatches = Math.ceil(totalCount / pageSize)
 
-    while (hasMore) {
-      const { data, error } = await supabase
+    const batchPromises = Array.from({ length: numBatches }, (_, i) => {
+      const from = i * pageSize
+      return supabase
         .from('leads')
         .select('id,assigned_member,grade,status,campaign,date_added,created_at,paid,comments')
         .range(from, from + pageSize - 1)
+    })
 
-      if (error) {
-        console.error('Error fetching leads batch:', error)
-        break
-      }
-
-      if (data && data.length > 0) {
-        allLeads.push(...data)
-        from += pageSize
-        if (data.length < pageSize) {
-          hasMore = false
-        }
-      } else {
-        hasMore = false
+    const results = await Promise.all(batchPromises)
+    let allLeads: LeadRow[] = []
+    for (const res of results) {
+      if (res.data && res.data.length > 0) {
+        allLeads.push(...res.data)
       }
     }
     return allLeads
