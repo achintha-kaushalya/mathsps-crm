@@ -125,18 +125,6 @@ export async function POST(req: Request) {
 
       createdPayments.push(payment)
 
-      // Update student balance ledger
-      await auth.supabaseAdmin.from('student_balances').upsert(
-        {
-          student_id: payload.student_id,
-          class_type: item.class_type,
-          current_balance: balAfter,
-          last_payment_date: payload.date_paid,
-          last_payment_amount: item.amount_paid
-        },
-        { onConflict: 'student_id,class_type' }
-      )
-
       // Ensure enrollment exists or fee is synchronized
       if (item.fee !== undefined) {
         if (!item.enrollment_id) {

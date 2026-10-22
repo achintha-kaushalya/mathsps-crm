@@ -154,18 +154,6 @@ export async function POST(req: Request) {
           recorded_by: creatorName,
           notes: imm.notes || null
         })
-
-        // Ledger balance update
-        await auth.supabaseAdmin.from('student_balances').upsert(
-          {
-            student_id: student.id,
-            class_type: item.courseCode,
-            current_balance: amountPaid - enrolFee,
-            last_payment_date: imm.date_paid,
-            last_payment_amount: amountPaid
-          },
-          { onConflict: 'student_id,class_type' }
-        )
       }
     }
 
