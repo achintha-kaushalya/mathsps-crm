@@ -790,6 +790,7 @@ export default function StudentsPage() {
       {/* 6. Sleek Bottom Horizontal Quick Preview Bar */}
       {drawerOpen && selectedStudent && (
         <div
+          key={selectedStudent.id}
           className="pop-up-bar"
           style={{
             position: 'fixed',
