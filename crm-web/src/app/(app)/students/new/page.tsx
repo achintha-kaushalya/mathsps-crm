@@ -435,78 +435,47 @@ export default function NewStudentPage() {
       // Auto-fallback for student name if left empty
       const finalStudentName = studentName.trim() || `${parentName.trim()}'s Child`
 
-      // 1. Create Household record
-      let householdId: string | null = null
-      const { data: hhData, error: hhErr } = await supabase.from('households').insert({
-        parent_name: parentName.trim(),
-        parent_phone: normalizedPhone,
-        address: address.trim(),
-        area: area.trim() || null,
-      }).select().single()
-
-      if (hhErr) throw hhErr
-      householdId = hhData?.id || null
-
-      // 2. Create Student Record under this single locked PS Code
-      const initialNotes = formatNotesWithLms(null, lmsNumber)
-      const { data: stuData, error: stuErr } = await supabase.from('students').insert({
-        ps_code: psCode.trim().toUpperCase(),
-        full_name: finalStudentName,
-        grade: primaryGrade,
-        school: null,
-        notes: initialNotes,
-        household_id: householdId,
-        fcode_ref: fcodeRef.trim() || null,
-        created_by: createdBy.trim() || 'Admin / System User',
-      }).select().single()
-
-      if (stuErr) throw stuErr
-
-      // 3. Create all enrolled classes (grade courses + standalone courses)
       const allToEnroll = [
         ...validGradeClasses.map(c => ({ courseCode: c.courseCode, fee: c.fee })),
-        ...validStandaloneList.map(s => ({ courseCode: s.courseCode, fee: s.fee }))
+        ...validStandaloneList.map(s => ({ courseCode: s.courseCode, fee: s.fee, isStandalone: true }))
       ]
 
-      for (const cls of allToEnroll) {
-        const { error: enrolErr } = await supabase.from('enrollments').insert({
-          student_id: stuData.id,
-          class_type: cls.courseCode,
-          tier: 'STANDARD',
-          fee_amount: cls.fee,
-          active: true,
+      const immediatePaymentPayload = recordImmediatePayment ? {
+        month: paymentForm.month,
+        year: paymentForm.year,
+        payment_type: paymentForm.payment_type,
+        bank_name: paymentForm.payment_type === 'BANK' ? paymentForm.bank_name : null,
+        date_paid: paymentForm.payment_type !== 'FREE' ? paymentForm.date_paid : null,
+        added_to_group: paymentForm.added_to_group,
+        notes: paymentForm.notes || null,
+        items: allToEnroll.map(cls => ({
+          courseCode: cls.courseCode,
+          amount_paid: ['FREE', 'IMS'].includes(paymentForm.payment_type) ? 0 : (parseFloat(classAmountPaid[cls.courseCode]) || 0),
+          deliver_tute: classDeliverTute[cls.courseCode] ?? false
+        }))
+      } : null
+
+      const res = await fetch('/api/students', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ps_code: psCode.trim().toUpperCase(),
+          full_name: finalStudentName,
+          grade: primaryGrade,
+          lms_number: lmsNumber.trim() || null,
+          fcode_ref: fcodeRef.trim() || null,
+          parent_name: parentName.trim(),
+          parent_phone: normalizedPhone,
+          address: address.trim(),
+          area: area.trim() || null,
+          enrollments: allToEnroll,
+          immediate_payment: immediatePaymentPayload
         })
-        if (enrolErr) throw enrolErr
-      }
+      })
 
-      // 4. Optional Immediate Payment for all enrolled classes
-      if (recordImmediatePayment) {
-        for (const cls of allToEnroll) {
-          let paid = 0
-          if (['FREE', 'IMS'].includes(paymentForm.payment_type)) {
-            paid = 0
-          } else {
-            paid = parseFloat(classAmountPaid[cls.courseCode]) || 0
-          }
-
-          const { error: payErr } = await supabase.from('payments').insert({
-            student_id: stuData.id,
-            class_type: cls.courseCode,
-            month: paymentForm.month,
-            year: paymentForm.year,
-            amount_due: cls.fee,
-            amount_paid: Math.max(0, paid),
-            balance_before: 0,
-            payment_type: paymentForm.payment_type,
-            bank_name: paymentForm.payment_type === 'BANK' ? paymentForm.bank_name : null,
-            date_paid: paymentForm.payment_type !== 'FREE' ? paymentForm.date_paid : null,
-            added_to_group: paymentForm.added_to_group,
-            tute_delivered: classDeliverTute[cls.courseCode] ?? false,
-            notes: paymentForm.notes || null,
-            recorded_by: createdBy.trim() || 'Admin / System User',
-          })
-          if (payErr) throw payErr
-        }
+      const result = await res.json()
+      if (!res.ok) {
+        throw new Error(result.error || 'Failed to register student via server API')
       }
 
       setSuccessPs(psCode.trim().toUpperCase())

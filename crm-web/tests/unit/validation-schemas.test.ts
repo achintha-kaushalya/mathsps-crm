@@ -56,15 +56,21 @@ describe('M3 API Validation & Zod Schema Tests', () => {
 
   it('validates student creation payload with boundary grade check', () => {
     const validStudent = {
+      ps_code: 'PS10500',
       full_name: 'Kasun Bandara',
       grade: 11,
-      whatsapp_number: '0712345678'
+      parent_name: 'Bandara Father',
+      parent_phone: '0712345678',
+      address: 'No 45, Kandy Road, Colombo',
+      enrollments: [
+        { courseCode: 'GR11_THEORY', fee: 1800 }
+      ]
     }
     const result = StudentCreateSchema.safeParse(validStudent)
     assert.equal(result.success, true)
 
     const invalidGrade = {
-      full_name: 'Kasun Bandara',
+      ...validStudent,
       grade: 15 // Invalid grade
     }
     const failResult = StudentCreateSchema.safeParse(invalidGrade)

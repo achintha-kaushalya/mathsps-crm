@@ -18,7 +18,7 @@ export type AuditAction =
 export interface ServerAuditParams {
   supabaseAdmin: SupabaseClient
   action: AuditAction
-  entityType: 'payment' | 'student' | 'enrollment' | 'lead' | 'member'
+  entityType: 'payment' | 'student' | 'enrollment' | 'lead' | 'member' | 'household'
   entityId?: string
   oldData?: any
   newData?: any

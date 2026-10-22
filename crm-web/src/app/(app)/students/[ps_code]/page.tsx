@@ -55,7 +55,7 @@ export default function StudentDetailPage() {
   const [editTuteDelivered, setEditTuteDelivered] = useState<boolean>(false)
   const [savingPayment, setSavingPayment] = useState<boolean>(false)
 
-  const isAdmin = userRole === 'admin' || userRole === 'owner' || (currentUserName && currentUserName.toLowerCase().includes('admin'))
+  const isAdmin = userRole === 'admin' || userRole === 'owner'
 
   useEffect(() => {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
@@ -66,9 +66,6 @@ export default function StudentDetailPage() {
           const { data: dbMem } = await supabase.from('members').select('name, role').eq('email', user.email).single()
           if (dbMem?.name) name = dbMem.name
           if (dbMem?.role) role = dbMem.role as any
-        }
-        if (user.email?.toLowerCase().includes('admin')) {
-          role = 'admin'
         }
         setCurrentUserName(name)
         setUserRole(role)
@@ -188,17 +185,23 @@ export default function StudentDetailPage() {
     if (!student) return
     setSavingStudent(true)
     try {
-      const finalNotes = formatNotesWithLms(form.notes, form.lms_number)
+      const res = await fetch(`/api/students/${encodeURIComponent(student.ps_code)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'student',
+          data: {
+            full_name: form.full_name?.trim() || null,
+            grade: form.grade ? parseInt(String(form.grade)) : null,
+            notes: form.notes || null,
+            lms_number: form.lms_number || null,
+            fcode_ref: form.fcode_ref?.trim() || null,
+          }
+        })
+      })
 
-      const { error: err } = await supabase.from('students').update({
-        full_name: form.full_name?.trim() || null,
-        grade: form.grade ? parseInt(String(form.grade)) : null,
-        school: null,
-        notes: finalNotes,
-        fcode_ref: form.fcode_ref?.trim() || null,
-      }).eq('id', student.id)
-
-      if (err) throw err
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Failed to update student info')
 
       setEditing(false)
       await load()
@@ -213,30 +216,22 @@ export default function StudentDetailPage() {
     if (!student) return
     setSavingHousehold(true)
     try {
-      const hh = (student as any).household
-      if (hh?.id) {
-        // Update existing household
-        const { error: hhErr } = await supabase.from('households').update({
-          parent_name: parentNameInput.trim() || null,
-          parent_phone: parentPhoneInput.trim() || null,
-          address: addressInput.trim() || null,
-          area: areaInput.trim() || null,
-        }).eq('id', hh.id)
+      const res = await fetch(`/api/students/${encodeURIComponent(student.ps_code)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'household',
+          data: {
+            parent_name: parentNameInput.trim() || null,
+            parent_phone: parentPhoneInput.trim() || null,
+            address: addressInput.trim() || null,
+            area: areaInput.trim() || null,
+          }
+        })
+      })
 
-        if (hhErr) throw hhErr
-      } else {
-        // Create new household and attach to this student
-        const { data: newHh, error: newHhErr } = await supabase.from('households').insert({
-          parent_name: parentNameInput.trim() || null,
-          parent_phone: parentPhoneInput.trim() || null,
-          address: addressInput.trim() || null,
-          area: areaInput.trim() || null,
-        }).select().single()
-
-        if (newHhErr) throw newHhErr
-
-        await supabase.from('students').update({ household_id: newHh.id }).eq('id', student.id)
-      }
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Failed to save household details')
 
       setEditingHousehold(false)
       await load()
@@ -253,15 +248,12 @@ export default function StudentDetailPage() {
     if (confirmation !== 'DELETE') return
 
     try {
-      // 1. Delete associated payments
-      await supabase.from('payments').delete().eq('student_id', student.id)
-      // 2. Delete enrollments
-      await supabase.from('enrollments').delete().eq('student_id', student.id)
-      // 3. Delete student balances
-      await supabase.from('student_balances').delete().eq('student_id', student.id)
-      // 4. Delete student record
-      const { error: delErr } = await supabase.from('students').delete().eq('id', student.id)
-      if (delErr) throw delErr
+      const res = await fetch(`/api/students/${encodeURIComponent(student.ps_code)}`, {
+        method: 'DELETE'
+      })
+
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Failed to delete student')
 
       alert(`Student ${student.ps_code} deleted successfully.`)
       router.push('/students')
