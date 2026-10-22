@@ -621,7 +621,8 @@ export default function MasterLeadsSpreadsheet() {
             ) : leads.map((lead, idx) => {
               const ownLead = isOwnLead(lead)
               const editable = canEditLead(lead) // admin, own lead, or permitted team lead
-              const canEditFullRow = isAdmin || ownLead
+              // All visible leads for member/caller can be fully managed & updated just like Admin
+              const canEditFullRow = isAdmin || canViewAll || editable
               const presence = activePresences[lead.id]
 
               // Apps Script Formula Line 594-597:
@@ -833,7 +834,7 @@ export default function MasterLeadsSpreadsheet() {
 
                   {/* Delete Action Cell */}
                   <td style={{ textAlign: 'center' }}>
-                    {isAdmin || (currentMemberName && currentMemberName.toLowerCase().includes('admin')) || (lead.assigned_member || '').toLowerCase() === (currentMemberName || '').toLowerCase() || !lead.assigned_member ? (
+                    {isAdmin || (currentMemberName && currentMemberName.toLowerCase().includes('admin')) || canEditFullRow ? (
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
