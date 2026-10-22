@@ -4,6 +4,17 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Search, Plus, RefreshCw, Lock, AlertTriangle, Sparkles, UserCheck, Repeat, Shield, Phone, Edit2, Trash2, User, ChevronDown } from 'lucide-react'
 import { Lead, LEAD_STATUSES } from '@/lib/types'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from '@/components/ui/alert-dialog'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 
 const STATUS_COLOR: Record<string, string> = {
   'New': 'status-new',
@@ -477,15 +488,17 @@ export default function MasterLeadsSpreadsheet() {
           flexWrap: 'wrap',
           background: 'rgba(255, 255, 255, 0.02)'
         }}>
-          <div style={{ position: 'relative', flex: 1, minWidth: 240, maxWidth: 360 }}>
-            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input
-              className="search-bar"
-              style={{ paddingLeft: 34, height: 34, fontSize: 12.5 }}
-              placeholder="Search phone, F-code, campaign, comments..."
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-            />
+          <div style={{ flex: 1, minWidth: 240, maxWidth: 360 }}>
+            <InputGroup>
+              <InputGroupAddon>
+                <Search size={14} />
+              </InputGroupAddon>
+              <InputGroupInput
+                placeholder="Search phone, F-code, campaign, comments..."
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+              />
+            </InputGroup>
           </div>
           <select className="input-field" style={{ width: 140, height: 34, fontSize: 12, paddingLeft: 10 }} value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="">All Statuses</option>
@@ -883,40 +896,36 @@ export default function MasterLeadsSpreadsheet() {
       </div>
 
       {/* Confirmation Modal */}
-      {deleteTargetLead && (
-        <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.75)', backdropFilter: 'blur(4px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 9999
-        }}>
-          <div className="card" style={{ maxWidth: 420, width: '90%', padding: 24, borderRadius: 14, border: '1px solid var(--border)', boxShadow: '0 20px 40px rgba(0,0,0,0.6)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12, color: 'var(--accent-red)' }}>
-              <AlertTriangle size={20} />
-              <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-primary)' }}>Confirm Delete Lead</h3>
-            </div>
-            <p style={{ fontSize: 13, color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 20 }}>
-              Are you sure you want to permanently delete lead <strong style={{ color: 'var(--text-primary)' }}>{deleteTargetLead.fcode}</strong> ({deleteTargetLead.normalized_phone || deleteTargetLead.raw_phone || 'No phone'})? This action cannot be undone.
-            </p>
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
-              <button
-                className="btn-secondary"
-                onClick={() => setDeleteTargetLead(null)}
-                disabled={!!deletingId}
-                style={{ padding: '8px 16px', fontSize: 13 }}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn-danger"
-                onClick={confirmDeleteLead}
-                disabled={!!deletingId}
-                style={{ padding: '8px 18px', fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <Trash2 size={14} /> {deletingId ? 'Deleting...' : 'Yes, Delete'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AlertDialog open={!!deleteTargetLead} onOpenChange={(open) => !open && setDeleteTargetLead(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2 text-rose-500">
+              <AlertTriangle className="w-5 h-5" />
+              <span>Confirm Delete Lead</span>
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete lead{' '}
+              <strong style={{ color: 'var(--text-primary)' }}>{deleteTargetLead?.fcode}</strong>{' '}
+              ({deleteTargetLead?.normalized_phone || deleteTargetLead?.raw_phone || 'No phone'})? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => setDeleteTargetLead(null)}
+              disabled={!!deletingId}
+            >
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDeleteLead}
+              disabled={!!deletingId}
+            >
+              <Trash2 className="w-4 h-4 mr-1.5" />
+              {deletingId ? 'Deleting...' : 'Yes, Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

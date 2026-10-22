@@ -8,6 +8,7 @@ import {
   BookOpen, Building2, ChevronRight, Eye, RefreshCw, FileSpreadsheet, Download
 } from 'lucide-react'
 import { Student, extractLmsNumber } from '@/lib/types'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
 
 const GRADE_BADGE_STYLES: Record<number, { bg: string; color: string; border: string }> = {
   5:  { bg: '#eff6ff', color: '#2563eb', border: '#dbeafe' },
@@ -470,30 +471,26 @@ export default function StudentsPage() {
         flexWrap: 'wrap'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1, minWidth: 300, maxWidth: 500 }}>
-          <div style={{ position: 'relative', width: '100%' }}>
-            <Search size={14} style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-            <input
-              className="search-bar"
-              style={{
-                width: '100%',
-                paddingLeft: 34,
-                paddingRight: 28,
-                fontSize: 13,
-                height: 38
-              }}
+          <InputGroup className="w-full">
+            <InputGroupAddon>
+              <Search size={14} />
+            </InputGroupAddon>
+            <InputGroupInput
               placeholder="Search PS code, student name, LMS number, or phone..."
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
             {search && (
-              <button 
-                onClick={() => setSearch('')}
-                style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-              >
-                <X size={13} />
-              </button>
+              <InputGroupAddon align="inline-end">
+                <button 
+                  onClick={() => setSearch('')}
+                  className="text-neutral-400 hover:text-neutral-200 transition-colors"
+                >
+                  <X size={13} />
+                </button>
+              </InputGroupAddon>
             )}
-          </div>
+          </InputGroup>
         </div>
 
         {/* Quick Filter Selectors */}
