@@ -65,7 +65,7 @@ export default function CoursesManagerPage() {
   const [newBank, setNewBank] = useState('')
 
   const channelRef = useRef<any>(null)
-  const isAdmin = currentUserRole === 'admin' || currentUserRole === 'owner' || (currentUserName && currentUserName.toLowerCase().includes('admin'))
+  const isAdmin = currentUserRole === 'admin' || currentUserRole === 'owner'
 
   const getAdminMember = async () => {
     try {
@@ -141,9 +141,6 @@ export default function CoursesManagerPage() {
           if (dbMem?.name) name = dbMem.name
           if (dbMem?.role) role = dbMem.role as any
         }
-        if (user.email?.toLowerCase().includes('admin')) {
-          role = 'admin'
-        }
         setCurrentUserName(name)
         setCurrentUserRole(role)
       }
@@ -215,47 +212,22 @@ export default function CoursesManagerPage() {
     }
 
     try {
-      const adminMem = await getAdminMember()
-      const memberId = adminMem?.id || 'admin_user_auto'
-      const customCourses = getAllCourseLabels(updatedGC, updatedStandalone)
-      const classFees = getAllCourseFees(updatedGC, updatedStandalone)
-
-      // 3. Direct Supabase client update if client has permissions
-      if (adminMem?.id) {
-        try {
-          let existingNotes = {}
-          if (adminMem.notes) existingNotes = JSON.parse(adminMem.notes)
-          const notesStr = JSON.stringify({
-            ...existingNotes,
-            custom_courses: customCourses,
-            class_fees: classFees,
-            grade_courses: updatedGC,
-            standalone_courses: updatedStandalone,
-            payment_methods: updatedPayMethods,
-            banks: updatedBanks
-          })
-          await supabase.from('members').update({ notes: notesStr }).eq('id', adminMem.id)
-        } catch (directErr) {
-          console.warn('Direct update fallback:', directErr)
-        }
-      }
-
-      // 4. Server API call (uses service role key to guarantee write)
-      await fetch('/api/members/manage', {
+      // 3. Server API call with service role key & session authorization
+      const res = await fetch('/api/courses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'update_custom_courses',
-          memberId,
-          courses: customCourses,
-          fees: classFees,
           grade_courses: updatedGC,
           standalone_courses: updatedStandalone,
           payment_methods: updatedPayMethods,
-          banks: updatedBanks,
-          adminPassword: 'sb_secret_verification_bypass'
+          banks: updatedBanks
         })
       })
+
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Failed to save course configuration')
+      }
 
       setToastMsg('✓ Changes saved & synced across CRM in real time!')
       setTimeout(() => setToastMsg(''), 3000)

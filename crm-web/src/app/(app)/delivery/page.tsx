@@ -531,15 +531,22 @@ export default function DeliveryPage() {
     document.body.removeChild(a)
     URL.revokeObjectURL(url)
 
-    // 2. Mark updated payment records in Supabase
+    // 2. Mark updated payment records via secure server API
     setMarking(true)
     try {
-      for (const pId of paymentIdsToUpdate) {
-        const { data: curPay } = await supabase.from('payments').select('notes').eq('id', pId).single()
-        const oldNotes = (curPay?.notes || '').replace(/\[DISPATCHED:[^\]]+\]/g, '').trim()
-        const newNotes = oldNotes ? `${oldNotes} [DISPATCHED: ${batchTag}]` : `[DISPATCHED: ${batchTag}]`
+      const res = await fetch('/api/delivery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'dispatch',
+          batchTag,
+          paymentIds: paymentIdsToUpdate
+        })
+      })
 
-        await supabase.from('payments').update({ notes: newNotes }).eq('id', pId)
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Failed to dispatch batch')
       }
 
       setActionMessage(`✓ Successfully exported & marked ${targetGroups.length} Houses as Dispatched (${batchTag})!`)
@@ -611,11 +618,20 @@ export default function DeliveryPage() {
 
     setMarking(true)
     try {
-      for (const st of g.students) {
-        const { data: curPay } = await supabase.from('payments').select('notes').eq('id', st.paymentId).single()
-        const cleanedNotes = (curPay?.notes || '').replace(/\[DISPATCHED:[^\]]+\]/g, '').trim()
-        await supabase.from('payments').update({ notes: cleanedNotes || null }).eq('id', st.paymentId)
+      const res = await fetch('/api/delivery', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'revert',
+          paymentIds: g.students.map(s => s.paymentId)
+        })
+      })
+
+      if (!res.ok) {
+        const errData = await res.json()
+        throw new Error(errData.error || 'Failed to revert dispatch')
       }
+
       await loadDeliveryList()
     } catch (err: any) {
       alert('Failed to revert: ' + err.message)

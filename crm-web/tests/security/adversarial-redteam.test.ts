@@ -178,4 +178,32 @@ describe('Adversarial Red-Team & Chaos Penetration Suite (Zero-Bias Blind Testin
     })
     assert.equal(patchRes.status, 401, 'Unauthorized caller was able to PATCH /api/leads!')
   })
+
+  // -------------------------------------------------------------------------
+  // 8. Vertical Privilege Escalation & Delivery Tampering (Milestone M7)
+  // -------------------------------------------------------------------------
+  it('Red-Team M7: unauthenticated caller CANNOT modify courses or dispatch deliveries', async () => {
+    // Unauthenticated attempt to overwrite courses configuration
+    const courseRes = await fetch(`${API_BASE}/api/courses`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        grade_courses: {},
+        standalone_courses: []
+      })
+    })
+    assert.equal(courseRes.status, 401, 'Unauthenticated caller was able to POST /api/courses!')
+
+    // Unauthenticated attempt to trigger delivery dispatch
+    const delivRes = await fetch(`${API_BASE}/api/delivery`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'dispatch',
+        batchTag: 'HACKED_BATCH',
+        paymentIds: ['00000000-0000-0000-0000-000000000000']
+      })
+    })
+    assert.equal(delivRes.status, 401, 'Unauthenticated caller was able to dispatch delivery batches!')
+  })
 })
