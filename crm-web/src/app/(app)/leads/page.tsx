@@ -909,14 +909,14 @@ export default function MasterLeadsSpreadsheet() {
       <AlertDialog open={!!deleteTargetLead} onOpenChange={(open) => !open && setDeleteTargetLead(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               <div
                 style={{
-                  width: 38,
-                  height: 38,
+                  width: 36,
+                  height: 36,
                   borderRadius: 10,
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.2)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -928,21 +928,21 @@ export default function MasterLeadsSpreadsheet() {
               </div>
               <div>
                 <AlertDialogTitle>Delete Lead</AlertDialogTitle>
-                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
-                  Permanent record removal
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 1 }}>
+                  This action cannot be undone
                 </div>
               </div>
             </div>
 
             <AlertDialogDescription>
               Are you sure you want to permanently delete lead{' '}
-              <strong style={{ color: '#f8fafc', fontFamily: 'monospace' }}>
+              <strong style={{ color: '#38bdf8', fontFamily: 'monospace', fontWeight: 700, background: 'rgba(56, 189, 248, 0.1)', padding: '2px 6px', borderRadius: 4 }}>
                 {deleteTargetLead?.fcode}
               </strong>
               {deleteTargetLead?.normalized_phone || deleteTargetLead?.raw_phone ? (
                 <span> ({deleteTargetLead.normalized_phone || deleteTargetLead.raw_phone})</span>
               ) : null}
-              ? This action cannot be undone.
+              ?
             </AlertDialogDescription>
           </AlertDialogHeader>
 
@@ -957,7 +957,7 @@ export default function MasterLeadsSpreadsheet() {
               onClick={() => confirmDeleteLead()}
               disabled={!!deletingId}
             >
-              <Trash2 size={14} />
+              <Trash2 size={13} />
               {deletingId ? 'Deleting...' : 'Delete Lead'}
             </AlertDialogAction>
           </AlertDialogFooter>

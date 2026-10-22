@@ -28,28 +28,29 @@ export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) 
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '20px',
+        padding: '24px',
       }}
     >
-      {/* Backdrop */}
+      {/* Clean Subtle Backdrop (dim overlay, not pitch black) */}
       <div
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(5, 8, 18, 0.85)',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
+          background: 'rgba(0, 0, 0, 0.55)',
+          backdropFilter: 'blur(8px)',
+          WebkitBackdropFilter: 'blur(8px)',
           zIndex: 1,
         }}
         onClick={() => onOpenChange?.(false)}
       />
+
       {/* Dialog Surface Container */}
       <div
         style={{
           position: 'relative',
           zIndex: 2,
           width: '100%',
-          maxWidth: '440px',
+          maxWidth: '420px',
           pointerEvents: 'auto',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -67,10 +68,10 @@ export const AlertDialogContent = React.forwardRef<HTMLDivElement, React.HTMLAtt
       ref={ref}
       className={cn("p-6 transition-all", className)}
       style={{
-        background: '#0c1322',
+        background: '#131b2e',
         border: '1px solid rgba(255, 255, 255, 0.1)',
-        borderRadius: '18px',
-        boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+        borderRadius: '16px',
+        boxShadow: '0 20px 45px -10px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.06)',
         color: '#ffffff',
         ...style,
       }}
@@ -84,7 +85,7 @@ export const AlertDialogHeader = React.forwardRef<HTMLDivElement, React.HTMLAttr
   ({ className, style, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("flex flex-col gap-2.5 text-left", className)}
+      className={cn("flex flex-col gap-3 text-left", className)}
       style={{ ...style }}
       {...props}
     />
@@ -96,7 +97,7 @@ export const AlertDialogTitle = React.forwardRef<HTMLHeadingElement, React.HTMLA
   ({ className, style, ...props }, ref) => (
     <h2
       ref={ref}
-      className={cn("text-base font-bold flex items-center gap-2.5", className)}
+      className={cn("font-bold flex items-center gap-2", className)}
       style={{
         color: '#f8fafc',
         fontSize: '16px',
@@ -119,7 +120,7 @@ export const AlertDialogDescription = React.forwardRef<HTMLParagraphElement, Rea
         color: '#94a3b8',
         fontSize: '13px',
         lineHeight: 1.6,
-        margin: '4px 0 0',
+        margin: '6px 0 0',
         ...style,
       }}
       {...props}
@@ -134,7 +135,9 @@ export const AlertDialogFooter = React.forwardRef<HTMLDivElement, React.HTMLAttr
       ref={ref}
       className={cn("flex items-center justify-end gap-3", className)}
       style={{
-        marginTop: '24px',
+        marginTop: '22px',
+        paddingTop: '16px',
+        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
@@ -153,18 +156,18 @@ export const AlertDialogAction = React.forwardRef<HTMLButtonElement, React.Butto
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center gap-2 rounded-lg font-semibold cursor-pointer active:scale-98 transition-all disabled:opacity-50",
+        "inline-flex items-center justify-center gap-2 rounded-lg font-medium cursor-pointer active:scale-98 transition-all disabled:opacity-50",
         className
       )}
       style={{
-        background: '#ef4444',
+        background: '#dc2626',
         color: '#ffffff',
-        border: '1px solid rgba(239, 68, 68, 0.4)',
-        padding: '9px 18px',
-        fontSize: '13px',
-        borderRadius: '9px',
+        border: 'none',
+        padding: '7px 14px',
+        fontSize: '12px',
+        borderRadius: '8px',
         fontWeight: 600,
-        boxShadow: '0 2px 10px rgba(239, 68, 68, 0.35)',
+        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.3)',
         cursor: 'pointer',
         ...style,
       }}
@@ -180,17 +183,17 @@ export const AlertDialogCancel = React.forwardRef<HTMLButtonElement, React.Butto
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center rounded-lg font-semibold cursor-pointer active:scale-98 transition-all disabled:opacity-50",
+        "inline-flex items-center justify-center rounded-lg font-medium cursor-pointer active:scale-98 transition-all disabled:opacity-50",
         className
       )}
       style={{
-        background: 'rgba(255, 255, 255, 0.05)',
-        color: '#94a3b8',
-        border: '1px solid rgba(255, 255, 255, 0.12)',
-        padding: '9px 18px',
-        fontSize: '13px',
-        borderRadius: '9px',
-        fontWeight: 600,
+        background: 'transparent',
+        color: '#cbd5e1',
+        border: '1px solid rgba(255, 255, 255, 0.15)',
+        padding: '7px 14px',
+        fontSize: '12px',
+        borderRadius: '8px',
+        fontWeight: 500,
         cursor: 'pointer',
         ...style,
       }}
