@@ -253,7 +253,7 @@ function InteractiveLobbyLoginForm() {
                     Portal
                   </span>
                 </div>
-                <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600, marginTop: 1 }}>
+                <div style={{ fontSize: 12, color: '#475569', fontWeight: 600, marginTop: 1 }}>
                   Prabuddha Sampath · Higher Education Institute
                 </div>
               </div>
@@ -263,7 +263,7 @@ function InteractiveLobbyLoginForm() {
             <div style={{
               display: 'flex', alignItems: 'center', gap: 6,
               background: '#ffffff', border: '1px solid #d1fae5',
-              padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: '#059669',
+              padding: '4px 10px', borderRadius: 20, fontSize: 11, fontWeight: 700, color: '#047857',
               boxShadow: '0 2px 6px rgba(16, 185, 129, 0.08)'
             }}>
               <span style={{
@@ -636,14 +636,14 @@ function InteractiveLobbyLoginForm() {
                 textAlign: 'center',
                 padding: '8px 12px',
                 fontSize: 11.5,
-                color: '#94a3b8',
+                color: '#475569',
                 cursor: 'pointer',
                 userSelect: 'none',
                 borderRadius: 12,
                 transition: 'color 0.2s'
               }}
-              onMouseEnter={e => e.currentTarget.style.color = '#64748b'}
-              onMouseLeave={e => e.currentTarget.style.color = '#94a3b8'}
+              onMouseEnter={e => e.currentTarget.style.color = '#1e293b'}
+              onMouseLeave={e => e.currentTarget.style.color = '#475569'}
             >
               MathsPS Higher Education Institute · Sri Lanka
             </div>
@@ -770,10 +770,11 @@ function InteractiveLobbyLoginForm() {
                 />
                 <button
                   type="button"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
                   onClick={() => setShowPassword(!showPassword)}
                   style={{
                     position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                    background: 'transparent', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 4
+                    background: 'transparent', border: 'none', color: '#64748b', cursor: 'pointer', padding: 4
                   }}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -820,10 +821,10 @@ function InteractiveLobbyLoginForm() {
             alignItems: 'center',
             justifyContent: 'space-between',
             fontSize: 11,
-            color: '#94a3b8'
+            color: '#475569'
           }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-              <Shield size={12} style={{ color: '#10b981' }} />
+              <Shield size={12} style={{ color: '#047857' }} />
               <span>Enterprise Encrypted</span>
             </div>
             <span>MathsPS Portal</span>

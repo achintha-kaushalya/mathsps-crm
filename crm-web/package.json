@@ -10,6 +10,7 @@
     "test": "node --import tsx --test $(find tests/unit -name '*.test.ts')",
     "test:security": "node --import tsx --test $(find tests/security -name '*.test.ts')",
     "test:all": "node --import tsx --test $(find tests -name '*.test.ts')",
+    "test:a11y": "playwright test e2e/a11y.spec.ts",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:app": "electron .",
     "electron:pack": "electron-builder --dir",
@@ -58,6 +59,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
