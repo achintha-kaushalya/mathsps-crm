@@ -8,14 +8,16 @@ export interface AlertDialogProps {
   children: React.ReactNode
 }
 
+const emptySubscribe = () => () => {}
+
 export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) {
-  const [mounted, setMounted] = React.useState(false)
+  const isMounted = React.useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  )
 
-  React.useEffect(() => {
-    setMounted(true)
-  }, [])
-
-  if (!open || !mounted) return null
+  if (!open || !isMounted) return null
 
   return createPortal(
     <div
