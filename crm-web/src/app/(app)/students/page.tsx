@@ -790,7 +790,7 @@ export default function StudentsPage() {
       {/* 6. Sleek Bottom Horizontal Quick Preview Bar */}
       {drawerOpen && selectedStudent && (
         <div
-          className="fade-in"
+          className="pop-up-bar"
           style={{
             position: 'fixed',
             bottom: 84, // positioned cleanly above the dock
