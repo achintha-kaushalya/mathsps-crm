@@ -905,37 +905,98 @@ export default function MasterLeadsSpreadsheet() {
       </div>
       </div>
 
-      {/* Confirmation Modal */}
-      <AlertDialog open={!!deleteTargetLead} onOpenChange={(open) => !open && setDeleteTargetLead(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="flex items-center gap-2 text-rose-500">
-              <AlertTriangle className="w-5 h-5" />
+      {/* Direct Confirmation Modal (Guaranteed Clicks & Dead-Center Fixed Viewport) */}
+      {deleteTargetLead && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0, 0, 0, 0.75)',
+            backdropFilter: 'blur(8px)',
+            WebkitBackdropFilter: 'blur(8px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 999999,
+            padding: 16,
+          }}
+          onClick={() => {
+            if (!deletingId) setDeleteTargetLead(null)
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: 440,
+              width: '100%',
+              background: '#0f172a',
+              border: '1px solid rgba(255, 255, 255, 0.12)',
+              borderRadius: 16,
+              padding: 24,
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.85)',
+              color: '#ffffff',
+              position: 'relative',
+              zIndex: 1000000,
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: '#f43f5e', fontSize: 16, fontWeight: 700, marginBottom: 8 }}>
+              <AlertTriangle size={20} />
               <span>Confirm Delete Lead</span>
-            </AlertDialogTitle>
-            <AlertDialogDescription>
+            </div>
+
+            <p style={{ fontSize: 13, color: '#94a3b8', lineHeight: 1.5, margin: '8px 0 20px' }}>
               Are you sure you want to permanently delete lead{' '}
-              <strong style={{ color: 'var(--text-primary)' }}>{deleteTargetLead?.fcode}</strong>{' '}
-              ({deleteTargetLead?.normalized_phone || deleteTargetLead?.raw_phone || 'No phone'})? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              onClick={() => setDeleteTargetLead(null)}
-              disabled={!!deletingId}
-            >
-              Cancel
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={confirmDeleteLead}
-              disabled={!!deletingId}
-            >
-              <Trash2 className="w-4 h-4 mr-1.5" />
-              {deletingId ? 'Deleting...' : 'Yes, Delete'}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+              <strong style={{ color: '#ffffff' }}>{deleteTargetLead.fcode}</strong>{' '}
+              ({deleteTargetLead.normalized_phone || deleteTargetLead.raw_phone || 'No phone'})? This action cannot be undone.
+            </p>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                type="button"
+                onClick={() => setDeleteTargetLead(null)}
+                disabled={!!deletingId}
+                style={{
+                  background: 'transparent',
+                  border: '1px solid rgba(255, 255, 255, 0.15)',
+                  color: '#cbd5e1',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  opacity: deletingId ? 0.5 : 1,
+                }}
+              >
+                Cancel
+              </button>
+
+              <button
+                type="button"
+                onClick={() => confirmDeleteLead()}
+                disabled={!!deletingId}
+                style={{
+                  background: '#ef4444',
+                  border: 'none',
+                  color: '#ffffff',
+                  borderRadius: 8,
+                  padding: '8px 16px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  boxShadow: '0 2px 8px rgba(239, 68, 68, 0.4)',
+                  opacity: deletingId ? 0.5 : 1,
+                }}
+              >
+                <Trash2 size={14} />
+                {deletingId ? 'Deleting...' : 'Yes, Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
