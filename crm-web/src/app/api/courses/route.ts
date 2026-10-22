@@ -52,7 +52,14 @@ export async function GET(req: Request) {
       } catch {}
     }
 
-    return apiSuccess({ config })
+    return apiSuccess(
+      { config },
+      200,
+      undefined,
+      {
+        'Cache-Control': 'private, max-age=60, stale-while-revalidate=300'
+      }
+    )
   } catch (err: any) {
     return apiError(err.message || 'Failed to load courses configuration', 500)
   }

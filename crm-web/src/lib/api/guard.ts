@@ -43,16 +43,19 @@ export function apiError(message: string, status = 400, details?: any) {
 }
 
 /**
- * Standard API success response generator
+ * Standard API success response generator with optional HTTP caching headers
  */
-export function apiSuccess<T>(data: T, status = 200, meta?: Record<string, any>) {
+export function apiSuccess<T>(data: T, status = 200, meta?: Record<string, any>, headers?: Record<string, string>) {
   return NextResponse.json(
     {
       success: true,
       data,
       ...(meta ? { meta } : {})
     },
-    { status }
+    { 
+      status,
+      headers: headers || undefined
+    }
   )
 }
 

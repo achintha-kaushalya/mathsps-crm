@@ -151,16 +151,24 @@ export default function MasterLeadsSpreadsheet() {
     })
     channelRef.current = room
 
-    // 1. Listen for Database Postgres changes & Broadcast events
+    // 1. Listen for Database Postgres changes & Broadcast events (with debounce to prevent API thrashing)
+    let reloadDebounce: NodeJS.Timeout | null = null
+    const debouncedReload = () => {
+      if (reloadDebounce) clearTimeout(reloadDebounce)
+      reloadDebounce = setTimeout(() => {
+        loadLeads(page)
+      }, 500)
+    }
+
     room
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, () => loadLeads(page))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'leads' }, debouncedReload)
       .on('broadcast', { event: 'lead_deleted' }, (payload: any) => {
         if (payload?.payload?.id) {
           setLeads(prev => prev.filter(l => l.id !== payload.payload.id))
           setTotal(t => Math.max(0, t - 1))
         }
       })
-      .on('broadcast', { event: 'lead_updated' }, () => loadLeads(page))
+      .on('broadcast', { event: 'lead_updated' }, debouncedReload)
       .on('broadcast', { event: 'lead_created' }, () => loadLeads(0))
 
     // 2. Listen for Multiplayer Cursor/Cell Presence
