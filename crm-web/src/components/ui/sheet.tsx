@@ -21,21 +21,71 @@ export function Sheet({ open, onOpenChange, children }: SheetProps) {
   if (!open) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end">
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      zIndex: 9999,
+      display: 'flex',
+      justifyContent: 'flex-end',
+      pointerEvents: 'auto'
+    }}>
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm transition-opacity animate-in fade-in"
         onClick={() => onOpenChange(false)}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.65)',
+          backdropFilter: 'blur(4px)',
+          WebkitBackdropFilter: 'blur(4px)',
+          transition: 'opacity 0.2s ease'
+        }}
       />
-      {/* Sheet Content Area */}
-      <div className="relative z-50 h-full w-full max-w-xl bg-card border-l border-border shadow-2xl flex flex-col overflow-hidden animate-in slide-in-from-right duration-200">
+      {/* Sheet Content Area - Right Slide-Over Panel */}
+      <div style={{
+        position: 'relative',
+        zIndex: 10000,
+        height: '100vh',
+        width: '100%',
+        maxWidth: 480,
+        background: 'var(--bg-card)',
+        color: 'var(--text-primary)',
+        borderLeft: '1px solid var(--border)',
+        boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.4)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        animation: 'slideInRight 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards'
+      }}>
         <button
           onClick={() => onOpenChange(false)}
-          className="absolute right-4 top-4 z-10 rounded-lg p-1.5 text-muted-foreground hover:bg-card-hover hover:text-foreground transition-colors"
+          style={{
+            position: 'absolute',
+            right: 14,
+            top: 14,
+            zIndex: 10001,
+            background: 'var(--bg-card-hover)',
+            border: '1px solid var(--border)',
+            borderRadius: 8,
+            color: 'var(--text-muted)',
+            cursor: 'pointer',
+            padding: 6,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            transition: 'all 0.15s ease'
+          }}
+          onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; e.currentTarget.style.borderColor = 'var(--accent-blue)' }}
+          onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
           title="Close sheet (Esc)"
         >
-          <X className="w-5 h-5" />
-          <span className="sr-only">Close</span>
+          <X className="w-4 h-4" />
         </button>
         {children}
       </div>
