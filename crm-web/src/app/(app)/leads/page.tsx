@@ -229,16 +229,18 @@ export default function MasterLeadsSpreadsheet() {
   }
 
   function isOwnLead(lead: Lead): boolean {
-    if (!lead.assigned_member) return true
-    return (lead.assigned_member || '').toLowerCase() === (currentMemberName || '').toLowerCase()
+    if (!lead.assigned_member || !currentMemberName) return false
+    return lead.assigned_member.trim().toLowerCase() === currentMemberName.trim().toLowerCase()
   }
 
   function canEditLead(lead: Lead): boolean {
     if (isAdmin) return true
     if (canViewAll) return true
-    if (!lead.assigned_member) return true
-    const visibleMembers = [currentMemberName, ...allowedMembers].map(m => m.toLowerCase())
-    return visibleMembers.includes((lead.assigned_member || '').toLowerCase())
+    if (!lead.assigned_member) return false
+    const memberName = (lead.assigned_member || '').trim().toLowerCase()
+    if (currentMemberName && memberName === currentMemberName.trim().toLowerCase()) return true
+    const visibleMembers = allowedMembers.map(m => m.trim().toLowerCase())
+    return visibleMembers.includes(memberName)
   }
 
   // Lead Deletion with Modal Confirmation
