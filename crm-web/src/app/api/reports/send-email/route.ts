@@ -5,6 +5,8 @@ import nodemailer from 'nodemailer'
 import { MONTH_NAMES } from '@/lib/types'
 import { getGradeFromPayment } from '@/lib/reports-analytics'
 
+import { requireAuth, apiError } from '@/lib/api/guard'
+
 export const dynamic = 'force-dynamic'
 
 // ---------------------------------------------------------------------------
@@ -15,12 +17,18 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const reportTypeParam = searchParams.get('type')
 
-    // Verify Vercel Cron Authorization Secret if configured
+    // Strict Cron Verification: If secret configured, verify header; otherwise require staff session
     const authHeader = request.headers.get('authorization')
     const cronSecret = process.env.CRON_SECRET
 
-    if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-      return NextResponse.json({ error: 'Unauthorized cron invocation.' }, { status: 401 })
+    if (cronSecret) {
+      if (authHeader !== `Bearer ${cronSecret}`) {
+        return NextResponse.json({ error: 'Unauthorized cron invocation.' }, { status: 401 })
+      }
+    } else {
+      // In development or when CRON_SECRET is not configured, require admin session
+      const authResult = await requireAuth(request, ['admin', 'owner'])
+      if ('errorResponse' in authResult) return authResult.errorResponse
     }
 
     // Supabase Admin/Server Client to retrieve live database settings
@@ -202,6 +210,9 @@ export async function GET(request: Request) {
 // POST Handler: Invoked by Admin Settings UI (with manual / live test payload)
 // ---------------------------------------------------------------------------
 export async function POST(request: Request) {
+  const authResult = await requireAuth(request, ['admin', 'owner'])
+  if ('errorResponse' in authResult) return authResult.errorResponse
+
   try {
     const body = await request.json()
     const result = await dispatchReportEmail(body)

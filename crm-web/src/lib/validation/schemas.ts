@@ -81,7 +81,7 @@ export const StudentCreateSchema = z.object({
   ps_code: z.string().min(3, { message: 'PS Code is required' }),
   full_name: z.string().min(1, { message: 'Student name is required' }).max(100, { message: 'Student name cannot exceed 100 characters' }),
   grade: z.number().int().min(1).max(13, { message: 'Grade must be between 1 and 13' }),
-  lms_number: z.string().optional().nullable(),
+  lms_number: z.string().regex(/^[a-zA-Z0-9_\-\.\s]*$/, { message: 'LMS number contains invalid characters' }).max(50).optional().nullable(),
   fcode_ref: z.string().optional().nullable(),
   parent_name: z.string().min(1, { message: 'Parent/Guardian name is required' }).max(100),
   parent_phone: z.string().regex(/^\d{9,11}$/, { message: 'Parent phone must contain 9 to 11 digits only' }),
@@ -98,10 +98,24 @@ export const StudentCreateSchema = z.object({
     notes: z.string().optional().nullable(),
     items: z.array(z.object({
       courseCode: z.string(),
-      amount_paid: z.number().min(0),
+      amount_paid: z.number().min(0).refine(val => Number(val.toFixed(2)) === val, {
+        message: 'Amount paid cannot have more than 2 decimal places'
+      }),
       deliver_tute: z.boolean().optional()
     }))
   }).optional().nullable()
+}).refine(data => {
+  // If immediate payment specified with deliver_tute, require positive amount_paid unless FREE
+  if (data.immediate_payment && data.immediate_payment.payment_type !== 'FREE') {
+    for (const item of data.immediate_payment.items) {
+      if (item.deliver_tute && item.amount_paid <= 0) {
+        return false
+      }
+    }
+  }
+  return true
+}, {
+  message: 'Tute delivery cannot be authorized for unpaid immediate registration payment unless marked as FREE.'
 })
 
 export type StudentCreateInput = z.infer<typeof StudentCreateSchema>

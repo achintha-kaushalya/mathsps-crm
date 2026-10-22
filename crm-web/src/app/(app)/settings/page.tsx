@@ -82,12 +82,11 @@ export default function SettingsPage() {
       if (user) {
         setEmail(user.email || '')
         setName(user.user_metadata?.full_name || 'Staff Member')
-        let uRole = user.user_metadata?.role || (user.email?.toLowerCase().includes('admin') ? 'admin' : 'member')
+        let uRole = user.user_metadata?.role || 'member'
         if (user.email) {
           const { data: dbMem } = await supabase.from('members').select('role, notes').eq('email', user.email).single()
           if (dbMem?.role) uRole = dbMem.role
         }
-        if (user.email?.toLowerCase().includes('admin')) uRole = 'admin'
         setRole(uRole)
       }
     })

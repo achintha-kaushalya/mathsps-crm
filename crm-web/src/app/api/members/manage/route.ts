@@ -1,26 +1,33 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { requireAuth } from '@/lib/api/guard'
 
 export async function POST(request: Request) {
+  // 0. Enforce authenticated Admin/Owner session
+  const authResult = await requireAuth(request, ['admin', 'owner'])
+  if ('errorResponse' in authResult) return authResult.errorResponse
+
   try {
     const body = await request.json()
     const { action, memberId, newRole, newActive, adminPassword, newMemberPassword, permissions } = body
 
-    if (!action || (!memberId && action !== 'update_custom_courses') || !adminPassword) {
-      return NextResponse.json({ error: 'Action and admin password are required.' }, { status: 400 })
+    if (!action || (!memberId && action !== 'update_custom_courses')) {
+      return NextResponse.json({ error: 'Action is required.' }, { status: 400 })
     }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://hwtewfqwzsqxvhdfyvkk.supabase.co'
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || anonKey
 
-    // 1. Verify Admin Password with Supabase Auth (or bypass for internal custom course sync & email settings)
-    const isBypass = (action === 'update_custom_courses' || action === 'update_email_settings') && adminPassword === 'sb_secret_verification_bypass'
-    
-    if (!isBypass) {
+    // 1. Password confirmation check for high-risk actions
+    const requiresPasswordCheck = ['update_role', 'delete_member', 'reset_password'].includes(action)
+    if (requiresPasswordCheck) {
+      if (!adminPassword) {
+        return NextResponse.json({ error: 'Admin password confirmation is required for this action.' }, { status: 400 })
+      }
       const authClient = createClient(supabaseUrl, anonKey)
       const { error: authError } = await authClient.auth.signInWithPassword({
-        email: 'admin@mathsps.com',
+        email: authResult.auth.user.email,
         password: adminPassword
       })
 

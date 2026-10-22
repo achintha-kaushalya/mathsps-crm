@@ -159,4 +159,47 @@ describe('M10 Hardcore Red-Team Siege: 10 Latent Vulnerabilities Hunting Suite',
     const parsed = LeadCreateSchema.safeParse(junkCampaignLead)
     assert.equal(parsed.success, false, 'FAIL #10: 200-character junk campaign tag accepted without constraint!')
   })
+
+  // -------------------------------------------------------------------------
+  // FAILURE 11: Immediate Registration Unpaid Tute Delivery Fraud
+  // -------------------------------------------------------------------------
+  it('Attack 11: Unpaid Tute Delivery via immediate_payment in Student Registration', async () => {
+    const { StudentCreateSchema } = await import('../../src/lib/validation/schemas')
+    const unpaidImmTuteStudent = {
+      ps_code: 'PS10599',
+      full_name: 'Fraud Tester',
+      grade: 11,
+      parent_name: 'Parent Name',
+      parent_phone: '0712345678',
+      address: 'Galle Road',
+      enrollments: [{ courseCode: 'GR11_THEORY', fee: 1800 }],
+      immediate_payment: {
+        month: 10,
+        year: 2026,
+        payment_type: 'BANK',
+        items: [{ courseCode: 'GR11_THEORY', amount_paid: 0, deliver_tute: true }]
+      }
+    }
+    const parsed = StudentCreateSchema.safeParse(unpaidImmTuteStudent)
+    assert.equal(parsed.success, false, 'FAIL #11: Unpaid immediate payment allowed tute dispatch authorization!')
+  })
+
+  // -------------------------------------------------------------------------
+  // FAILURE 12: Malicious LMS Tag Script/HTML Injection in Student Creation
+  // -------------------------------------------------------------------------
+  it('Attack 12: Stored Script Injection via Student LMS Tag', async () => {
+    const { StudentCreateSchema } = await import('../../src/lib/validation/schemas')
+    const scriptLmsStudent = {
+      ps_code: 'PS10598',
+      full_name: 'Script Student',
+      grade: 11,
+      lms_number: '<script>alert(1)</script>',
+      parent_name: 'Parent Name',
+      parent_phone: '0712345678',
+      address: 'Galle Road',
+      enrollments: [{ courseCode: 'GR11_THEORY', fee: 1800 }]
+    }
+    const parsed = StudentCreateSchema.safeParse(scriptLmsStudent)
+    assert.equal(parsed.success, false, 'FAIL #12: HTML/Script tags accepted inside student LMS number!')
+  })
 })
