@@ -905,7 +905,7 @@ export default function MasterLeadsSpreadsheet() {
       </div>
       </div>
 
-      {/* Self-contained Minimal Shadcn Delete Confirmation Dialog */}
+      {/* MathsPS Signature Liquid Glassmorphism Delete Confirmation Dialog */}
       {deleteTargetLead && typeof document !== 'undefined' ? (
         <div
           style={{
@@ -915,97 +915,117 @@ export default function MasterLeadsSpreadsheet() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: '20px',
+            padding: '24px',
           }}
         >
-          {/* Subtle dim backdrop */}
+          {/* Subtle dim blur backdrop */}
           <div
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0, 0, 0, 0.65)',
-              backdropFilter: 'blur(6px)',
-              WebkitBackdropFilter: 'blur(6px)',
+              background: 'rgba(5, 8, 15, 0.72)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
               zIndex: 1,
             }}
             onClick={() => !deletingId && setDeleteTargetLead(null)}
           />
 
-          {/* Clean Shadcn Modal Card */}
+          {/* Liquid Glass Card Surface */}
           <div
             style={{
               position: 'relative',
               zIndex: 2,
               width: '100%',
-              maxWidth: '400px',
-              background: '#0d131f',
-              border: '1px solid #1e293b',
-              borderRadius: '12px',
-              padding: '20px',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+              maxWidth: '430px',
+              background: 'rgba(15, 23, 42, 0.82)',
+              backdropFilter: 'blur(20px)',
+              WebkitBackdropFilter: 'blur(20px)',
+              border: '1px solid rgba(255, 255, 255, 0.08)',
+              borderRadius: '16px',
+              padding: '24px',
+              boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.04), 0 8px 32px rgba(239, 68, 68, 0.08)',
               color: '#f8fafc',
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            {/* Header */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '14px' }}>
+            {/* Header with Liquid Glass Warning Badge */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', marginBottom: '16px' }}>
               <div
                 style={{
-                  width: '34px',
-                  height: '34px',
-                  borderRadius: '8px',
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '12px',
                   background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
+                  border: '1px solid rgba(239, 68, 68, 0.28)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   color: '#ef4444',
+                  boxShadow: '0 4px 16px -2px rgba(239, 68, 68, 0.3)',
                   flexShrink: 0,
                 }}
               >
-                <AlertTriangle size={17} />
+                <AlertTriangle size={20} />
               </div>
-              <div>
-                <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600, color: '#f8fafc' }}>
-                  Delete Lead
+              <div style={{ flex: 1 }}>
+                <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600, color: '#f8fafc', letterSpacing: '-0.01em' }}>
+                  Delete Lead Record
                 </h3>
-                <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#64748b' }}>
-                  This action cannot be undone.
+                <p style={{ margin: '3px 0 0', fontSize: '12.5px', color: '#94a3b8' }}>
+                  This action is permanent and cannot be undone.
                 </p>
               </div>
             </div>
 
-            {/* Description Body */}
-            <div style={{ fontSize: '13px', color: '#94a3b8', lineHeight: '1.5', marginBottom: '20px' }}>
-              Are you sure you want to permanently delete lead{' '}
-              <span
-                style={{
-                  color: '#38bdf8',
-                  fontFamily: 'monospace',
-                  fontWeight: 600,
-                  background: 'rgba(56, 189, 248, 0.1)',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid rgba(56, 189, 248, 0.2)',
-                }}
-              >
-                {deleteTargetLead.fcode || 'selected'}
-              </span>
-              {deleteTargetLead.normalized_phone || deleteTargetLead.raw_phone ? (
-                <span style={{ color: '#cbd5e1' }}> ({deleteTargetLead.normalized_phone || deleteTargetLead.raw_phone})</span>
-              ) : null}
-              ?
+            {/* Lead Summary Info Pill Container */}
+            <div
+              style={{
+                background: 'rgba(255, 255, 255, 0.03)',
+                border: '1px solid rgba(255, 255, 255, 0.06)',
+                borderRadius: '10px',
+                padding: '12px 14px',
+                marginBottom: '20px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '6px',
+              }}
+            >
+              <div style={{ fontSize: '12px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', fontWeight: 600 }}>
+                Target Lead
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span
+                  style={{
+                    color: '#38bdf8',
+                    fontFamily: 'monospace',
+                    fontWeight: 700,
+                    fontSize: '13px',
+                    background: 'rgba(56, 189, 248, 0.12)',
+                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                    padding: '3px 8px',
+                    borderRadius: '6px',
+                  }}
+                >
+                  {deleteTargetLead.fcode || 'selected'}
+                </span>
+                {deleteTargetLead.normalized_phone || deleteTargetLead.raw_phone ? (
+                  <span style={{ fontSize: '13px', color: '#cbd5e1', fontWeight: 500 }}>
+                    {deleteTargetLead.normalized_phone || deleteTargetLead.raw_phone}
+                  </span>
+                ) : null}
+              </div>
             </div>
 
-            {/* Footer with Balanced Action Buttons */}
+            {/* Footer Actions */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'flex-end',
-                gap: '8px',
-                paddingTop: '14px',
-                borderTop: '1px solid #1e293b',
+                gap: '10px',
+                paddingTop: '16px',
+                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
               }}
             >
               <button
@@ -1013,15 +1033,23 @@ export default function MasterLeadsSpreadsheet() {
                 onClick={() => setDeleteTargetLead(null)}
                 disabled={!!deletingId}
                 style={{
-                  padding: '7px 14px',
-                  fontSize: '12px',
+                  padding: '8px 16px',
+                  fontSize: '12.5px',
                   fontWeight: 500,
                   color: '#94a3b8',
-                  background: 'transparent',
-                  border: '1px solid #334155',
-                  borderRadius: '6px',
+                  background: 'rgba(255, 255, 255, 0.04)',
+                  border: '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '8px',
                   cursor: 'pointer',
-                  transition: 'all 0.15s',
+                  transition: 'all 0.18s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.08)'
+                  e.currentTarget.style.color = '#f8fafc'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.04)'
+                  e.currentTarget.style.color = '#94a3b8'
                 }}
               >
                 Cancel
@@ -1031,22 +1059,30 @@ export default function MasterLeadsSpreadsheet() {
                 onClick={() => confirmDeleteLead()}
                 disabled={!!deletingId}
                 style={{
-                  padding: '7px 14px',
-                  fontSize: '12px',
+                  padding: '8px 18px',
+                  fontSize: '12.5px',
                   fontWeight: 600,
                   color: '#ffffff',
-                  background: '#dc2626',
-                  border: '1px solid rgba(239, 68, 68, 0.4)',
-                  borderRadius: '6px',
+                  background: '#ef4444',
+                  border: '1px solid rgba(239, 68, 68, 0.5)',
+                  borderRadius: '8px',
                   cursor: 'pointer',
                   display: 'inline-flex',
                   alignItems: 'center',
                   gap: '6px',
-                  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.3)',
-                  transition: 'all 0.15s',
+                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.35)',
+                  transition: 'all 0.18s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.filter = 'brightness(1.1)'
+                  e.currentTarget.style.boxShadow = '0 6px 18px rgba(239, 68, 68, 0.45)'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.filter = 'brightness(1.0)'
+                  e.currentTarget.style.boxShadow = '0 4px 14px rgba(239, 68, 68, 0.35)'
                 }}
               >
-                <Trash2 size={13} />
+                <Trash2 size={14} />
                 {deletingId ? 'Deleting...' : 'Delete Lead'}
               </button>
             </div>
