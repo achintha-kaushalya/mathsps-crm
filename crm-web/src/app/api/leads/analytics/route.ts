@@ -1,13 +1,51 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
+import { createServerClient } from '@supabase/ssr'
+import { cookies } from 'next/headers'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY!
-    const supabase = createClient(supabaseUrl, key, {
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
+
+    // 1. Mandatory Session Authentication check
+    let user = null
+    try {
+      const cookieStore = await cookies()
+      const authClient = createServerClient(supabaseUrl, anonKey, {
+        cookies: {
+          getAll() { return cookieStore.getAll() },
+          setAll() {}
+        }
+      })
+      const { data } = await authClient.auth.getUser()
+      user = data.user
+    } catch {
+      const cookieHeader = req.headers.get('cookie') || ''
+      const authClient = createServerClient(supabaseUrl, anonKey, {
+        cookies: {
+          getAll() {
+            return cookieHeader.split(';').map(c => {
+              const [name, ...val] = c.trim().split('=')
+              return { name, value: val.join('=') }
+            }).filter(c => c.name && c.value)
+          },
+          setAll() {}
+        }
+      })
+      const { data } = await authClient.auth.getUser()
+      user = data.user
+    }
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized. Please login.' }, { status: 401 })
+    }
+
+    // 2. Query leads via secure service role client
+    const supabase = createClient(supabaseUrl, serviceKey, {
       auth: { persistSession: false }
     })
 
