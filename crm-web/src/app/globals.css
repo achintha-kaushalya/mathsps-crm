@@ -600,19 +600,16 @@ select:focus {
 @keyframes popUpUpwards {
   0% {
     opacity: 0;
-    transform: translateY(28px) scale(0.97);
-  }
-  60% {
-    opacity: 0.95;
-    transform: translateY(-3px) scale(1.005);
+    transform: translateY(22px);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: translateY(0);
   }
 }
 .pop-up-bar {
-  animation: popUpUpwards 0.28s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: popUpUpwards 0.42s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform, opacity;
 }
 
 @keyframes slideInRight {
