@@ -11,6 +11,7 @@
     "test:security": "node --import tsx --test $(find tests/security -name '*.test.ts')",
     "test:all": "node --import tsx --test $(find tests -name '*.test.ts')",
     "test:a11y": "playwright test e2e/a11y.spec.ts",
+    "qa:perf": "lhci autorun",
     "electron:dev": "concurrently -k \"npm run dev\" \"wait-on http://localhost:3000 && electron .\"",
     "electron:app": "electron .",
     "electron:pack": "electron-builder --dir",
@@ -60,6 +61,7 @@
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
@@ -72,6 +74,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
     "jsdom": "^27.0.1",
+    "lighthouse": "^12.8.2",
     "puppeteer": "^25.10.0",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
