@@ -623,8 +623,8 @@ export default function MasterLeadsSpreadsheet() {
             ) : leads.map((lead, idx) => {
               const ownLead = isOwnLead(lead)
               const editable = canEditLead(lead) // admin, own lead, or permitted team lead
-              // Core Security Logic: Full edit only for Admin, global view permission, or lead owner
-              const canEditFullRow = isAdmin || canViewAll || ownLead
+              // Core Rule: Only Admin or the Lead's assigned owner can edit this lead!
+              const canEditFullRow = isAdmin || ownLead
               const presence = activePresences[lead.id]
 
               // Apps Script Formula Line 594-597:
