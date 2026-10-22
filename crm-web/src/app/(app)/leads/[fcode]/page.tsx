@@ -25,28 +25,53 @@ export default function LeadDetailPage() {
   }, [fcode])
 
   async function loadLead() {
-    const { data } = await supabase.from('leads').select('*').eq('fcode', fcode).single()
-    setLead(data)
-    setForm(data || {})
-    setLoading(false)
+    try {
+      const res = await fetch(`/api/leads/${encodeURIComponent(fcode)}`)
+      const result = await res.json()
+      if (res.ok && result.data) {
+        setLead(result.data)
+        setForm(result.data)
+      } else {
+        setLead(null)
+      }
+    } catch {
+      setLead(null)
+    } finally {
+      setLoading(false)
+    }
   }
 
   async function save() {
     if (!lead) return
     setSaving(true)
-    await supabase.from('leads').update({
-      assigned_member: form.assigned_member,
-      status: form.status,
-      grade: form.grade,
-      comments: form.comments,
-      campaign: form.campaign,
-      second_call_done: form.second_call_done,
-      second_call_notes: form.second_call_notes,
-      paid: form.paid,
-      ps_code_ref: form.ps_code_ref,
-    }).eq('id', lead.id)
-    setSaving(false)
-    loadLead()
+    try {
+      const res = await fetch(`/api/leads/${encodeURIComponent(fcode)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assigned_member: form.assigned_member,
+          status: form.status,
+          grade: form.grade ? parseInt(String(form.grade), 10) : null,
+          comments: form.comments,
+          campaign: form.campaign,
+          second_call_done: form.second_call_done,
+          second_call_notes: form.second_call_notes,
+          paid: form.paid,
+          ps_code_ref: form.ps_code_ref,
+        })
+      })
+
+      const result = await res.json()
+      if (!res.ok) {
+        alert(result.error || 'Failed to update lead')
+      } else {
+        loadLead()
+      }
+    } catch (e: any) {
+      alert(e.message || 'Failed to save lead')
+    } finally {
+      setSaving(false)
+    }
   }
 
   if (loading) return <div style={{ padding: 40, color: 'var(--text-muted)' }}>Loading...</div>

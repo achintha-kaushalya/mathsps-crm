@@ -156,4 +156,26 @@ describe('Adversarial Red-Team & Chaos Penetration Suite (Zero-Bias Blind Testin
       assert.ok(parsed.data.notes?.includes('<script>'))
     }
   })
+
+  // -------------------------------------------------------------------------
+  // 7. Horizontal IDOR Attack on Leads
+  // -------------------------------------------------------------------------
+  it('Red-Team IDOR: unauthenticated/cross-tenant request to modify or delete lead is blocked', async () => {
+    // Attempt malicious deletion of a lead without authentication
+    const fakeLeadId = '00000000-0000-0000-0000-000000000000'
+    const delRes = await fetch(`${API_BASE}/api/leads/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: fakeLeadId })
+    })
+    assert.equal(delRes.status, 401, 'Unauthorized caller was able to invoke /api/leads/delete!')
+
+    // Attempt malicious PATCH on /api/leads without session
+    const patchRes = await fetch(`${API_BASE}/api/leads`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: fakeLeadId, comments: 'Hacked by IDOR attack' })
+    })
+    assert.equal(patchRes.status, 401, 'Unauthorized caller was able to PATCH /api/leads!')
+  })
 })

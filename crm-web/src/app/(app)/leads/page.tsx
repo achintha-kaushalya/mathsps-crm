@@ -203,36 +203,22 @@ export default function MasterLeadsSpreadsheet() {
   async function loadLeads(p: number) {
     setLoading(true)
     try {
-      let q = supabase.from('leads').select('*', { count: 'exact' })
+      const params = new URLSearchParams({
+        page: String(p),
+        pageSize: String(PAGE_SIZE),
+        search: search.trim(),
+        status: statusFilter,
+        member: memberFilter
+      })
 
-      // Lead Visibility Restriction for regular staff members
-      if (!isAdmin && !canViewAll && currentMemberName) {
-        const visibleMembers = [currentMemberName, ...allowedMembers]
-        q = q.in('assigned_member', visibleMembers)
-      }
+      const res = await fetch(`/api/leads?${params.toString()}`)
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Failed to fetch leads')
 
-      if (search.trim()) {
-        const s = search.trim()
-        const normSearch = normalizePhone(s)
-
-        if (s.toUpperCase().startsWith('F')) {
-          q = q.ilike('fcode', `%${s}%`)
-        } else if (normSearch.length >= 7) {
-          q = q.or(`normalized_phone.ilike.%${normSearch}%,raw_phone.ilike.%${s}%,fcode.ilike.%${s}%`)
-        } else {
-          q = q.or(`fcode.ilike.%${s}%,normalized_phone.ilike.%${s}%,raw_phone.ilike.%${s}%,campaign.ilike.%${s}%,comments.ilike.%${s}%`)
-        }
-      }
-      if (statusFilter) q = q.eq('status', statusFilter)
-      if (memberFilter) q = q.eq('assigned_member', memberFilter)
-
-      q = q.order('created_at', { ascending: false })
-        .range(p * PAGE_SIZE, (p + 1) * PAGE_SIZE - 1)
-
-      const { data, count, error } = await q
-      if (error) throw error
-      setLeads(data || [])
-      setTotal(count || 0)
+      setLeads(result.data?.leads || [])
+      setTotal(result.data?.total || 0)
+    } catch (e: any) {
+      console.error('Failed to load leads:', e)
     } finally {
       setLoading(false)
     }
@@ -267,41 +253,29 @@ export default function MasterLeadsSpreadsheet() {
     setDeletingId(lead.id)
 
     try {
-      // 1. Try server API route with service role key
-      let deleteSuccess = false
       const res = await fetch('/api/leads/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: lead.id }),
       })
 
-      if (res.ok) {
-        deleteSuccess = true
-      } else {
-        // Fallback: direct Supabase deletion from client session
-        const { error: sbErr } = await supabase.from('leads').delete().eq('id', lead.id)
-        if (!sbErr) {
-          deleteSuccess = true
-        } else {
-          const errData = await res.json().catch(() => ({}))
-          throw new Error(errData.error || sbErr.message || 'Failed to delete lead')
-        }
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || 'Failed to delete lead')
       }
 
-      if (deleteSuccess) {
-        // Broadcast instant deletion event over active subscribed channel
-        if (channelRef.current) {
-          channelRef.current.send({
-            type: 'broadcast',
-            event: 'lead_deleted',
-            payload: { id: lead.id }
-          })
-        }
-
-        setLeads(prev => prev.filter(l => l.id !== lead.id))
-        setTotal(t => Math.max(0, t - 1))
-        setDeleteTargetLead(null)
+      // Broadcast instant deletion event over active subscribed channel
+      if (channelRef.current) {
+        channelRef.current.send({
+          type: 'broadcast',
+          event: 'lead_deleted',
+          payload: { id: lead.id }
+        })
       }
+
+      setLeads(prev => prev.filter(l => l.id !== lead.id))
+      setTotal(t => Math.max(0, t - 1))
+      setDeleteTargetLead(null)
     } catch (err: any) {
       alert(`Failed to delete lead: ${err.message}`)
     } finally {
@@ -341,7 +315,19 @@ export default function MasterLeadsSpreadsheet() {
     // Optimistic UI update
     setLeads(prev => prev.map(l => l.id === id ? { ...l, ...updateObj } : l))
 
-    await supabase.from('leads').update(updateObj).eq('id', id)
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, ...updateObj })
+      })
+      if (!res.ok) {
+        const err = await res.json()
+        console.error('Failed to update lead via API:', err)
+      }
+    } catch (e) {
+      console.error('Network error updating lead:', e)
+    }
 
     // Broadcast update event over active channel
     if (channelRef.current) {
@@ -360,82 +346,39 @@ export default function MasterLeadsSpreadsheet() {
 
     setAddingRow(true)
     try {
-      const normPhone = normalizePhone(newPhone.trim())
+      const res = await fetch('/api/leads', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          raw_phone: newPhone.trim(),
+          grade: newGrade.trim() ? parseInt(newGrade.trim(), 10) : null,
+          campaign: newCampaign.trim() || 'S26',
+          comments: newComment.trim() || null,
+          assigned_member: currentMemberName || 'unassigned',
+          second_call_notes: newSecondCallNotes.trim() || null
+        })
+      })
 
-      // 1. Auto-Check for Existing Phone Number (1 Number = 1 Unique F-Code Rule)
-      let targetFcode = ''
-      let isRepeat = false
-      let prevFcodeStr = ''
-
-      if (normPhone.length >= 7) {
-        // Query by normalized_phone order by created_at ASC (matching Apps Script top-to-bottom sheet scan)
-        const { data: existing } = await supabase
-          .from('leads')
-          .select('fcode, campaign, created_at')
-          .eq('normalized_phone', normPhone)
-          .order('created_at', { ascending: true })
-
-        if (existing && existing.length > 0) {
-          // REUSE THE FIRST F-CODE EVER ENTERED FOR THIS PHONE NUMBER
-          // Strip any legacy row suffix (e.g. _5120, _5637) from old spreadsheet imports
-          const rawPrev = (existing[0].fcode || '').trim()
-          const cleanCode = rawPrev.replace(/_\d+$/, '')
-          targetFcode = cleanCode
-          isRepeat = true
-          prevFcodeStr = cleanCode
-        }
+      const result = await res.json()
+      if (!res.ok) {
+        throw new Error(result.error || 'Failed to add lead')
       }
 
-      // 2. If BRAND NEW phone number -> generate next sequential F-code starting at F80000+
-      if (!targetFcode) {
-        const { data: allFcodes } = await supabase.from('leads').select('fcode').order('created_at', { ascending: false }).limit(500)
-        let maxNum = 80000
-        if (allFcodes) {
-          allFcodes.forEach(f => {
-            const rawFc = (f.fcode || '').trim()
-            // Strip any _ suffix if present
-            const fc = rawFc.replace(/_\d+$/, '')
-            // Match strict standard 5-digit F-codes (F80000..F99999)
-            if (/^F\d{5}$/i.test(fc)) {
-              const n = parseInt(fc.slice(1), 10)
-              if (!isNaN(n) && n >= maxNum && n < 99999) {
-                maxNum = n
-              }
-            }
-          })
-        }
-        targetFcode = `F${maxNum + 1}`
-      }
-
-      // 3. Create Full Lead Record (sharing original F-code if duplicate)
-      const newLead = {
-        fcode: targetFcode,
-        raw_phone: newPhone.trim(),
-        normalized_phone: normPhone,
-        assigned_member: currentMemberName || 'unassigned',
-        date_added: new Date().toISOString().slice(0, 10),
-        status: 'New',
-        grade: newGrade.trim() || null,
-        campaign: newCampaign.trim() || 'S26',
-        comments: newComment.trim() || null,
-        second_call_notes: newSecondCallNotes.trim() || null,
-        repeat_student: isRepeat,
-        prev_fcode: prevFcodeStr || null,
-      }
-
-      const { data: insertedData, error } = await supabase.from('leads').insert(newLead).select().single()
-      if (error) {
-        throw error
-      } else if (insertedData) {
+      const insertedData = result.data?.lead
+      if (insertedData) {
         setLeads(prev => [insertedData, ...prev])
+        setTotal(t => t + 1)
       }
 
-      // 4. Broadcast instant row creation over active multiplayer channel
-      if (channelRef.current) {
+      setNewPhone('')
+      setNewComment('')
+      setNewSecondCallNotes('')
+
+      if (channelRef.current && insertedData) {
         channelRef.current.send({
           type: 'broadcast',
           event: 'lead_created',
-          payload: { fcode: targetFcode }
+          payload: { fcode: insertedData.fcode }
         })
       }
 

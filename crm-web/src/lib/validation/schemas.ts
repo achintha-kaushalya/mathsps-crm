@@ -114,15 +114,34 @@ export const HouseholdUpdateSchema = z.object({
 export type HouseholdUpdateInput = z.infer<typeof HouseholdUpdateSchema>
 
 /**
- * Lead Update Schema
+ * Lead Creation Schema
+ */
+export const LeadCreateSchema = z.object({
+  raw_phone: z.string().min(8, { message: 'Phone number is required' }),
+  grade: z.number().int().min(1).max(13).optional().nullable(),
+  campaign: z.string().optional().default('S26'),
+  comments: z.string().max(1000).optional().nullable(),
+  assigned_member: z.string().optional().nullable(),
+  second_call_notes: z.string().max(1000).optional().nullable()
+})
+
+export type LeadCreateInput = z.infer<typeof LeadCreateSchema>
+
+/**
+ * Lead Update Schema (Cell edits & detail edits)
  */
 export const LeadUpdateSchema = z.object({
-  lead_id: z.string().uuid({ message: 'Valid lead ID is required' }),
-  status: z.enum(['NEW', 'CONTACTED', 'CONVERTED', 'LOST', 'FOLLOW_UP']).optional(),
-  assigned_to: z.string().uuid().optional().nullable(),
-  notes: z.string().max(2000).optional().nullable(),
-  phone: z.string().optional(),
-  name: z.string().optional()
+  id: z.string().uuid().optional(),
+  assigned_member: z.string().optional().nullable(),
+  status: z.string().optional().nullable(),
+  grade: z.number().int().min(1).max(13).optional().nullable(),
+  comments: z.string().max(2000).optional().nullable(),
+  campaign: z.string().optional().nullable(),
+  second_call_done: z.boolean().optional(),
+  second_call_notes: z.string().max(2000).optional().nullable(),
+  paid: z.boolean().optional(),
+  ps_code_ref: z.string().optional().nullable(),
+  normalized_phone: z.string().optional().nullable()
 })
 
 export type LeadUpdateInput = z.infer<typeof LeadUpdateSchema>
