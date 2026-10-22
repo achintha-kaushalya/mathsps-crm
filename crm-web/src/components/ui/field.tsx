@@ -67,3 +67,46 @@ export const Input = React.forwardRef<HTMLInputElement, React.InputHTMLAttribute
   }
 )
 Input.displayName = "Input"
+
+export const FieldSet = React.forwardRef<HTMLFieldSetElement, React.FieldsetHTMLAttributes<HTMLFieldSetElement>>(
+  ({ className, ...props }, ref) => (
+    <fieldset ref={ref} className={cn("space-y-4 rounded-xl border border-border/60 bg-card/40 p-4 backdrop-blur-md", className)} {...props} />
+  )
+)
+FieldSet.displayName = "FieldSet"
+
+export const FieldLegend = React.forwardRef<HTMLLegendElement, React.HTMLAttributes<HTMLLegendElement> & { variant?: "title" | "label" }>(
+  ({ className, variant = "title", ...props }, ref) => (
+    <legend
+      ref={ref}
+      className={cn(
+        "font-semibold text-foreground",
+        variant === "title" ? "text-sm font-bold tracking-tight text-foreground" : "text-xs font-semibold text-muted-foreground",
+        className
+      )}
+      {...props}
+    />
+  )
+)
+FieldLegend.displayName = "FieldLegend"
+
+export const FieldError = React.forwardRef<HTMLParagraphElement, React.HTMLAttributes<HTMLParagraphElement>>(
+  ({ className, ...props }, ref) => (
+    <p ref={ref} className={cn("text-[11px] font-medium text-rose-500 flex items-center gap-1.5", className)} {...props} />
+  )
+)
+FieldError.displayName = "FieldError"
+
+export const NativeSelect = React.forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
+  ({ className, ...props }, ref) => (
+    <select
+      ref={ref}
+      className={cn(
+        "flex h-9 w-full rounded-lg border border-border bg-input-bg px-3 py-1.5 text-xs text-foreground shadow-sm transition-all focus-visible:outline-none focus-visible:border-sky-500 focus-visible:ring-2 focus-visible:ring-sky-500/20 disabled:cursor-not-allowed disabled:opacity-50",
+        className
+      )}
+      {...props}
+    />
+  )
+)
+NativeSelect.displayName = "NativeSelect"
