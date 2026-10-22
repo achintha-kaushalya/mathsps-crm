@@ -1,4 +1,5 @@
 import * as React from "react"
+import { createPortal } from "react-dom"
 import { cn } from "@/lib/utils"
 
 export interface AlertDialogProps {
@@ -6,8 +7,6 @@ export interface AlertDialogProps {
   onOpenChange?: (open: boolean) => void
   children: React.ReactNode
 }
-
-import { createPortal } from "react-dom"
 
 export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) {
   const [mounted, setMounted] = React.useState(false)
@@ -27,7 +26,7 @@ export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) 
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        padding: '16px',
+        padding: '20px',
       }}
     >
       {/* Backdrop */}
@@ -35,20 +34,20 @@ export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) 
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(0, 0, 0, 0.75)',
-          backdropFilter: 'blur(8px)',
-          WebkitBackdropFilter: 'blur(8px)',
+          background: 'rgba(5, 8, 18, 0.85)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           zIndex: 1,
         }}
         onClick={() => onOpenChange?.(false)}
       />
-      {/* Dialog Surface */}
+      {/* Dialog Surface Container */}
       <div
         style={{
           position: 'relative',
           zIndex: 2,
           width: '100%',
-          maxWidth: '460px',
+          maxWidth: '440px',
           pointerEvents: 'auto',
         }}
         onClick={(e) => e.stopPropagation()}
@@ -64,12 +63,13 @@ export const AlertDialogContent = React.forwardRef<HTMLDivElement, React.HTMLAtt
   ({ className, style, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("rounded-2xl p-6 shadow-2xl transition-all", className)}
+      className={cn("p-6 transition-all", className)}
       style={{
-        background: 'var(--bg-card, #0f172a)',
-        border: '1px solid var(--border, rgba(255, 255, 255, 0.12))',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.65)',
-        color: 'var(--text-primary, #ffffff)',
+        background: '#0c1322',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        borderRadius: '18px',
+        boxShadow: '0 25px 60px -12px rgba(0, 0, 0, 0.85), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+        color: '#ffffff',
         ...style,
       }}
       {...props}
@@ -79,8 +79,13 @@ export const AlertDialogContent = React.forwardRef<HTMLDivElement, React.HTMLAtt
 AlertDialogContent.displayName = "AlertDialogContent"
 
 export const AlertDialogHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
-    <div ref={ref} className={cn("flex flex-col gap-2 text-left", className)} {...props} />
+  ({ className, style, ...props }, ref) => (
+    <div
+      ref={ref}
+      className={cn("flex flex-col gap-2.5 text-left", className)}
+      style={{ ...style }}
+      {...props}
+    />
   )
 )
 AlertDialogHeader.displayName = "AlertDialogHeader"
@@ -89,8 +94,14 @@ export const AlertDialogTitle = React.forwardRef<HTMLHeadingElement, React.HTMLA
   ({ className, style, ...props }, ref) => (
     <h2
       ref={ref}
-      className={cn("text-base font-bold flex items-center gap-2", className)}
-      style={{ color: 'var(--text-primary, #ffffff)', ...style }}
+      className={cn("text-base font-bold flex items-center gap-2.5", className)}
+      style={{
+        color: '#f8fafc',
+        fontSize: '16px',
+        fontWeight: 700,
+        margin: 0,
+        ...style,
+      }}
       {...props}
     />
   )
@@ -101,8 +112,14 @@ export const AlertDialogDescription = React.forwardRef<HTMLParagraphElement, Rea
   ({ className, style, ...props }, ref) => (
     <p
       ref={ref}
-      className={cn("text-xs leading-relaxed", className)}
-      style={{ color: 'var(--text-secondary, #94a3b8)', ...style }}
+      className={cn("leading-relaxed", className)}
+      style={{
+        color: '#94a3b8',
+        fontSize: '13px',
+        lineHeight: 1.6,
+        margin: '4px 0 0',
+        ...style,
+      }}
       {...props}
     />
   )
@@ -110,11 +127,18 @@ export const AlertDialogDescription = React.forwardRef<HTMLParagraphElement, Rea
 AlertDialogDescription.displayName = "AlertDialogDescription"
 
 export const AlertDialogFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => (
+  ({ className, style, ...props }, ref) => (
     <div
       ref={ref}
       className={cn("flex items-center justify-end gap-3", className)}
-      style={{ marginTop: 24, display: 'flex', justifyContent: 'flex-end', gap: 12 }}
+      style={{
+        marginTop: '24px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'flex-end',
+        gap: '10px',
+        ...style,
+      }}
       {...props}
     />
   )
@@ -133,12 +157,12 @@ export const AlertDialogAction = React.forwardRef<HTMLButtonElement, React.Butto
       style={{
         background: '#ef4444',
         color: '#ffffff',
-        border: 'none',
-        padding: '8px 16px',
-        fontSize: '12px',
-        borderRadius: '8px',
+        border: '1px solid rgba(239, 68, 68, 0.4)',
+        padding: '9px 18px',
+        fontSize: '13px',
+        borderRadius: '9px',
         fontWeight: 600,
-        boxShadow: '0 2px 8px rgba(239, 68, 68, 0.35)',
+        boxShadow: '0 2px 10px rgba(239, 68, 68, 0.35)',
         cursor: 'pointer',
         ...style,
       }}
@@ -158,12 +182,12 @@ export const AlertDialogCancel = React.forwardRef<HTMLButtonElement, React.Butto
         className
       )}
       style={{
-        background: 'transparent',
-        color: 'var(--text-secondary, #94a3b8)',
-        border: '1px solid var(--border, rgba(255, 255, 255, 0.15))',
-        padding: '8px 16px',
-        fontSize: '12px',
-        borderRadius: '8px',
+        background: 'rgba(255, 255, 255, 0.05)',
+        color: '#94a3b8',
+        border: '1px solid rgba(255, 255, 255, 0.12)',
+        padding: '9px 18px',
+        fontSize: '13px',
+        borderRadius: '9px',
         fontWeight: 600,
         cursor: 'pointer',
         ...style,

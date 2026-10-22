@@ -905,184 +905,64 @@ export default function MasterLeadsSpreadsheet() {
       </div>
       </div>
 
-      {/* Premium Glassmorphic Lead Deletion Confirmation Dialog */}
-      {deleteTargetLead && (
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            background: 'rgba(5, 8, 18, 0.82)',
-            backdropFilter: 'blur(20px)',
-            WebkitBackdropFilter: 'blur(20px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 999999,
-            padding: 20,
-            animation: 'fadeIn 0.2s ease forwards',
-          }}
-          onClick={() => {
-            if (!deletingId) setDeleteTargetLead(null)
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              maxWidth: 460,
-              width: '100%',
-              background: 'linear-gradient(135deg, rgba(17, 24, 39, 0.95), rgba(15, 23, 42, 0.92))',
-              border: '1px solid rgba(244, 63, 94, 0.3)',
-              borderRadius: 20,
-              padding: '28px 24px',
-              boxShadow: '0 25px 60px -10px rgba(0, 0, 0, 0.8), 0 0 30px -5px rgba(239, 68, 68, 0.25)',
-              position: 'relative',
-              overflow: 'hidden',
-              animation: 'slideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards',
-            }}
-          >
-            {/* Top Glow Ambient Line */}
-            <div
-              style={{
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                height: 3,
-                background: 'linear-gradient(90deg, transparent, #ef4444 30%, #f43f5e 70%, transparent)',
-              }}
-            />
-
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14 }}>
-              {/* Danger Glow Icon Badge */}
+      {/* Clean Shadcn Alert Dialog */}
+      <AlertDialog open={!!deleteTargetLead} onOpenChange={(open) => !open && setDeleteTargetLead(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4 }}>
               <div
                 style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: 12,
+                  width: 38,
+                  height: 38,
+                  borderRadius: 10,
                   background: 'rgba(239, 68, 68, 0.12)',
                   border: '1px solid rgba(239, 68, 68, 0.25)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  color: '#ef4444',
                   flexShrink: 0,
-                  boxShadow: '0 4px 14px rgba(239, 68, 68, 0.25)',
-                  color: '#f43f5e',
                 }}
               >
-                <AlertTriangle size={22} />
+                <AlertTriangle size={18} />
               </div>
-
-              <div style={{ flex: 1 }}>
-                <h3 style={{ margin: 0, fontSize: 17, fontWeight: 700, color: 'var(--text-primary, #ffffff)', letterSpacing: '-0.01em' }}>
-                  Confirm Lead Deletion
-                </h3>
-                <p style={{ margin: '6px 0 0', fontSize: 13, color: 'var(--text-secondary, #94a3b8)', lineHeight: 1.55 }}>
-                  Are you sure you want to permanently delete lead{' '}
-                  <span
-                    style={{
-                      fontFamily: 'monospace',
-                      fontWeight: 700,
-                      color: 'var(--accent-blue, #38bdf8)',
-                      background: 'rgba(56, 189, 248, 0.12)',
-                      padding: '2px 6px',
-                      borderRadius: 6,
-                    }}
-                  >
-                    {deleteTargetLead.fcode}
-                  </span>
-                  {deleteTargetLead.normalized_phone || deleteTargetLead.raw_phone ? (
-                    <span> ({deleteTargetLead.normalized_phone || deleteTargetLead.raw_phone})</span>
-                  ) : null}
-                  ?
-                </p>
+              <div>
+                <AlertDialogTitle>Delete Lead</AlertDialogTitle>
+                <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>
+                  Permanent record removal
+                </div>
               </div>
             </div>
 
-            {/* Warning Note Pill */}
-            <div
-              style={{
-                margin: '18px 0',
-                padding: '10px 14px',
-                borderRadius: 10,
-                background: 'rgba(239, 68, 68, 0.08)',
-                border: '1px solid rgba(239, 68, 68, 0.18)',
-                fontSize: 12,
-                color: '#fca5a5',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8,
-              }}
+            <AlertDialogDescription>
+              Are you sure you want to permanently delete lead{' '}
+              <strong style={{ color: '#f8fafc', fontFamily: 'monospace' }}>
+                {deleteTargetLead?.fcode}
+              </strong>
+              {deleteTargetLead?.normalized_phone || deleteTargetLead?.raw_phone ? (
+                <span> ({deleteTargetLead.normalized_phone || deleteTargetLead.raw_phone})</span>
+              ) : null}
+              ? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => setDeleteTargetLead(null)}
+              disabled={!!deletingId}
             >
-              <Trash2 size={14} style={{ flexShrink: 0 }} />
-              <span>This record will be completely expunged from the database and synced in realtime.</span>
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 22 }}>
-              <button
-                type="button"
-                onClick={() => setDeleteTargetLead(null)}
-                disabled={!!deletingId}
-                style={{
-                  background: 'rgba(255, 255, 255, 0.05)',
-                  border: '1px solid var(--border, rgba(255, 255, 255, 0.12))',
-                  color: 'var(--text-secondary, #94a3b8)',
-                  borderRadius: 10,
-                  padding: '9px 18px',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  opacity: deletingId ? 0.5 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)'
-                  e.currentTarget.style.color = '#ffffff'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)'
-                  e.currentTarget.style.color = 'var(--text-secondary, #94a3b8)'
-                }}
-              >
-                Cancel
-              </button>
-
-              <button
-                type="button"
-                onClick={() => confirmDeleteLead()}
-                disabled={!!deletingId}
-                style={{
-                  background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                  border: '1px solid rgba(255, 255, 255, 0.15)',
-                  color: '#ffffff',
-                  borderRadius: 10,
-                  padding: '9px 20px',
-                  fontSize: 13,
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 8,
-                  boxShadow: '0 4px 16px rgba(239, 68, 68, 0.45)',
-                  transition: 'all 0.15s ease',
-                  opacity: deletingId ? 0.6 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.transform = 'translateY(-1px)'
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(239, 68, 68, 0.6)'
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.transform = 'translateY(0)'
-                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(239, 68, 68, 0.45)'
-                }}
-              >
-                <Trash2 size={15} />
-                {deletingId ? 'Deleting...' : 'Yes, Delete Record'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => confirmDeleteLead()}
+              disabled={!!deletingId}
+            >
+              <Trash2 size={14} />
+              {deletingId ? 'Deleting...' : 'Delete Lead'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
