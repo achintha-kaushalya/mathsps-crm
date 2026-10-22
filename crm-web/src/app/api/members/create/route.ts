@@ -33,16 +33,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Unauthorized. Please login as Admin.' }, { status: 401 })
     }
 
-    const callingEmail = callingUser.email || ''
-    const callingRole = callingUser.user_metadata?.role || (callingEmail.includes('admin') ? 'admin' : 'member')
-    if (callingRole !== 'admin' && callingRole !== 'owner' && !callingEmail.includes('admin')) {
-      return NextResponse.json({ error: 'Permission denied. Admin privileges required.' }, { status: 403 })
-    }
-
-    // Use Service Role client to create Auth user directly
+    const callingEmail = (callingUser.email || '').toLowerCase()
+    
+    // Use Service Role client for administrative checks and user provisioning
     const supabaseAdmin = createServerClient(supabaseUrl, serviceKey, {
       cookies: { getAll() { return [] }, setAll() {} }
     })
+
+    // Verify true database role
+    const { data: dbCallingMember } = await supabaseAdmin
+      .from('members')
+      .select('role')
+      .eq('email', callingEmail)
+      .single()
+
+    const callingRole = dbCallingMember?.role || callingUser.user_metadata?.role || 'member'
+    if (callingRole !== 'admin' && callingRole !== 'owner') {
+      return NextResponse.json({ error: 'Permission denied. Admin privileges required.' }, { status: 403 })
+    }
 
     // 1. Create Supabase Auth User
     const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({

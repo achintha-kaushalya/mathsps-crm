@@ -32,27 +32,29 @@ export async function middleware(request: NextRequest) {
   const isAuthPage = request.nextUrl.pathname.startsWith('/login')
   const pathname = request.nextUrl.pathname
 
-  const { data: { session } } = await supabase.auth.getSession()
+  // 1. Verify user authenticity directly with Supabase Auth
+  const { data: { user }, error: userError } = await supabase.auth.getUser()
 
-  // 1. Unauthenticated users -> Redirect to /login
-  if (!session && !isAuthPage) {
+  // 2. Unauthenticated users -> Redirect to /login
+  if ((userError || !user) && !isAuthPage) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // 2. Authenticated users visiting /login -> Redirect to /dashboard
-  if (session && isAuthPage) {
+  // 3. Authenticated users visiting /login -> Redirect to /dashboard
+  if (user && isAuthPage) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // 3. Role-Based Access Control (RBAC)
-  if (session) {
-    const email = session.user.email
-    let userRole = session.user.user_metadata?.role || (email?.includes('admin') ? 'admin' : 'member')
+  // 4. Role-Based Access Control (RBAC)
+  if (user) {
+    const email = user.email
+    let userRole = user.user_metadata?.role || 'member'
 
     // Fetch database member notes for sub_role fallback
-    if (email && (userRole === 'member' || !userRole)) {
+    if (email) {
       const { data: dbMem } = await supabase.from('members').select('role, notes').eq('email', email).single()
       if (dbMem) {
+        if (dbMem.role) userRole = dbMem.role
         try {
           if (dbMem.notes) {
             const perms = JSON.parse(dbMem.notes)
@@ -62,7 +64,7 @@ export async function middleware(request: NextRequest) {
       }
     }
 
-    // Admin-only routes (Dashboard is open to everyone now!)
+    // Admin-only routes (Dashboard is open to all authenticated staff)
     const isAdminOnlyRoute = pathname.startsWith('/reports') ||
                              pathname.startsWith('/members')
 
