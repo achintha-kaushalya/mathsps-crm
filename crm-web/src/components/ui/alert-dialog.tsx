@@ -7,9 +7,18 @@ export interface AlertDialogProps {
   children: React.ReactNode
 }
 
+import { createPortal } from "react-dom"
+
 export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) {
-  if (!open) return null
-  return (
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!open || !mounted) return null
+
+  return createPortal(
     <div
       style={{
         position: 'fixed',
@@ -29,7 +38,7 @@ export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) 
           background: 'rgba(0, 0, 0, 0.75)',
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
-          zIndex: 100001,
+          zIndex: 1,
         }}
         onClick={() => onOpenChange?.(false)}
       />
@@ -37,14 +46,17 @@ export function AlertDialog({ open, onOpenChange, children }: AlertDialogProps) 
       <div
         style={{
           position: 'relative',
-          zIndex: 100002,
+          zIndex: 2,
           width: '100%',
           maxWidth: '460px',
+          pointerEvents: 'auto',
         }}
+        onClick={(e) => e.stopPropagation()}
       >
         {children}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }
 
