@@ -9,6 +9,7 @@ import {
   Sparkles, Trophy, Layers, DollarSign, History, AlertCircle
 } from 'lucide-react'
 import Link from 'next/link'
+import GlassLoading3D from '@/components/ui/GlassLoading3D'
 
 // ──────────────────────────────────────────────────────────────
 // Clean & Unified Pro Color Theme (No Rainbow clutter)
@@ -666,12 +667,10 @@ export default function AnalyticsDashboard() {
 
   if (loading) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}>
-        <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-          <Activity size={32} style={{ margin: '0 auto 12px', opacity: 0.5 }} />
-          <div>Loading analytics…</div>
-        </div>
-      </div>
+      <GlassLoading3D
+        message="Loading analytics & live ledgers…"
+        subMessage="Syncing real-time records"
+      />
     )
   }
 
