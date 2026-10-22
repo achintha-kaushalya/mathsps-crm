@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { Student, extractLmsNumber } from '@/lib/types'
 import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetFooter } from '@/components/ui/sheet'
 
 const GRADE_BADGE_STYLES: Record<number, { bg: string; color: string; border: string }> = {
   5:  { bg: '#eff6ff', color: '#2563eb', border: '#dbeafe' },
@@ -776,162 +777,89 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* 6. Quick Slide-Over Student Preview Drawer */}
-      {drawerOpen && selectedStudent && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(9, 13, 22, 0.45)',
-          backdropFilter: 'blur(3px)',
-          zIndex: 9999,
-          display: 'flex',
-          justifyContent: 'flex-end',
-          animation: 'fadeIn 0.15s ease'
-        }}>
-          <div
-            onClick={e => e.stopPropagation()}
-            style={{
-              width: '100%',
-              maxWidth: 440,
-              height: '100%',
-              background: '#ffffff',
-              boxShadow: '-10px 0 30px rgba(0, 0, 0, 0.15)',
-              display: 'flex',
-              flexDirection: 'column',
-              padding: '24px 22px',
-              overflowY: 'auto',
-              animation: 'slideLeft 0.2s ease'
-            }}
-          >
-            {/* Drawer Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      {/* 6. Quick Slide-Over Student Preview Sheet */}
+      <Sheet open={drawerOpen && !!selectedStudent} onOpenChange={setDrawerOpen}>
+        {selectedStudent && (
+          <SheetContent>
+            {/* Sheet Header */}
+            <SheetHeader>
+              <div className="flex items-center gap-2">
                 <span style={{
                   padding: '3px 9px', borderRadius: 8, background: '#eff6ff', color: '#1d4ed8',
                   fontSize: 13, fontWeight: 800, border: '1px solid #dbeafe'
                 }}>
                   {selectedStudent.ps_code}
                 </span>
-                <span style={{ fontSize: 12, color: '#64748b' }}>Quick Preview</span>
+                <span className="text-xs text-muted-foreground font-semibold">Student Record Preview</span>
               </div>
-              <button
-                onClick={() => setDrawerOpen(false)}
-                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: 30, height: 30, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              >
-                <X size={15} color="#475569" />
-              </button>
-            </div>
+              <SheetTitle className="text-lg font-bold text-foreground mt-2">
+                {selectedStudent.full_name || 'Pending Registration'}
+              </SheetTitle>
+              <SheetDescription className="flex items-center gap-2 text-xs">
+                <span>Grade {selectedStudent.grade || '—'}</span>
+                <span>•</span>
+                <span className={selectedStudent.lms_number ? 'text-emerald-500 font-semibold' : 'text-muted-foreground'}>
+                  LMS: {selectedStudent.lms_number || 'Not Set'}
+                </span>
+              </SheetDescription>
+            </SheetHeader>
 
-            {/* Student Identity Card */}
-            <div style={{
-              background: '#f8fafc',
-              border: '1px solid #e2e8f0',
-              borderRadius: 16,
-              padding: 16,
-              marginBottom: 16
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div style={{
-                  width: 48, height: 48, borderRadius: 14,
-                  background: getAvatarStyle(selectedStudent.full_name, selectedStudent.ps_code).bg,
-                  color: getAvatarStyle(selectedStudent.full_name, selectedStudent.ps_code).color,
-                  border: `1.5px solid ${getAvatarStyle(selectedStudent.full_name, selectedStudent.ps_code).border}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 18, fontWeight: 900
-                }}>
-                  {getAvatarStyle(selectedStudent.full_name, selectedStudent.ps_code).char}
+            <div className="flex-1 space-y-4 py-4">
+              {/* Household Contact Info */}
+              <div className="rounded-xl border border-border/80 bg-card/60 p-4 space-y-2 backdrop-blur-sm">
+                <div className="text-[11px] font-extrabold uppercase text-muted-foreground tracking-wider">
+                  Household Details
                 </div>
-                <div>
-                  <h3 style={{ fontSize: 16, fontWeight: 800, margin: 0, color: '#090d16' }}>
-                    {selectedStudent.full_name || 'Pending Registration'}
-                  </h3>
-                  <div style={{ fontSize: 12, color: '#64748b', marginTop: 2, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <span>Grade {selectedStudent.grade || '—'}</span>
-                    <span>·</span>
-                    <span style={{ color: selectedStudent.lms_number ? 'var(--accent-green)' : 'var(--text-muted)', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                      <Phone size={12} /> LMS: {selectedStudent.lms_number || 'Not Set'}
-                    </span>
+                <div className="flex items-start gap-2 text-xs text-foreground">
+                  <User size={14} className="text-muted-foreground mt-0.5 shrink-0" />
+                  <span>Parent: <strong>{(selectedStudent.household as any)?.parent_name || 'Not provided'}</strong></span>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-foreground">
+                  <Phone size={14} className="text-emerald-500 mt-0.5 shrink-0" />
+                  <span>Contact: <strong>{(selectedStudent.household as any)?.parent_phone || '—'}</strong></span>
+                </div>
+                <div className="flex items-start gap-2 text-xs text-foreground">
+                  <MapPin size={14} className="text-sky-500 mt-0.5 shrink-0" />
+                  <span>Address: <strong>{(selectedStudent.household as any)?.address || '—'} ({(selectedStudent.household as any)?.area || '—'})</strong></span>
+                </div>
+              </div>
+
+              {/* Enrolled Courses */}
+              <div>
+                <div className="text-[11px] font-extrabold uppercase text-muted-foreground tracking-wider mb-2">
+                  Active Enrollments
+                </div>
+                {drawerLoading ? (
+                  <div className="text-xs text-muted-foreground p-2">Loading classes...</div>
+                ) : studentEnrollments.length === 0 ? (
+                  <div className="text-xs text-muted-foreground bg-card/40 border border-border p-3 rounded-lg">
+                    No active enrollments recorded
                   </div>
-                </div>
+                ) : (
+                  <div className="flex flex-col gap-1.5">
+                    {studentEnrollments.map((e, idx) => (
+                      <div key={idx} className="p-2.5 bg-card/50 border border-border/70 rounded-lg flex justify-between items-center text-xs">
+                        <span className="font-semibold text-foreground">{e.class_type}</span>
+                        <span className="font-bold text-emerald-500">Rs. {e.fee_amount?.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
 
-            {/* Household Contact Info */}
-            <div style={{
-              background: '#ffffff',
-              border: '1px solid #e2e8f0',
-              borderRadius: 14,
-              padding: '14px 16px',
-              marginBottom: 16,
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 10
-            }}>
-              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.04em' }}>
-                Household Details
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: '#334155' }}>
-                <User size={14} style={{ color: '#64748b', marginTop: 2, flexShrink: 0 }} />
-                <span>Parent: <strong>{(selectedStudent.household as any)?.parent_name || 'Not provided'}</strong></span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: '#334155' }}>
-                <Phone size={14} style={{ color: '#059669', marginTop: 2, flexShrink: 0 }} />
-                <span>Contact: <strong>{(selectedStudent.household as any)?.parent_phone || '—'}</strong></span>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 13, color: '#334155' }}>
-                <MapPin size={14} style={{ color: '#2563eb', marginTop: 2, flexShrink: 0 }} />
-                <span>Address: <strong>{(selectedStudent.household as any)?.address || '—'} ({(selectedStudent.household as any)?.area || '—'})</strong></span>
-              </div>
-            </div>
-
-            {/* Enrolled Courses */}
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ fontSize: 11, fontWeight: 800, textTransform: 'uppercase', color: '#94a3b8', letterSpacing: '0.04em', marginBottom: 8 }}>
-                Active Enrollments
-              </div>
-              {drawerLoading ? (
-                <div style={{ fontSize: 12, color: '#94a3b8', padding: 8 }}>Loading classes...</div>
-              ) : studentEnrollments.length === 0 ? (
-                <div style={{ fontSize: 12, color: '#94a3b8', background: '#f8fafc', padding: 10, borderRadius: 8 }}>No active enrollments recorded</div>
-              ) : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  {studentEnrollments.map((e, idx) => (
-                    <div key={idx} style={{
-                      padding: '8px 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 8,
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 12.5
-                    }}>
-                      <span style={{ fontWeight: 600, color: '#1e293b' }}>{e.class_type}</span>
-                      <span style={{ fontWeight: 700, color: '#059669' }}>Rs. {e.fee_amount?.toLocaleString()}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Full Profile CTA Button */}
-            <div style={{ marginTop: 'auto', paddingTop: 16 }}>
+            {/* Footer CTA */}
+            <SheetFooter>
               <a
                 href={`/students/${encodeURIComponent(selectedStudent.ps_code)}`}
-                className="btn-primary"
-                style={{
-                  width: '100%',
-                  justifyContent: 'center',
-                  padding: '12px 0',
-                  borderRadius: 12,
-                  fontWeight: 700,
-                  fontSize: 14,
-                  textDecoration: 'none'
-                }}
+                className="btn-primary w-full justify-center py-2.5 rounded-xl font-bold text-sm flex items-center gap-2"
               >
                 Open Full Student Profile <ArrowRight size={15} />
               </a>
-            </div>
-          </div>
-        </div>
-      )}
+            </SheetFooter>
+          </SheetContent>
+        )}
+      </Sheet>
     </div>
   )
 }

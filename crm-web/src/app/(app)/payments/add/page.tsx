@@ -5,6 +5,10 @@ import { useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, Search, Plus, Trash2, CreditCard, Home, Phone, User, MapPin, CheckCircle, Edit3, ShieldAlert } from 'lucide-react'
 import { MONTH_NAMES, Student, Enrollment, StudentBalance, extractLmsNumber, formatNotesWithLms } from '@/lib/types'
+import { InputGroup, InputGroupAddon, InputGroupInput } from '@/components/ui/input-group'
+import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert'
+import { Badge } from '@/components/ui/badge'
+import { FieldGroup, Field, FieldLabel } from '@/components/ui/field'
 import {
   DEFAULT_GRADE_COURSES,
   DEFAULT_STANDALONE_COURSES,
@@ -830,24 +834,19 @@ function AddPaymentForm() {
           </div>
           <div ref={searchContainerRef} style={{ position: 'relative' }}>
             <div style={{ display: 'flex', gap: 10 }}>
-              <div style={{ position: 'relative', flex: 1 }}>
-                <Search size={16} style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)' }} />
-                <input
-                  className="search-bar"
-                  style={{
-                    width: '100%',
-                    paddingLeft: 40,
-                    paddingRight: 14,
-                    fontSize: 14,
-                    height: 44,
-                    borderRadius: 10,
-                    fontWeight: 600
-                  }}
-                  placeholder="Type PS Code or Name (e.g. PS5000, SM20, Kasun...)"
-                  value={psSearch}
-                  onChange={e => setPsSearch(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && searchStudent()}
-                />
+              <div style={{ flex: 1 }}>
+                <InputGroup>
+                  <InputGroupAddon>
+                    <Search size={16} />
+                  </InputGroupAddon>
+                  <InputGroupInput
+                    className="h-11 text-sm font-semibold"
+                    placeholder="Type PS Code or Name (e.g. PS5000, SM20, Kasun...)"
+                    value={psSearch}
+                    onChange={e => setPsSearch(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && searchStudent()}
+                  />
+                </InputGroup>
               </div>
               <button
                 className="btn-primary"
