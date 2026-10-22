@@ -14,9 +14,12 @@ export async function GET(req: Request) {
 
   try {
     const url = new URL(req.url)
-    const startDate = url.searchParams.get('startDate') || new Date().toISOString().slice(0, 10)
-    const endDate = url.searchParams.get('endDate') || startDate
+    const rawStart = url.searchParams.get('startDate') || new Date().toISOString().slice(0, 10)
+    const rawEnd = url.searchParams.get('endDate') || rawStart
     const dateType = url.searchParams.get('dateType') || 'date_paid' // 'date_paid' or 'created_at'
+
+    // Prevent inverted date range attacks (startDate > endDate)
+    const [startDate, endDate] = rawStart > rawEnd ? [rawEnd, rawStart] : [rawStart, rawEnd]
 
     const startOfRangeIso = `${startDate}T00:00:00.000Z`
     const endOfRangeIso = `${endDate}T23:59:59.999Z`
