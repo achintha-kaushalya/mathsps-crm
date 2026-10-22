@@ -66,13 +66,15 @@ export const AlertDialogContent = React.forwardRef<HTMLDivElement, React.HTMLAtt
   ({ className, style, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("p-5 transition-all text-slate-100", className)}
+      className={cn("p-6 transition-all text-slate-100", className)}
       style={{
-        background: '#0b0f17',
-        border: '1px solid #1e293b',
-        borderRadius: '12px',
-        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7), 0 0 0 1px rgba(255, 255, 255, 0.04)',
-        color: '#f1f5f9',
+        background: '#0d131f',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        borderRadius: '16px',
+        boxShadow: '0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(255, 255, 255, 0.05)',
+        color: '#f8fafc',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
         ...style,
       }}
       {...props}
@@ -85,7 +87,7 @@ export const AlertDialogHeader = React.forwardRef<HTMLDivElement, React.HTMLAttr
   ({ className, style, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("flex flex-col gap-3 text-left", className)}
+      className={cn("flex flex-col gap-3.5 text-left", className)}
       style={{ ...style }}
       {...props}
     />
@@ -100,7 +102,7 @@ export const AlertDialogTitle = React.forwardRef<HTMLHeadingElement, React.HTMLA
       className={cn("font-semibold text-slate-100", className)}
       style={{
         color: '#f8fafc',
-        fontSize: '15px',
+        fontSize: '16px',
         fontWeight: 600,
         letterSpacing: '-0.015em',
         margin: 0,
@@ -121,7 +123,7 @@ export const AlertDialogDescription = React.forwardRef<HTMLParagraphElement, Rea
       style={{
         color: '#94a3b8',
         fontSize: '13px',
-        lineHeight: 1.5,
+        lineHeight: 1.55,
         margin: 0,
         ...style,
       }}
@@ -135,15 +137,15 @@ export const AlertDialogFooter = React.forwardRef<HTMLDivElement, React.HTMLAttr
   ({ className, style, ...props }, ref) => (
     <div
       ref={ref}
-      className={cn("flex items-center justify-end gap-2 pt-4 mt-1 border-t border-slate-800/60", className)}
+      className={cn("flex items-center justify-end gap-2.5 pt-4 mt-2 border-t border-slate-800/80", className)}
       style={{
-        marginTop: '16px',
-        paddingTop: '14px',
-        borderTop: '1px solid rgba(30, 41, 59, 0.7)',
+        marginTop: '20px',
+        paddingTop: '16px',
+        borderTop: '1px solid rgba(255, 255, 255, 0.08)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'flex-end',
-        gap: '8px',
+        gap: '10px',
         ...style,
       }}
       {...props}
@@ -158,18 +160,18 @@ export const AlertDialogAction = React.forwardRef<HTMLButtonElement, React.Butto
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center gap-1.5 font-medium cursor-pointer active:scale-95 transition-all disabled:opacity-50 select-none",
+        "inline-flex items-center justify-center gap-1.5 font-medium cursor-pointer active:scale-95 transition-all disabled:opacity-50 select-none hover:brightness-110",
         className
       )}
       style={{
-        background: '#dc2626',
+        background: '#ef4444',
         color: '#ffffff',
-        border: '1px solid rgba(239, 68, 68, 0.3)',
-        padding: '7px 14px',
+        border: '1px solid rgba(239, 68, 68, 0.5)',
+        padding: '8px 16px',
         fontSize: '12px',
-        borderRadius: '6px',
-        fontWeight: 500,
-        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.2)',
+        borderRadius: '8px',
+        fontWeight: 600,
+        boxShadow: '0 2px 8px rgba(239, 68, 68, 0.25)',
         cursor: 'pointer',
         ...style,
       }}
@@ -185,16 +187,16 @@ export const AlertDialogCancel = React.forwardRef<HTMLButtonElement, React.Butto
       ref={ref}
       type={type}
       className={cn(
-        "inline-flex items-center justify-center font-medium cursor-pointer active:scale-95 transition-all disabled:opacity-50 select-none",
+        "inline-flex items-center justify-center font-medium cursor-pointer active:scale-95 transition-all disabled:opacity-50 select-none hover:bg-slate-800/60 hover:text-slate-200",
         className
       )}
       style={{
-        background: 'transparent',
+        background: 'rgba(255, 255, 255, 0.04)',
         color: '#94a3b8',
-        border: '1px solid #334155',
-        padding: '7px 14px',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        padding: '8px 16px',
         fontSize: '12px',
-        borderRadius: '6px',
+        borderRadius: '8px',
         fontWeight: 500,
         cursor: 'pointer',
         ...style,
