@@ -621,8 +621,8 @@ export default function MasterLeadsSpreadsheet() {
             ) : leads.map((lead, idx) => {
               const ownLead = isOwnLead(lead)
               const editable = canEditLead(lead) // admin, own lead, or permitted team lead
-              // All visible leads for member/caller can be fully managed & updated just like Admin
-              const canEditFullRow = isAdmin || canViewAll || editable
+              // Core Security Logic: Full edit only for Admin, global view permission, or lead owner
+              const canEditFullRow = isAdmin || canViewAll || ownLead
               const presence = activePresences[lead.id]
 
               // Apps Script Formula Line 594-597:
@@ -832,9 +832,9 @@ export default function MasterLeadsSpreadsheet() {
                     />
                   </td>
 
-                  {/* Delete Action Cell */}
+                  {/* Delete Action Cell — Core Logic: Only Admin or Own Lead can delete */}
                   <td style={{ textAlign: 'center' }}>
-                    {isAdmin || (currentMemberName && currentMemberName.toLowerCase().includes('admin')) || canEditFullRow ? (
+                    {isAdmin || (currentMemberName && currentMemberName.toLowerCase().includes('admin')) || ownLead ? (
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
