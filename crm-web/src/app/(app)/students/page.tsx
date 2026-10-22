@@ -787,89 +787,205 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* 6. Quick Slide-Over Student Preview Sheet */}
-      <Sheet open={drawerOpen && !!selectedStudent} onOpenChange={setDrawerOpen}>
-        {selectedStudent && (
-          <SheetContent>
-            {/* Sheet Header */}
-            <SheetHeader>
-              <div className="flex items-center gap-2">
-                <span style={{
-                  padding: '3px 9px', borderRadius: 8, background: '#eff6ff', color: '#1d4ed8',
-                  fontSize: 13, fontWeight: 800, border: '1px solid #dbeafe'
-                }}>
-                  {selectedStudent.ps_code}
-                </span>
-                <span className="text-xs text-muted-foreground font-semibold">Student Record Preview</span>
-              </div>
-              <SheetTitle className="text-lg font-bold text-foreground mt-2">
+      {/* 6. Sleek Bottom Horizontal Quick Preview Bar */}
+      {drawerOpen && selectedStudent && (
+        <div
+          className="fade-in"
+          style={{
+            position: 'fixed',
+            bottom: 84, // positioned cleanly above the dock
+            left: 20,
+            right: 20,
+            maxWidth: 1200,
+            margin: '0 auto',
+            zIndex: 9995,
+            background: 'var(--bg-card)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            border: '1px solid var(--border)',
+            borderRadius: 20,
+            padding: '16px 22px',
+            boxShadow: '0 20px 50px -10px rgba(0, 0, 0, 0.4), 0 0 0 1px var(--border)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 12
+          }}
+        >
+          {/* Top Bar: Label & Close Button */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span style={{
+                display: 'inline-flex', alignItems: 'center', gap: 5,
+                padding: '2px 8px', borderRadius: 6,
+                background: 'rgba(56, 189, 248, 0.12)', color: 'var(--accent-blue)',
+                border: '1px solid rgba(56, 189, 248, 0.25)',
+                fontSize: 11, fontWeight: 800, letterSpacing: '0.04em'
+              }}>
+                {selectedStudent.ps_code}
+              </span>
+              <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontWeight: 600 }}>
+                Quick Student Preview
+              </span>
+            </div>
+
+            {/* Close Button on Top Right */}
+            <button
+              onClick={() => setDrawerOpen(false)}
+              style={{
+                background: 'var(--bg-card-hover)',
+                border: '1px solid var(--border)',
+                borderRadius: 8,
+                color: 'var(--text-muted)',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4,
+                fontSize: 11,
+                fontWeight: 700,
+                transition: 'all 0.15s ease'
+              }}
+              onMouseEnter={e => { e.currentTarget.style.color = '#ef4444'; e.currentTarget.style.borderColor = '#ef4444' }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-muted)'; e.currentTarget.style.borderColor = 'var(--border)' }}
+              title="Close Preview (Esc)"
+            >
+              <X size={13} />
+              <span>Close</span>
+            </button>
+          </div>
+
+          {/* 3 Horizontal Columns Layout */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'auto 1.3fr 1.3fr 1.8fr auto',
+            gap: 18,
+            alignItems: 'center'
+          }}>
+            {/* 1. Lokuwata Grade Number Eka */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              minWidth: 72,
+              height: 72,
+              borderRadius: 16,
+              background: 'linear-gradient(135deg, rgba(56, 189, 248, 0.15), rgba(99, 102, 241, 0.15))',
+              border: '1px solid rgba(56, 189, 248, 0.35)',
+              padding: '6px 12px'
+            }}>
+              <span style={{ fontSize: 9.5, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--accent-blue)' }}>
+                GRADE
+              </span>
+              <span style={{ fontSize: 26, fontWeight: 900, lineHeight: 1.1, color: 'var(--text-primary)' }}>
+                {selectedStudent.grade || '—'}
+              </span>
+            </div>
+
+            {/* 2. Name Eka (Peli 2-3 Kata) */}
+            <div style={{ minWidth: 0 }}>
+              <div style={{
+                fontSize: 15,
+                fontWeight: 800,
+                color: 'var(--text-primary)',
+                lineHeight: 1.3,
+                wordBreak: 'break-word'
+              }}>
                 {selectedStudent.full_name || 'Pending Registration'}
-              </SheetTitle>
-              <SheetDescription className="flex items-center gap-2 text-xs">
-                <span>Grade {selectedStudent.grade || '—'}</span>
-                <span>•</span>
-                <span className={selectedStudent.lms_number ? 'text-emerald-500 font-semibold' : 'text-muted-foreground'}>
-                  LMS: {selectedStudent.lms_number || 'Not Set'}
-                </span>
-              </SheetDescription>
-            </SheetHeader>
-
-            <div className="flex-1 space-y-4 py-4">
-              {/* Household Contact Info */}
-              <div className="rounded-xl border border-border/80 bg-card/60 p-4 space-y-2 backdrop-blur-sm">
-                <div className="text-[11px] font-extrabold uppercase text-muted-foreground tracking-wider">
-                  Household Details
-                </div>
-                <div className="flex items-start gap-2 text-xs text-foreground">
-                  <User size={14} className="text-muted-foreground mt-0.5 shrink-0" />
-                  <span>Parent: <strong>{(selectedStudent.household as any)?.parent_name || 'Not provided'}</strong></span>
-                </div>
-                <div className="flex items-start gap-2 text-xs text-foreground">
-                  <Phone size={14} className="text-emerald-500 mt-0.5 shrink-0" />
-                  <span>Contact: <strong>{(selectedStudent.household as any)?.parent_phone || '—'}</strong></span>
-                </div>
-                <div className="flex items-start gap-2 text-xs text-foreground">
-                  <MapPin size={14} className="text-sky-500 mt-0.5 shrink-0" />
-                  <span>Address: <strong>{(selectedStudent.household as any)?.address || '—'} ({(selectedStudent.household as any)?.area || '—'})</strong></span>
-                </div>
               </div>
-
-              {/* Enrolled Courses */}
-              <div>
-                <div className="text-[11px] font-extrabold uppercase text-muted-foreground tracking-wider mb-2">
-                  Active Enrollments
-                </div>
-                {drawerLoading ? (
-                  <div className="text-xs text-muted-foreground p-2">Loading classes...</div>
-                ) : studentEnrollments.length === 0 ? (
-                  <div className="text-xs text-muted-foreground bg-card/40 border border-border p-3 rounded-lg">
-                    No active enrollments recorded
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-1.5">
-                    {studentEnrollments.map((e, idx) => (
-                      <div key={idx} className="p-2.5 bg-card/50 border border-border/70 rounded-lg flex justify-between items-center text-xs">
-                        <span className="font-semibold text-foreground">{e.class_type}</span>
-                        <span className="font-bold text-emerald-500">Rs. {e.fee_amount?.toLocaleString()}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
+              <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 5 }}>
+                <User size={12} style={{ color: 'var(--text-muted)' }} />
+                <span>Parent: <strong>{(selectedStudent.household as any)?.parent_name || 'Not provided'}</strong></span>
+              </div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                LMS: <b style={{ color: selectedStudent.lms_number ? '#10b981' : 'var(--text-muted)' }}>{selectedStudent.lms_number || 'Not Set'}</b>
               </div>
             </div>
 
-            {/* Footer CTA */}
-            <SheetFooter>
+            {/* 3. Address & Contact */}
+            <div style={{ minWidth: 0, borderLeft: '1px solid var(--border)', paddingLeft: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 3 }}>
+                Address & Contact
+              </div>
+              <div style={{
+                fontSize: 12,
+                color: 'var(--text-primary)',
+                lineHeight: 1.4,
+                display: '-webkit-box',
+                WebkitLineClamp: 2,
+                WebkitBoxOrient: 'vertical',
+                overflow: 'hidden'
+              }} title={(selectedStudent.household as any)?.address}>
+                <MapPin size={11} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle', color: 'var(--accent-blue)' }} />
+                {(selectedStudent.household as any)?.address || 'No address recorded'}
+                {(selectedStudent.household as any)?.area ? ` (${(selectedStudent.household as any).area})` : ''}
+              </div>
+              {(selectedStudent.household as any)?.parent_phone && (
+                <div style={{ fontSize: 11.5, color: '#10b981', fontWeight: 700, marginTop: 4, display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <Phone size={11} /> {(selectedStudent.household as any).parent_phone}
+                </div>
+              )}
+            </div>
+
+            {/* 4. Enrolled Courses Tika */}
+            <div style={{ minWidth: 0, borderLeft: '1px solid var(--border)', paddingLeft: 16 }}>
+              <div style={{ fontSize: 10, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)', marginBottom: 6 }}>
+                Enrolled Courses
+              </div>
+              {drawerLoading ? (
+                <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>Loading enrollments...</div>
+              ) : studentEnrollments.length === 0 ? (
+                <span style={{ fontSize: 11.5, color: 'var(--text-muted)', fontStyle: 'italic' }}>No active classes</span>
+              ) : (
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, maxHeight: 62, overflowY: 'auto' }}>
+                  {studentEnrollments.map((e, idx) => (
+                    <span
+                      key={idx}
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 700,
+                        padding: '3px 8px',
+                        borderRadius: 8,
+                        background: 'rgba(16, 185, 129, 0.1)',
+                        border: '1px solid rgba(16, 185, 129, 0.25)',
+                        color: '#10b981',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: 4
+                      }}
+                    >
+                      <span>{e.class_type}</span>
+                      <span style={{ fontSize: 10, opacity: 0.8 }}>Rs.{e.fee_amount?.toLocaleString()}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Action: Open Full Profile Button */}
+            <div style={{ paddingLeft: 8 }}>
               <a
                 href={`/students/${encodeURIComponent(selectedStudent.ps_code)}`}
-                className="btn-primary w-full justify-center py-2.5 rounded-xl font-bold text-sm flex items-center gap-2"
+                className="btn-primary"
+                style={{
+                  padding: '9px 15px',
+                  borderRadius: 12,
+                  fontSize: 12,
+                  fontWeight: 800,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  whiteSpace: 'nowrap',
+                  textDecoration: 'none'
+                }}
               >
-                Open Full Student Profile <ArrowRight size={15} />
+                <span>Full Profile</span>
+                <ArrowRight size={13} />
               </a>
-            </SheetFooter>
-          </SheetContent>
-        )}
-      </Sheet>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
