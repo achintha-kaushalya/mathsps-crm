@@ -267,28 +267,41 @@ export default function MasterLeadsSpreadsheet() {
     setDeletingId(lead.id)
 
     try {
-      // Call server API route with service role key to delete
+      // 1. Try server API route with service role key
+      let deleteSuccess = false
       const res = await fetch('/api/leads/delete', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: lead.id }),
       })
 
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to delete lead')
-
-      // Broadcast instant deletion event over active subscribed channel
-      if (channelRef.current) {
-        channelRef.current.send({
-          type: 'broadcast',
-          event: 'lead_deleted',
-          payload: { id: lead.id }
-        })
+      if (res.ok) {
+        deleteSuccess = true
+      } else {
+        // Fallback: direct Supabase deletion from client session
+        const { error: sbErr } = await supabase.from('leads').delete().eq('id', lead.id)
+        if (!sbErr) {
+          deleteSuccess = true
+        } else {
+          const errData = await res.json().catch(() => ({}))
+          throw new Error(errData.error || sbErr.message || 'Failed to delete lead')
+        }
       }
 
-      setLeads(prev => prev.filter(l => l.id !== lead.id))
-      setTotal(t => Math.max(0, t - 1))
-      setDeleteTargetLead(null)
+      if (deleteSuccess) {
+        // Broadcast instant deletion event over active subscribed channel
+        if (channelRef.current) {
+          channelRef.current.send({
+            type: 'broadcast',
+            event: 'lead_deleted',
+            payload: { id: lead.id }
+          })
+        }
+
+        setLeads(prev => prev.filter(l => l.id !== lead.id))
+        setTotal(t => Math.max(0, t - 1))
+        setDeleteTargetLead(null)
+      }
     } catch (err: any) {
       alert(`Failed to delete lead: ${err.message}`)
     } finally {

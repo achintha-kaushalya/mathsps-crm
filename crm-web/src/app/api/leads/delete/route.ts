@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createServerClient } from '@supabase/ssr'
 import { createClient } from '@supabase/supabase-js'
+import { cookies } from 'next/headers'
 
 export async function POST(request: Request) {
   try {
@@ -11,21 +12,38 @@ export async function POST(request: Request) {
     const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
 
-    // 1. Authenticate calling user session from cookies
-    const cookieHeader = request.headers.get('cookie') || ''
-    const supabaseUserClient = createServerClient(supabaseUrl, anonKey, {
-      cookies: {
-        getAll() {
-          return cookieHeader.split(';').map(c => {
-            const [name, ...val] = c.trim().split('=')
-            return { name, value: val.join('=') }
-          }).filter(c => c.name && c.value)
-        },
-        setAll() {}
-      }
-    })
+    // 1. Authenticate calling user session from Next.js cookie store
+    let user = null
+    try {
+      const cookieStore = await cookies()
+      const supabaseUserClient = createServerClient(supabaseUrl, anonKey, {
+        cookies: {
+          getAll() {
+            return cookieStore.getAll()
+          },
+          setAll() {}
+        }
+      })
+      const { data } = await supabaseUserClient.auth.getUser()
+      user = data.user
+    } catch {
+      // Fallback: manually parse from cookie header if cookies() failed
+      const cookieHeader = request.headers.get('cookie') || ''
+      const supabaseUserClient = createServerClient(supabaseUrl, anonKey, {
+        cookies: {
+          getAll() {
+            return cookieHeader.split(';').map(c => {
+              const [name, ...val] = c.trim().split('=')
+              return { name, value: val.join('=') }
+            }).filter(c => c.name && c.value)
+          },
+          setAll() {}
+        }
+      })
+      const { data } = await supabaseUserClient.auth.getUser()
+      user = data.user
+    }
 
-    const { data: { user } } = await supabaseUserClient.auth.getUser()
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized. Please login.' }, { status: 401 })
     }
@@ -45,3 +63,4 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: e.message || 'Server error' }, { status: 500 })
   }
 }
+
