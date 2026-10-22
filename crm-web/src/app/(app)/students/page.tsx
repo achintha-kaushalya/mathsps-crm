@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { 
-  Search, Plus, ArrowRight, User, GraduationCap, MapPin, 
+  Search, Plus, ArrowRight, User, GraduationCap, MapPin, Calendar,
   Phone, Home, ExternalLink, Filter, X, Sparkles, CheckCircle2, 
   BookOpen, Building2, ChevronRight, Eye, RefreshCw, FileSpreadsheet, Download
 } from 'lucide-react'
@@ -524,11 +524,11 @@ export default function StudentsPage() {
             ))}
           </select>
 
-          {/* Area Filter Input */}
+          {/* City / Address Filter Input */}
           <input
             className="input-field"
-            style={{ width: 150, height: 38, borderRadius: 10, fontSize: 12.5 }}
-            placeholder="Filter Area / City..."
+            style={{ width: 140, height: 38, borderRadius: 10, fontSize: 12.5 }}
+            placeholder="City / Town..."
             value={areaFilter}
             onChange={e => setAreaFilter(e.target.value)}
           />
@@ -554,7 +554,7 @@ export default function StudentsPage() {
               <th style={{ padding: '12px 16px', minWidth: 220 }}>Student Name</th>
               <th style={{ padding: '12px 12px', width: 90, textAlign: 'center' }}>Grade</th>
               <th style={{ padding: '12px 14px', minWidth: 160 }}>LMS Number</th>
-              <th style={{ padding: '12px 14px', minWidth: 130 }}>Area</th>
+              <th style={{ padding: '12px 14px', minWidth: 130 }}>Registered Date</th>
               <th style={{ padding: '12px 14px', minWidth: 220 }}>Address / Parent Phone</th>
               <th style={{ padding: '12px 12px', width: 100, textAlign: 'center' }}>CRM Ref</th>
               <th style={{ padding: '12px 14px', width: 90, textAlign: 'right' }}>Action</th>
@@ -665,11 +665,18 @@ export default function StudentsPage() {
                       )}
                     </td>
 
-                    {/* Area */}
+                    {/* Registered Date */}
                     <td style={{ padding: '10px 14px', fontSize: 12.5, color: 'var(--text-secondary)' }}>
-                      {household?.area ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
-                          <MapPin size={12} style={{ color: 'var(--text-muted)' }} /> {household.area}
+                      {s.created_at ? (
+                        <span style={{
+                          display: 'inline-flex', alignItems: 'center', gap: 5,
+                          background: 'rgba(56, 189, 248, 0.08)',
+                          color: 'var(--accent-blue)',
+                          border: '1px solid rgba(56, 189, 248, 0.2)',
+                          padding: '3px 8px', borderRadius: 8, fontSize: 11.5, fontWeight: 600
+                        }}>
+                          <Calendar size={11} style={{ opacity: 0.8 }} />
+                          {new Date(s.created_at).toLocaleDateString('en-CA')}
                         </span>
                       ) : (
                         <span style={{ color: 'var(--text-muted)' }}>—</span>

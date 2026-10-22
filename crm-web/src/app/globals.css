@@ -1,14 +1,14 @@
-/* ── Primary Light Theme (Rich Liquid Glassmorphism & Depth) ── */
+/* ── Primary Light Theme (Rich Liquid Glassmorphism & High Contrast) ── */
 :root {
-  --bg-base: #f1f5f9;
-  --bg-card: rgba(255, 255, 255, 0.85);
-  --bg-card-hover: rgba(255, 255, 255, 0.95);
-  --bg-sidebar: rgba(255, 255, 255, 0.9);
+  --bg-base: #f8fafc;
+  --bg-card: rgba(255, 255, 255, 0.95);
+  --bg-card-hover: #ffffff;
+  --bg-sidebar: rgba(255, 255, 255, 0.96);
   --border: #e2e8f0;
   --border-light: #cbd5e1;
   --text-primary: #0f172a;
-  --text-secondary: #475569;
-  --text-muted: #94a3b8;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
   --accent-blue: #0284c7;
   --accent-blue-dark: #0369a1;
   --accent-green: #10b981;
@@ -16,13 +16,13 @@
   --accent-red: #ef4444;
   --accent-purple: #8b5cf6;
   --nav-active-bg: #f1f5f9;
-  --nav-active-color: #0f172a;
+  --nav-active-color: #0284c7;
   --input-bg: #ffffff;
   --table-header-bg: #f8fafc;
-  --table-border: #f1f5f9;
-  --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 1px 2px -1px rgba(15, 23, 42, 0.03);
-  --shadow-md: 0 4px 14px -2px rgba(15, 23, 42, 0.06), 0 2px 6px -2px rgba(15, 23, 42, 0.04);
-  --shadow-card: 0 8px 24px -4px rgba(15, 23, 42, 0.06), 0 2px 6px -1px rgba(15, 23, 42, 0.03);
+  --table-border: #e2e8f0;
+  --shadow-sm: 0 1px 3px 0 rgba(15, 23, 42, 0.06), 0 1px 2px -1px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 14px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -2px rgba(15, 23, 42, 0.04);
+  --shadow-card: 0 10px 25px -5px rgba(15, 23, 42, 0.05), 0 8px 10px -6px rgba(15, 23, 42, 0.03);
 }
 
 /* ── Dark Mode Variables ── */
@@ -250,6 +250,29 @@ body {
 }
 .input-field::placeholder { color: var(--text-muted); }
 .input-field option { background: var(--bg-card); color: var(--text-primary); }
+
+/* Date input calendar picker icon fix (Screenshot 3) */
+input[type="date"] {
+  color-scheme: light;
+}
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.85;
+  filter: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  opacity: 1;
+  transform: scale(1.1);
+}
+
+[data-theme="dark"] input[type="date"] {
+  color-scheme: dark;
+}
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(1.2);
+  opacity: 0.9;
+}
 
 /* Chrome/Safari Dark mode autofill fix so inputs never turn blinding white on saved credentials */
 [data-theme="dark"] .input-field,

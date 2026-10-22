@@ -219,17 +219,16 @@ export default function LoginGreeting() {
           position: 'fixed',
           top: 20, right: 20,
           zIndex: 99999,
-          background: 'rgba(10, 15, 28, 0.92)',
+          background: 'var(--bg-card)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderTop: '1px solid rgba(255,255,255,0.14)',
+          border: '1px solid var(--border)',
           borderRadius: 18,
           padding: 0,
           minWidth: 280,
           maxWidth: 330,
           overflow: 'hidden',
-          boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(59,130,246,0.1)',
+          boxShadow: 'var(--shadow-card), 0 20px 40px -10px rgba(0,0,0,0.15)',
         }}
       >
         {/* Coloured accent strip at top */}

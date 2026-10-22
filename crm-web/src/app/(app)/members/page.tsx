@@ -272,10 +272,10 @@ export default function MembersPage() {
                               }
                             }}
                           >
-                            <option value="member" style={{ background: '#090d16', color: '#4ade80' }}>MEMBER (Both)</option>
-                            <option value="callcenter" style={{ background: '#090d16', color: '#38bdf8' }}>CALL CENTER</option>
-                            <option value="payments" style={{ background: '#090d16', color: '#fbbf24' }}>PAYMENTS</option>
-                            <option value="admin" style={{ background: '#090d16', color: '#c084fc' }}>ADMIN (Full)</option>
+                            <option value="member" style={{ background: 'var(--bg-card)', color: '#16a34a' }}>MEMBER (Both)</option>
+                            <option value="callcenter" style={{ background: 'var(--bg-card)', color: '#0284c7' }}>CALL CENTER</option>
+                            <option value="payments" style={{ background: 'var(--bg-card)', color: '#d97706' }}>PAYMENTS</option>
+                            <option value="admin" style={{ background: 'var(--bg-card)', color: '#9333ea' }}>ADMIN (Full)</option>
                           </select>
                         </td>
 

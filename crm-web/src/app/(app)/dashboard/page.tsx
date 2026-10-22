@@ -1796,8 +1796,8 @@ export default function AnalyticsDashboard() {
                 }}>
                   <div className="glass-card" style={{
                     maxWidth: 480, width: '100%', padding: 24, borderRadius: 16,
-                    background: '#0b1120', color: 'var(--text-primary)', border: '1px solid var(--border)',
-                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.7)'
+                    background: 'var(--bg-card)', color: 'var(--text-primary)', border: '1px solid var(--border)',
+                    boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.4)'
                   }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 14 }}>
                       <div style={{ width: 40, height: 40, borderRadius: 10, background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
