@@ -4,8 +4,6 @@ import { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { ArrowLeft, UserPlus, Plus, Trash2, Home, Sparkles, AlertTriangle, ExternalLink, Lock } from 'lucide-react'
 import { MONTH_NAMES, formatNotesWithLms } from '@/lib/types'
-import { FieldGroup, Field, FieldLabel, FieldDescription, Input, NativeSelect } from '@/components/ui/field'
-import { Badge } from '@/components/ui/badge'
 import {
   DEFAULT_GRADE_COURSES,
   DEFAULT_STANDALONE_COURSES,
@@ -616,83 +614,95 @@ export default function NewStudentPage() {
                   </div>
                   1. Student Details
                 </div>
-                <Badge variant="secondary">
+                <span style={{ fontSize: 11, background: 'var(--bg-card-hover)', color: 'var(--text-secondary)', padding: '3px 9px', borderRadius: 6, fontWeight: 700 }}>
                   Student Name is Optional
-                </Badge>
+                </span>
               </div>
 
-              <FieldGroup className="gap-4">
-                <div style={{ display: 'grid', gridTemplateColumns: '170px 1fr', gap: 16 }}>
-                  {/* Locked Auto-Generated PS Code */}
-                  <Field data-disabled>
-                    <FieldLabel className="flex items-center gap-1.5 uppercase text-[11px] font-bold text-muted-foreground">
-                      <Lock size={12} className="text-sky-400" /> PS Code (Auto)
-                    </FieldLabel>
-                    <Input
-                      value={psCode || 'Generating...'}
-                      readOnly
-                      disabled
-                      className="h-10 text-sm font-black tracking-wider text-sky-400 bg-sky-500/10 border-sky-500/30 cursor-not-allowed"
-                      title="Auto-generated unique identifier (Locked)"
-                    />
-                  </Field>
-
-                  {/* Optional Student / Children Names */}
-                  <Field>
-                    <FieldLabel className="uppercase text-[11px] font-bold text-muted-foreground">
-                      Student / Children Full Name(s) <span className="font-normal normal-case text-muted-foreground">(Optional)</span>
-                    </FieldLabel>
-                    <Input
-                      placeholder="e.g. Kasun Perera (Leave blank if unknown, will use Parent's Child)"
-                      value={studentName}
-                      onChange={e => setStudentName(e.target.value)}
-                      autoFocus
-                      className="h-10 text-xs"
-                    />
-                  </Field>
+              <div style={{ display: 'grid', gridTemplateColumns: '160px 1fr', gap: 16, marginBottom: 16 }}>
+                {/* Locked Auto-Generated PS Code */}
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+                    <Lock size={12} style={{ color: 'var(--accent-blue)' }} /> PS Code (Auto)
+                  </label>
+                  <input
+                    className="input-field"
+                    value={psCode || 'Generating...'}
+                    readOnly
+                    disabled
+                    style={{
+                      fontWeight: 900,
+                      fontSize: 15,
+                      letterSpacing: 1.5,
+                      color: 'var(--accent-blue)',
+                      cursor: 'not-allowed',
+                      height: 42
+                    }}
+                    title="Auto-generated unique identifier (Locked)"
+                  />
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 140px', gap: 16 }}>
-                  <Field>
-                    <FieldLabel className="uppercase text-[11px] font-bold text-muted-foreground">
-                      Primary Grade
-                    </FieldLabel>
-                    <NativeSelect
-                      value={primaryGrade}
-                      onChange={e => handlePrimaryGradeChange(parseInt(e.target.value))}
-                      className="h-10 font-bold"
-                    >
-                      {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
-                        <option key={g} value={g}>Grade {g}</option>
-                      ))}
-                    </NativeSelect>
-                  </Field>
-
-                  <Field>
-                    <FieldLabel className="uppercase text-[11px] font-bold text-muted-foreground">
-                      LMS Mobile Number (LMS No)
-                    </FieldLabel>
-                    <Input
-                      placeholder="e.g. 07XXXXXXXX (Signed LMS Phone)"
-                      value={lmsNumber}
-                      onChange={e => setLmsNumber(e.target.value)}
-                      className="h-10 text-xs"
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel className="uppercase text-[11px] font-bold text-muted-foreground">
-                      CRM F-Code
-                    </FieldLabel>
-                    <Input
-                      placeholder="e.g. F80001"
-                      value={fcodeRef}
-                      onChange={e => setFcodeRef(e.target.value)}
-                      className="h-10 text-xs"
-                    />
-                  </Field>
+                {/* Optional Student / Children Names */}
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
+                    Student / Children Full Name(s) <span style={{ color: 'var(--text-muted)', fontWeight: 500, fontSize: 11 }}>(Optional)</span>
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. Kasun Perera (Leave blank if unknown, will use Parent's Child)"
+                    value={studentName}
+                    onChange={e => setStudentName(e.target.value)}
+                    autoFocus
+                    style={{
+                      borderRadius: 10,
+                      fontSize: 13.5,
+                      height: 42
+                    }}
+                  />
                 </div>
-              </FieldGroup>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '140px 1fr 140px', gap: 16 }}>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
+                    Primary Grade
+                  </label>
+                  <select
+                    className="input-field"
+                    value={primaryGrade}
+                    onChange={e => handlePrimaryGradeChange(parseInt(e.target.value))}
+                    style={{ fontWeight: 700, borderRadius: 10, height: 42 }}
+                  >
+                    {[5, 6, 7, 8, 9, 10, 11, 12, 13].map(g => (
+                      <option key={g} value={g}>Grade {g}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
+                    LMS Mobile Number (LMS No)
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. 07XXXXXXXX (Signed LMS Phone)"
+                    value={lmsNumber}
+                    onChange={e => setLmsNumber(e.target.value)}
+                    style={{ borderRadius: 10, height: 42 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
+                    CRM F-Code
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. F80001"
+                    value={fcodeRef}
+                    onChange={e => setFcodeRef(e.target.value)}
+                    style={{ borderRadius: 10, height: 42 }}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Section 2: Household & Postal Delivery Details (REQUIRED) */}
@@ -704,92 +714,92 @@ export default function NewStudentPage() {
                   </div>
                   2. Household &amp; Delivery Details
                 </div>
-                <Badge variant="destructive">
+                <span style={{ fontSize: 11, background: 'rgba(239, 68, 68, 0.15)', color: '#ef4444', padding: '3px 9px', borderRadius: 6, fontWeight: 800, border: '1px solid rgba(239, 68, 68, 0.3)' }}>
                   * Required for Courier Delivery
-                </Badge>
+                </span>
               </div>
 
-              <FieldGroup className="gap-4">
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
-                  <Field>
-                    <FieldLabel className="uppercase text-[11px] font-extrabold text-foreground flex items-center gap-1">
-                      Parent / Guardian Name <span className="text-rose-500">*</span>
-                    </FieldLabel>
-                    <Input
-                      placeholder="e.g. Sunil Perera"
-                      value={parentName}
-                      onChange={e => setParentName(e.target.value)}
-                      required
-                      className="h-10 text-xs font-semibold"
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel className="uppercase text-[11px] font-extrabold text-foreground flex items-center gap-1">
-                      Parent Contact Number <span className="text-rose-500">*</span>
-                    </FieldLabel>
-                    <Input
-                      placeholder="07XXXXXXXX (e.g. 0771234567)"
-                      value={parentPhone}
-                      onChange={e => handlePhoneChange(e.target.value)}
-                      required
-                      className="h-10 text-xs font-semibold"
-                    />
-                  </Field>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                <div>
+                  <label style={{ fontSize: 11.5, color: 'var(--text-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
+                    Parent / Guardian Name <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. Sunil Perera"
+                    value={parentName}
+                    onChange={e => setParentName(e.target.value)}
+                    required
+                    style={{ borderRadius: 10, height: 42, fontWeight: 600 }}
+                  />
                 </div>
+                <div>
+                  <label style={{ fontSize: 11.5, color: 'var(--text-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
+                    Parent Contact Number <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="07XXXXXXXX (e.g. 0771234567)"
+                    value={parentPhone}
+                    onChange={e => handlePhoneChange(e.target.value)}
+                    required
+                    style={{ borderRadius: 10, height: 42, fontWeight: 600 }}
+                  />
+                </div>
+              </div>
 
-                {/* Existing Household Alert Banner if Phone Already Exists */}
-                {existingHousehold && (
-                  <div style={{
-                    padding: '12px 16px', background: 'rgba(245, 158, 11, 0.15)', border: '1.5px solid rgba(245, 158, 11, 0.3)',
-                    borderRadius: 10, color: '#f59e0b', fontSize: 12.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <AlertTriangle size={18} style={{ color: '#f59e0b', flexShrink: 0 }} />
-                      <span>
-                        <b>Existing Household Found:</b> {existingHousehold.parent_name || 'Parent'} ({existingHousehold.parent_phone})
-                        {existingHousehold.students?.length > 0 && ` — Linked PS Code: ${existingHousehold.students[0].ps_code}`}
-                      </span>
-                    </div>
-                    {existingHousehold.students?.length > 0 && (
-                      <a
-                        href={`/students/${existingHousehold.students[0].ps_code}`}
-                        target="_blank"
-                        style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
-                      >
-                        View Profile <ExternalLink size={12} />
-                      </a>
-                    )}
+              {/* Existing Household Alert Banner if Phone Already Exists */}
+              {existingHousehold && (
+                <div style={{
+                  marginTop: 16, padding: '12px 16px', background: 'rgba(245, 158, 11, 0.15)', border: '1.5px solid rgba(245, 158, 11, 0.3)',
+                  borderRadius: 10, color: '#f59e0b', fontSize: 12.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <AlertTriangle size={18} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                    <span>
+                      <b>Existing Household Found:</b> {existingHousehold.parent_name || 'Parent'} ({existingHousehold.parent_phone})
+                      {existingHousehold.students?.length > 0 && ` — Linked PS Code: ${existingHousehold.students[0].ps_code}`}
+                    </span>
                   </div>
-                )}
-
-                <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16 }}>
-                  <Field>
-                    <FieldLabel className="uppercase text-[11px] font-extrabold text-foreground flex items-center gap-1">
-                      Delivery Address <span className="text-rose-500">*</span>
-                    </FieldLabel>
-                    <Input
-                      placeholder="House No, Street, City (e.g. No 45, Main Street, Kandy)"
-                      value={address}
-                      onChange={e => setAddress(e.target.value)}
-                      required
-                      className="h-10 text-xs"
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel className="uppercase text-[11px] font-bold text-muted-foreground">
-                      Area / Delivery Route
-                    </FieldLabel>
-                    <Input
-                      placeholder="e.g. Kandy Town"
-                      value={area}
-                      onChange={e => setArea(e.target.value)}
-                      className="h-10 text-xs"
-                    />
-                  </Field>
+                  {existingHousehold.students?.length > 0 && (
+                    <a
+                      href={`/students/${existingHousehold.students[0].ps_code}`}
+                      target="_blank"
+                      style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 800, display: 'flex', alignItems: 'center', gap: 4, whiteSpace: 'nowrap' }}
+                    >
+                      View Profile <ExternalLink size={12} />
+                    </a>
+                  )}
                 </div>
-              </FieldGroup>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: 16, marginTop: 16 }}>
+                <div>
+                  <label style={{ fontSize: 11.5, color: 'var(--text-primary)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
+                    Delivery Address <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="House No, Street, City (e.g. No 45, Main Street, Kandy)"
+                    value={address}
+                    onChange={e => setAddress(e.target.value)}
+                    required
+                    style={{ borderRadius: 10, height: 42 }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: 11.5, color: 'var(--text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 6 }}>
+                    Area / Delivery Route
+                  </label>
+                  <input
+                    className="input-field"
+                    placeholder="e.g. Kandy Town"
+                    value={area}
+                    onChange={e => setArea(e.target.value)}
+                    style={{ borderRadius: 10, height: 42 }}
+                  />
+                </div>
+              </div>
             </div>
 
             {/* Section 3: Class Enrollments */}

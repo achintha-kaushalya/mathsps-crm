@@ -4,18 +4,6 @@ import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { Users, UserPlus, Shield, Check, Lock, Mail, Eye, EyeOff, DollarSign, History, Calendar, Award } from 'lucide-react'
 import { Member } from '@/lib/types'
-import { Badge } from '@/components/ui/badge'
-import { FieldGroup, Field, FieldLabel, Input, NativeSelect } from '@/components/ui/field'
-import {
-  AlertDialog,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from '@/components/ui/alert-dialog'
 
 export default function MembersPage() {
   const supabase = createClient()
@@ -457,86 +445,93 @@ export default function MembersPage() {
             )}
 
             <form onSubmit={addMember}>
-              <FieldGroup className="gap-3.5 mb-4">
-                <Field>
-                  <FieldLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Staff Member Name *
-                  </FieldLabel>
-                  <Input
-                    placeholder="e.g. shamali"
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>
+                  Staff Member Name *
+                </label>
+                <input
+                  className="input-field"
+                  placeholder="e.g. shamali"
+                  required
+                  style={{ height: 36, fontSize: 13 }}
+                  value={newMemberName}
+                  onChange={e => {
+                    const name = e.target.value
+                    setNewMemberName(name)
+                    // Automatically generate email according to template: (name)@mathsps.com
+                    const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '')
+                    setNewMemberEmail(cleanName ? `${cleanName}@mathsps.com` : '')
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      document.getElementById('staff-register-password')?.focus()
+                    }
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>
+                  Login Email *
+                </label>
+                <input
+                  className="input-field"
+                  type="email"
+                  placeholder="shamali@mathsps.com"
+                  required
+                  style={{ height: 36, fontSize: 13 }}
+                  value={newMemberEmail}
+                  onChange={e => setNewMemberEmail(e.target.value)}
+                />
+              </div>
+
+              <div style={{ marginBottom: 14 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>
+                  Password *
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    id="staff-register-password"
+                    className="input-field"
+                    type={showCreatePassword ? 'text' : 'password'}
+                    placeholder="At least 6 characters"
                     required
-                    className="h-9 text-xs"
-                    value={newMemberName}
-                    onChange={e => {
-                      const name = e.target.value
-                      setNewMemberName(name)
-                      const cleanName = name.toLowerCase().replace(/[^a-z0-9]/g, '')
-                      setNewMemberEmail(cleanName ? `${cleanName}@mathsps.com` : '')
-                    }}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault()
-                        document.getElementById('staff-register-password')?.focus()
-                      }
-                    }}
+                    style={{ height: 36, fontSize: 13, paddingRight: 36 }}
+                    value={newMemberPassword}
+                    onChange={e => setNewMemberPassword(e.target.value)}
                   />
-                </Field>
-
-                <Field>
-                  <FieldLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Login Email *
-                  </FieldLabel>
-                  <Input
-                    type="email"
-                    placeholder="shamali@mathsps.com"
-                    required
-                    className="h-9 text-xs"
-                    value={newMemberEmail}
-                    onChange={e => setNewMemberEmail(e.target.value)}
-                  />
-                </Field>
-
-                <Field>
-                  <FieldLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Password *
-                  </FieldLabel>
-                  <div className="relative">
-                    <Input
-                      id="staff-register-password"
-                      type={showCreatePassword ? 'text' : 'password'}
-                      placeholder="At least 6 characters"
-                      required
-                      className="h-9 text-xs pr-9"
-                      value={newMemberPassword}
-                      onChange={e => setNewMemberPassword(e.target.value)}
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowCreatePassword(v => !v)}
-                      className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors"
-                      title={showCreatePassword ? 'Hide password' : 'Show password'}
-                    >
-                      {showCreatePassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                    </button>
-                  </div>
-                </Field>
-
-                <Field>
-                  <FieldLabel className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
-                    Access Role
-                  </FieldLabel>
-                  <NativeSelect
-                    className="h-9 text-xs"
-                    value={newMemberRole}
-                    onChange={e => setNewMemberRole(e.target.value as any)}
+                  <button
+                    type="button"
+                    onClick={() => setShowCreatePassword(v => !v)}
+                    style={{
+                      position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                      background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 4
+                    }}
+                    title={showCreatePassword ? 'Hide password' : 'Show password'}
                   >
-                    <option value="member">Member (CRM & Payments)</option>
-                    <option value="callcenter">Call Center (CRM Only)</option>
-                    <option value="payments">Payments (Payments Only)</option>
-                    <option value="admin">Admin (Full Access)</option>
-                  </NativeSelect>
-                </Field>
-              </FieldGroup>
+                    {showCreatePassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </button>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: 18 }}>
+                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'block', marginBottom: 5 }}>
+                  Access Role
+                </label>
+                <select
+                  className="input-field"
+                  style={{ height: 36, fontSize: 13 }}
+                  value={newMemberRole}
+                  onChange={e => setNewMemberRole(e.target.value as any)}
+                >
+                  <option value="member">Member (CRM & Payments)</option>
+                  <option value="callcenter">Call Center (CRM Only)</option>
+                  <option value="payments">Payments (Payments Only)</option>
+                  <option value="admin">Admin (Full Access)</option>
+                </select>
+              </div>
 
               <button
                 type="submit"
