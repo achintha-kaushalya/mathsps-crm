@@ -6,26 +6,37 @@ describe('M3 API Validation & Zod Schema Tests', () => {
   it('validates a correct PaymentCreate payload', () => {
     const valid = {
       student_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-      amount_paid: 3500,
-      payment_type: 'BANK',
-      month: 'October',
+      month: 10,
       year: 2026,
-      notes: 'Monthly fee payment'
+      payment_type: 'BANK',
+      date_paid: '2026-10-23',
+      notes: 'Monthly fee payment',
+      items: [
+        {
+          class_type: 'MAIN_GR11',
+          amount_due: 3500,
+          amount_paid: 3500,
+          fee: 3500
+        }
+      ]
     }
 
     const result = PaymentCreateSchema.safeParse(valid)
     assert.equal(result.success, true)
     if (result.success) {
-      assert.equal(result.data.amount_paid, 3500)
-      assert.equal(result.data.status, 'VERIFIED') // default
+      assert.equal(result.data.items.length, 1)
+      assert.equal(result.data.items[0].amount_paid, 3500)
     }
   })
 
-  it('rejects an invalid payment amount (negative or zero)', () => {
+  it('rejects an invalid payment with empty items array', () => {
     const invalid = {
       student_id: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11',
-      amount_paid: -500,
-      payment_type: 'BANK'
+      month: 10,
+      year: 2026,
+      payment_type: 'BANK',
+      date_paid: '2026-10-23',
+      items: []
     }
 
     const result = PaymentCreateSchema.safeParse(invalid)

@@ -699,66 +699,44 @@ function AddPaymentForm() {
 
     setSaving(true); setError('')
     try {
-      // 1. Ensure enrollments are recorded for selected classes
-      for (const r of selectedRows) {
-        if (!r.isExistingEnrollment) {
-          await supabase.from('enrollments').upsert({
-            student_id: student.id,
-            class_type: r.courseCode,
-            tier: 'STANDARD',
-            fee_amount: r.fee,
-            active: true
-          }, { onConflict: 'student_id,class_type' })
-        } else if (r.enrollmentId) {
-          await supabase.from('enrollments').update({
-            fee_amount: r.fee
-          }).eq('id', r.enrollmentId)
-        }
-      }
-
-      // 2. Loop over each selected class row and record payment
-      for (const r of selectedRows) {
+      // Prepare payload for secure server-side API processing
+      const items = selectedRows.map(r => {
         const amountDue = r.fee || 0
-        const bVal = allBalances[r.courseCode]?.current_balance || 0
-
         let amountPaid = 0
         if (['FREE', 'IMS'].includes(form.payment_type)) {
           amountPaid = amountDue
         } else {
           amountPaid = parseFloat(r.amountPaid) || 0
         }
-
-        const balBefore = bVal
-        const balAfter = balBefore + amountPaid - amountDue
-
-        // Insert payment record (balance_after is automatically computed by PostgreSQL GENERATED column)
-        const { error: pErr } = await supabase.from('payments').insert({
-          student_id: student.id,
+        return {
           class_type: r.courseCode,
-          month: form.month,
-          year: form.year,
           amount_due: amountDue,
           amount_paid: amountPaid,
-          balance_before: balBefore,
+          deliver_tute: r.deliverTute ?? false,
+          enrollment_id: r.enrollmentId || null,
+          fee: r.fee || 0
+        }
+      })
+
+      const res = await fetch('/api/payments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          student_id: student.id,
+          month: form.month,
+          year: form.year,
           payment_type: form.payment_type,
           bank_name: form.payment_type === 'BANK' ? form.bank_name : null,
           date_paid: form.date_paid,
           added_to_group: form.added_to_group,
-          tute_delivered: r.deliverTute ?? false,
-          recorded_by: memberName.trim(),
           notes: form.notes || null,
+          items
         })
+      })
 
-        if (pErr) throw pErr
-
-        // Update student balance ledger
-        await supabase.from('student_balances').upsert({
-          student_id: student.id,
-          class_type: r.courseCode,
-          current_balance: balAfter,
-          last_payment_date: form.date_paid,
-          last_payment_amount: amountPaid,
-        }, { onConflict: 'student_id,class_type' })
+      const result = await res.json()
+      if (!res.ok) {
+        throw new Error(result.error || 'Failed to save payment via server API')
       }
 
       setSaved(true)

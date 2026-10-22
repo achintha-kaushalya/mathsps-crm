@@ -1,22 +1,33 @@
 import { z } from 'zod'
 
 /**
- * Payment Creation & Verification Schema
+ * Single Payment Item for a class/course
+ */
+export const PaymentItemSchema = z.object({
+  class_type: z.string().min(1, { message: 'Class/course code is required' }),
+  amount_due: z.number().min(0, { message: 'Amount due must be 0 or positive' }),
+  amount_paid: z.number().min(0, { message: 'Amount paid must be 0 or positive' }),
+  deliver_tute: z.boolean().optional().default(false),
+  enrollment_id: z.string().uuid().optional().nullable(),
+  fee: z.number().min(0).optional()
+})
+
+export type PaymentItemInput = z.infer<typeof PaymentItemSchema>
+
+/**
+ * Payment Creation & Processing Schema (Supports single or multi-class batch recording)
  */
 export const PaymentCreateSchema = z.object({
   student_id: z.string().uuid({ message: 'Valid student ID is required' }),
-  amount_paid: z.number().positive({ message: 'Amount paid must be greater than 0' }),
-  payment_type: z.enum(['BANK', 'CASH', 'ONLINE'], {
-    message: 'Payment type must be BANK, CASH, or ONLINE'
-  }),
-  course_id: z.string().optional().nullable(),
-  month: z.string().optional().nullable(),
-  year: z.number().int().min(2020).max(2040).optional().nullable(),
-  payment_date: z.string().optional().nullable(),
-  slip_url: z.string().url().optional().nullable().or(z.literal('')),
-  status: z.enum(['PENDING', 'VERIFIED', 'REJECTED']).optional().default('VERIFIED'),
+  month: z.number().int().min(1).max(12, { message: 'Month must be between 1 and 12' }),
+  year: z.number().int().min(2020).max(2040, { message: 'Year must be between 2020 and 2040' }),
+  payment_type: z.string().min(1, { message: 'Payment type is required' }),
+  bank_name: z.string().optional().nullable(),
+  date_paid: z.string().min(1, { message: 'Payment date is required' }),
+  added_to_group: z.boolean().optional().default(false),
   notes: z.string().max(1000).optional().nullable(),
-  source: z.string().optional().nullable()
+  slip_url: z.string().url().optional().nullable().or(z.literal('')),
+  items: z.array(PaymentItemSchema).min(1, { message: 'At least one class payment item is required' })
 })
 
 export type PaymentCreateInput = z.infer<typeof PaymentCreateSchema>
