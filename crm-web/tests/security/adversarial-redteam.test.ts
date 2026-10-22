@@ -206,4 +206,17 @@ describe('Adversarial Red-Team & Chaos Penetration Suite (Zero-Bias Blind Testin
     })
     assert.equal(delivRes.status, 401, 'Unauthenticated caller was able to dispatch delivery batches!')
   })
+
+  // -------------------------------------------------------------------------
+  // 9. Financial Data Leak Protection on Reports & Aggregations (Milestone M8)
+  // -------------------------------------------------------------------------
+  it('Red-Team M8: unauthenticated caller CANNOT query sensitive financial reports', async () => {
+    // Unauthenticated attempt to fetch day-end financial totals
+    const dayEndRes = await fetch(`${API_BASE}/api/reports/day-end`)
+    assert.equal(dayEndRes.status, 401, 'Unauthenticated caller leaked day-end financial summaries!')
+
+    // Unauthenticated attempt to fetch monthly financial totals
+    const monthlyRes = await fetch(`${API_BASE}/api/reports/monthly`)
+    assert.equal(monthlyRes.status, 401, 'Unauthenticated caller leaked monthly revenue numbers!')
+  })
 })

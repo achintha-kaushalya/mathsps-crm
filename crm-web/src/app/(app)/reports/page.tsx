@@ -294,54 +294,26 @@ export default function ReportsPage() {
     async function loadDailyData() {
       setLoadingDaily(true)
       try {
-        const startOfRangeIso = `${startDate}T00:00:00.000Z`
-        const endOfRangeIso = `${endDate}T23:59:59.999Z`
+        const params = new URLSearchParams({
+          startDate,
+          endDate,
+          dateType: dateFilterType
+        })
 
-        const [dailyList, { data: dayEndRegisteredData }] = await Promise.all([
-          // Lean daily payments query - only fetch necessary columns
-          fetchAllPaginated((from, to) => {
-            let q = supabase
-              .from('payments')
-              .select('id, student_id, amount_paid, payment_type, bank_name, recorded_by, created_at, date_paid, class_type, notes, tute_delivered, students(ps_code, full_name, grade, notes, household:households(parent_name, parent_phone))')
-              .range(from, to)
-              .order('created_at', { ascending: false })
-
-            if (dateFilterType === 'created_at') {
-              return q.gte('created_at', startOfRangeIso).lte('created_at', endOfRangeIso)
-            } else {
-              return q.gte('date_paid', startDate).lte('date_paid', endDate)
-            }
-          }),
-          // Real new registered students in date range
-          supabase
-            .from('students')
-            .select('id, ps_code, full_name, grade, notes, created_at, created_by, household:households(parent_name, parent_phone, address), enrollments(class_type)')
-            .not('created_by', 'ilike', '%Auto-Pre-generated%')
-            .gte('created_at', startOfRangeIso)
-            .lte('created_at', endOfRangeIso)
-            .order('created_at', { ascending: false })
-        ])
-
+        const res = await fetch(`/api/reports/day-end?${params.toString()}`)
+        const result = await res.json()
         if (isCancelled) return
 
-        // Filter by tutor and new registration threshold
-        const filteredDailyPaymentsList = (dailyList || []).filter((p: any) => matchesTutor(p.students?.ps_code || p.student_id))
-        setDailyPayments(filteredDailyPaymentsList)
+        if (!res.ok) throw new Error(result.error || 'Failed to load day-end reports')
 
-        const aMap: Record<string, { count: number; total: number }> = {}
-        filteredDailyPaymentsList.forEach((p: any) => {
-          const who = p.recorded_by || 'System User'
-          const amt = Number(p.amount_paid) || 0
-          if (!aMap[who]) aMap[who] = { count: 0, total: 0 }
-          aMap[who].count += 1
-          aMap[who].total += amt
-        })
-        setAuditorStats(aMap)
+        const payList = result.data?.payments || []
+        const regList = result.data?.registrations || []
 
-        const filteredDayEndRegistered = (dayEndRegisteredData || []).filter(s => matchesTutor(s.ps_code) && isNewRegistrationPsCode(s.ps_code))
-        setDayEndRegisteredStudents(filteredDayEndRegistered)
-      } catch (err) {
-        console.error('Error loading daily operations report:', err)
+        setDailyPayments(payList)
+        setDayEndRegisteredStudents(regList)
+        setAuditorStats(result.data?.summary?.staffBreakdown || {})
+      } catch (err: any) {
+        console.error('Error fetching day-end report data:', err)
       } finally {
         if (!isCancelled) setLoadingDaily(false)
       }
