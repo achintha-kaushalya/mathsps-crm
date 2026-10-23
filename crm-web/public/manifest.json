@@ -1,0 +1,24 @@
+{
+  "name": "MathsPS Executive Hub",
+  "short_name": "MathsPS",
+  "description": "Executive mobile analytics, reports, and team pulse for MathsPS",
+  "start_url": "/tutor",
+  "display": "standalone",
+  "background_color": "#090d16",
+  "theme_color": "#090d16",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/brand-logo.jpg",
+      "sizes": "192x192",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand-logo.jpg",
+      "sizes": "512x512",
+      "type": "image/jpeg",
+      "purpose": "any maskable"
+    }
+  ]
+}

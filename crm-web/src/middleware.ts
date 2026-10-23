@@ -66,7 +66,8 @@ export async function middleware(request: NextRequest) {
 
     // Admin-only routes (Dashboard is open to all authenticated staff)
     const isAdminOnlyRoute = pathname.startsWith('/reports') ||
-                             pathname.startsWith('/members')
+                             pathname.startsWith('/members') ||
+                             pathname.startsWith('/tutor')
 
     if (userRole !== 'admin' && userRole !== 'owner' && isAdminOnlyRoute) {
       return NextResponse.redirect(new URL('/dashboard', request.url))
