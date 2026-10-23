@@ -19,3 +19,8 @@ __pycache__
 Thumbs.db
 .vercel
 .env*
+backups/
+supabase/.temp/
+quarantine_staging/
+*.exe
+

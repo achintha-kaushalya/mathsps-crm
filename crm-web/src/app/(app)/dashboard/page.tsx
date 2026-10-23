@@ -65,6 +65,7 @@ export default function AnalyticsDashboard() {
   const [leads, setLeads] = useState<LeadRow[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  const [showLoginAnimation, setShowLoginAnimation] = useState(false)
 
   // Date filters for overview
   const [filterStart, setFilterStart] = useState('')
@@ -214,6 +215,15 @@ export default function AnalyticsDashboard() {
   }, [])
 
   useEffect(() => {
+    // Only show full narrative animation right after login
+    if (typeof window !== 'undefined') {
+      const justLoggedIn = sessionStorage.getItem('crm_just_logged_in')
+      if (justLoggedIn) {
+        setShowLoginAnimation(true)
+        sessionStorage.removeItem('crm_just_logged_in')
+      }
+    }
+
     loadData()
 
     const handleRealtimeChange = () => {
@@ -665,12 +675,44 @@ export default function AnalyticsDashboard() {
     URL.revokeObjectURL(url)
   }
 
-  if (loading) {
-    return <PhoneDeliveryLoading />
-  }
-
   return (
-    <div className="fade-in" style={{ paddingBottom: 60, fontFamily: 'inherit' }}>
+    <>
+      {showLoginAnimation && (
+        <PhoneDeliveryLoading
+          isLoading={loading}
+          onComplete={() => setShowLoginAnimation(false)}
+        />
+      )}
+
+      {loading && !showLoginAnimation && (
+        <div style={{
+          minHeight: '60vh',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 12,
+          color: 'var(--text-secondary, #94a3b8)',
+          fontSize: 13,
+          fontWeight: 500,
+        }}>
+          <div style={{
+            width: 32,
+            height: 32,
+            border: '2.5px solid rgba(59, 130, 246, 0.15)',
+            borderTopColor: '#2563eb',
+            borderRadius: '50%',
+            animation: 'spin 0.75s linear infinite',
+          }} />
+          <span>Updating dashboard analytics…</span>
+        </div>
+      )}
+
+      <div className="fade-in" style={{
+        paddingBottom: 60,
+        fontFamily: 'inherit',
+        display: (loading && !showLoginAnimation) ? 'none' : 'block'
+      }}>
       {/* ── Radiant Welcome Hero Banner (Exact Match to LMS Student/Staff Reference) ── */}
       <div style={{
         position: 'relative',
@@ -1879,6 +1921,7 @@ export default function AnalyticsDashboard() {
 
       </div>
     </div>
+    </>
   )
 }
 

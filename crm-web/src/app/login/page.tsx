@@ -72,15 +72,14 @@ function InteractiveLobbyLoginForm() {
     }
 
     async function loadMembers() {
-      const { data: membersData } = await supabase
-        .from('members')
-        .select('id, name, email, role, active, notes')
-        .eq('active', true)
-        .order('name', { ascending: true })
-
-      if (membersData) {
-        const validWithEmail = membersData.filter(m => m.email && m.name !== 'admin@mathsps.com')
-        setDbMembers(validWithEmail)
+      try {
+        const res = await fetch('/api/members/public')
+        const data = await res.json()
+        if (data && Array.isArray(data.members)) {
+          setDbMembers(data.members)
+        }
+      } catch (e) {
+        console.error('Failed to load public members:', e)
       }
     }
     loadMembers()
@@ -118,7 +117,7 @@ function InteractiveLobbyLoginForm() {
 
   function getMemberDisplayRole(m: any) {
     if (m.name === 'Admin User' || m.email === 'admin@mathsps.com' || m.role === 'admin' || m.role === 'owner') {
-      return { roleLabel: 'Executive Suite', desk: 'Floor 5 · Penthouse', color: '#f59e0b' }
+      return { roleLabel: 'Executive Admin', color: '#f59e0b' }
     }
     let subRole = m.role || 'member'
     try {
@@ -129,12 +128,12 @@ function InteractiveLobbyLoginForm() {
     } catch {}
 
     if (subRole === 'payments') {
-      return { roleLabel: 'Payment Auditor', desk: 'Floor 4 · Cash Vault', color: '#10b981' }
+      return { roleLabel: 'Payment Auditor', color: '#10b981' }
     }
     if (subRole === 'callcenter') {
-      return { roleLabel: 'Call Center Agent', desk: 'Floor 2 · Telephony Hub', color: '#38bdf8' }
+      return { roleLabel: 'Call Center Agent', color: '#38bdf8' }
     }
-    return { roleLabel: 'Staff Member', desk: 'Floor 1 · Reception Suite', color: '#8b5cf6' }
+    return { roleLabel: 'Team Member', color: '#8b5cf6' }
   }
 
   async function handleLogin(e: React.FormEvent) {
@@ -152,6 +151,7 @@ function InteractiveLobbyLoginForm() {
       setLoading(false)
     } else {
       sessionStorage.setItem('crm_show_greeting', '1')
+      sessionStorage.setItem('crm_just_logged_in', '1')
       router.push('/dashboard')
       router.refresh()
     }
@@ -270,7 +270,7 @@ function InteractiveLobbyLoginForm() {
                 width: 6, height: 6, borderRadius: '50%', background: '#10b981',
                 boxShadow: '0 0 0 2px rgba(16, 185, 129, 0.3), 0 0 8px #10b981'
               }} />
-              System Online · Live
+              Live
             </div>
           </div>
 
@@ -537,34 +537,37 @@ function InteractiveLobbyLoginForm() {
 
 
 
-          {/* Secret Active Workstations Panel (Appears on Mascot Click) */}
+          {/* Active Team Members Panel (Appears on Mascot Click) */}
           {showWorkstations ? (
             <div style={{
-              background: '#ffffff',
-              borderRadius: 16,
+              background: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(16px)',
+              WebkitBackdropFilter: 'blur(16px)',
+              borderRadius: 18,
               padding: '14px 16px',
               border: '1px solid #e2e8f0',
-              boxShadow: '0 4px 14px rgba(0,0,0,0.06)',
-              animation: 'fadeIn 0.2s ease-in-out'
+              boxShadow: '0 8px 24px -4px rgba(15, 23, 42, 0.08)',
+              animation: 'fadeIn 0.25s ease-out'
             }}>
               <div style={{
                 display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                marginBottom: 10, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#64748b'
+                marginBottom: 10, fontSize: 11, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.06em', color: '#64748b'
               }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                  <Building2 size={13} style={{ color: '#2563eb' }} /> Active Workstations
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3b82f6' }} />
+                  Team Members
                 </span>
-                <span style={{ color: '#2563eb', fontSize: 10.5 }}>
-                  {dbMembers.length > 0 ? `${dbMembers.length} Staff Desks` : 'HQ Team'}
+                <span style={{ color: '#2563eb', fontSize: 11, fontWeight: 700 }}>
+                  {dbMembers.length > 0 ? `${dbMembers.length} Active` : 'MathsPS Team'}
                 </span>
               </div>
 
               {/* Clickable Staff Desk Pills */}
               <div style={{
                 display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
+                gridTemplateColumns: 'repeat(auto-fill, minmax(115px, 1fr))',
                 gap: 6,
-                maxHeight: 105,
+                maxHeight: 115,
                 overflowY: 'auto',
                 paddingRight: 4
               }}>
@@ -582,19 +585,20 @@ function InteractiveLobbyLoginForm() {
                       type="button"
                       onClick={() => handleSelectMember(m)}
                       style={{
-                        padding: '5px 8px',
-                        borderRadius: 8,
-                        background: isSelected ? '#eff6ff' : '#f8fafc',
-                        border: isSelected ? '1.5px solid #3b82f6' : '1px solid #e2e8f0',
-                        color: isSelected ? '#1d4ed8' : '#334155',
-                        fontSize: 11,
+                        padding: '6px 10px',
+                        borderRadius: 10,
+                        background: isSelected ? 'rgba(37, 99, 235, 0.08)' : '#ffffff',
+                        border: isSelected ? '1.5px solid #2563eb' : '1px solid #e2e8f0',
+                        color: isSelected ? '#1d4ed8' : '#1e293b',
+                        fontSize: 11.5,
                         fontWeight: 700,
                         cursor: 'pointer',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
                         textAlign: 'left',
-                        transition: 'all 0.15s'
+                        transition: 'all 0.15s ease',
+                        boxShadow: isSelected ? '0 2px 8px rgba(37, 99, 235, 0.15)' : 'none'
                       }}
                     >
                       <span style={{ textTransform: 'capitalize', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -610,21 +614,21 @@ function InteractiveLobbyLoginForm() {
                 })}
               </div>
 
-              {/* Selected Station Indicator */}
+              {/* Selected Member Indicator */}
               {selectedMember && (
                 <div style={{
                   marginTop: 8,
-                  padding: '5px 10px',
-                  background: '#f0fdf4',
-                  border: '1px solid #bbf7d0',
+                  padding: '6px 10px',
+                  background: '#f8fafc',
+                  border: '1px solid #e2e8f0',
                   borderRadius: 8,
                   fontSize: 11,
-                  color: '#166534',
+                  color: '#334155',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between'
                 }}>
-                  <span>Station: <strong>{selectedMember.desk}</strong></span>
+                  <span>Selected: <strong style={{ textTransform: 'capitalize' }}>{selectedMember.name}</strong></span>
                   <span style={{ color: selectedMember.color, fontWeight: 700 }}>{selectedMember.roleLabel}</span>
                 </div>
               )}
@@ -636,14 +640,15 @@ function InteractiveLobbyLoginForm() {
                 textAlign: 'center',
                 padding: '8px 12px',
                 fontSize: 11.5,
-                color: '#475569',
+                color: '#64748b',
                 cursor: 'pointer',
                 userSelect: 'none',
                 borderRadius: 12,
-                transition: 'color 0.2s'
+                transition: 'color 0.2s',
+                fontWeight: 500,
               }}
               onMouseEnter={e => e.currentTarget.style.color = '#1e293b'}
-              onMouseLeave={e => e.currentTarget.style.color = '#475569'}
+              onMouseLeave={e => e.currentTarget.style.color = '#64748b'}
             >
               MathsPS Higher Education Institute · Sri Lanka
             </div>
