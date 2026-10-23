@@ -19,7 +19,8 @@ import {
   LogOut,
   Pin,
   PinOff,
-  ChevronUp
+  ChevronUp,
+  Smartphone
 } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 
@@ -113,6 +114,7 @@ export default function BottomFloatingDock() {
   const isPaymentsOnly = mounted && role === 'payments'
 
   const dockItems = [
+    ...(isAdmin ? [{ label: 'Tutor App', href: '/tutor', icon: Smartphone, color: '#f59e0b' }] : []),
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard, color: '#38bdf8' },
     ...(!isPaymentsOnly ? [{ label: 'Leads', href: '/leads', icon: Phone, color: '#10b981' }] : []),
     ...(isAdmin ? [{ label: 'Team', href: '/members', icon: Users, color: '#ec4899' }] : []),

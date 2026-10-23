@@ -323,6 +323,28 @@ export default function TutorMobilePage() {
               Alerts
             </button>
           )}
+
+          {/* Quick Sign Out */}
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut()
+              window.location.href = '/login'
+            }}
+            title="Log Out"
+            style={{
+              background: 'rgba(239, 68, 68, 0.12)',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+              borderRadius: 20,
+              padding: '6px 9px',
+              color: '#f87171',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <LogOut size={13} />
+          </button>
         </div>
       </header>
 

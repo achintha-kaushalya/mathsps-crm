@@ -152,7 +152,30 @@ function InteractiveLobbyLoginForm() {
     } else {
       sessionStorage.setItem('crm_show_greeting', '1')
       sessionStorage.setItem('crm_just_logged_in', '1')
-      router.push('/dashboard')
+
+      // Detect if user is on mobile phone or if tutor direct link is preferred
+      const isMobileDevice = typeof window !== 'undefined' && (
+        /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+        window.innerWidth < 768
+      )
+
+      // Fetch user role to route admins on phone directly to /tutor executive hub
+      const { data: { user } } = await supabase.auth.getUser()
+      const uEmail = user?.email || email
+      let isAdminRole = uEmail === 'admin@mathsps.com'
+
+      if (uEmail) {
+        const { data: dbMem } = await supabase.from('members').select('role').eq('email', uEmail).single()
+        if (dbMem?.role === 'admin' || dbMem?.role === 'owner') {
+          isAdminRole = true
+        }
+      }
+
+      if (isMobileDevice && isAdminRole) {
+        router.push('/tutor')
+      } else {
+        router.push('/dashboard')
+      }
       router.refresh()
     }
   }
