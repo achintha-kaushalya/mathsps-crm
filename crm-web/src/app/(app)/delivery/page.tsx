@@ -487,9 +487,9 @@ export default function DeliveryPage() {
     const humanTime = now.toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' })
     const batchTag = `BATCH_${timeStampStr}`
 
-    // 1. Generate Post Office CSV strictly in specified column sequence:
-    // (Pscode, Grade, Student Name, Parents name, Address, phone number, Enroll Classes & Tute)
+    // 1. Generate Post Office CSV strictly in specified column sequence with sequential Item # (1 to N):
     const headers = [
+      'Item #',
       'PS Code',
       'Grade',
       'Student Name',
@@ -502,13 +502,15 @@ export default function DeliveryPage() {
     const rows: string[][] = []
     const paymentIdsToUpdate: string[] = []
 
-    targetGroups.forEach(g => {
+    targetGroups.forEach((g, gIdx) => {
+      const itemNumber = gIdx + 1
       const itemsToExport = activeTab === 'unexported' ? g.students.filter(st => !st.dispatched) : g.students
 
       itemsToExport.forEach(st => {
         paymentIdsToUpdate.push(st.paymentId)
         const courseName = courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type
         rows.push([
+          `"${itemNumber}"`,
           `"${st.ps_code}"`,
           `"Grade ${st.grade || '?'}"`,
           `"${(st.full_name || '').replace(/"/g, '""')}"`,
@@ -772,7 +774,8 @@ export default function DeliveryPage() {
         </head>
         <body onload="window.print()">
           <div class="grid">
-            ${targetGroups.map(g => {
+            ${targetGroups.map((g, gIdx) => {
+              const itemNumber = gIdx + 1
               const studentsToPrint = activeTab === 'unexported'
                 ? g.students.filter(st => !st.dispatched)
                 : g.students
@@ -781,11 +784,11 @@ export default function DeliveryPage() {
 
               return `
               <div class="card">
-                <!-- TOP LEFT: Name, Address (with last town on new line), Phone -->
+                <!-- TOP HEADER: Sequence Number (#1..N) & Recipient Details -->
                 <div class="top-left">
                   <div class="envelope-badge">
-                    <span>TO / DELIVER TO:</span>
-                    <span>${g.area ? g.area.toUpperCase() : ''}</span>
+                    <span style="font-size:13px; font-weight:900; color:#000; letter-spacing:0.5px;">#${itemNumber}</span>
+                    <span style="font-size:9.5px; font-weight:700; color:#444;">${MONTH_NAMES[month - 1]} ${year}</span>
                   </div>
                   <div class="recipient-name">${g.parent_name || 'Guardian / Student'}</div>
                   <div class="recipient-address">${formatEnvelopeAddress(g.address || '')}</div>
@@ -832,7 +835,7 @@ export default function DeliveryPage() {
       const g1 = targetGroups[i]
       const g2 = targetGroups[i + 1]
 
-      const renderCard = (g: typeof g1) => {
+      const renderCard = (g: typeof g1, cardIndex: number) => {
         if (!g) return '<td style="width:50%; border:none;"></td>'
         const studentsToPrint = activeTab === 'unexported'
           ? g.students.filter(st => !st.dispatched)
@@ -850,8 +853,9 @@ export default function DeliveryPage() {
             <table style="width:100%; border:2px solid #000; border-collapse:collapse; padding:12px; font-family:Arial, sans-serif;">
               <tr>
                 <td style="padding:10px; vertical-align:top;">
-                  <div style="font-size:9pt; font-weight:bold; border-bottom:1.5px solid #000; padding-bottom:3px; margin-bottom:6px; color:#333;">
-                    TO / DELIVER TO: ${g.area ? `[${g.area.toUpperCase()}]` : ''}
+                  <div style="border-bottom:1.5px solid #000; padding-bottom:4px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+                    <span style="font-size:12pt; font-weight:bold; color:#000; letter-spacing:0.5px;">#${cardIndex}</span>
+                    <span style="font-size:8.5pt; color:#555; text-transform:uppercase;">${MONTH_NAMES[month - 1]} ${year}</span>
                   </div>
                   <div style="font-size:12pt; font-weight:bold; color:#000; margin-bottom:4px;">
                     ${g.parent_name || 'Guardian / Student'}
@@ -879,8 +883,8 @@ export default function DeliveryPage() {
 
       tableRows += `
         <tr>
-          ${renderCard(g1)}
-          ${renderCard(g2)}
+          ${renderCard(g1, i + 1)}
+          ${renderCard(g2, i + 2)}
         </tr>
       `
     }
@@ -1692,7 +1696,8 @@ export default function DeliveryPage() {
         ) : (
           <>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(350px, 1fr))', gap: 16 }}>
-              {paginatedGroups.map(g => {
+              {paginatedGroups.map((g, pIdx) => {
+                const globalIndex = (currentPage - 1) * pageSize + pIdx + 1
                 const isSelected = selectedHouseholds.has(g.household_id)
                 const isDispatched = g.isDispatched
                 const accentColor = isDispatched ? '#10b981' : '#f97316'
@@ -1718,7 +1723,7 @@ export default function DeliveryPage() {
                     }}
                   >
                     <div>
-                      {/* Card Header: Checkbox + Name + Badge */}
+                      {/* Card Header: Checkbox + Number + Name + Badge */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
                         <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
                           <input
@@ -1728,8 +1733,21 @@ export default function DeliveryPage() {
                             style={{ width: 18, height: 18, marginTop: 2, cursor: 'pointer', accentColor: accentColor }}
                           />
                           <div>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>
-                              {g.parent_name}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{
+                                fontSize: 11,
+                                fontWeight: 800,
+                                background: 'rgba(59, 130, 246, 0.12)',
+                                color: '#38bdf8',
+                                padding: '1px 6px',
+                                borderRadius: 5,
+                                fontFamily: 'monospace'
+                              }}>
+                                #{globalIndex}
+                              </span>
+                              <span style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                                {g.parent_name}
+                              </span>
                             </div>
                             {g.parent_phone && (
                               <a
