@@ -17,10 +17,18 @@ export async function GET(req: Request) {
   const { auth } = authResult
 
   try {
+    const { searchParams } = new URL(req.url)
+    const customFrom = searchParams.get('from')
+    const customTo = searchParams.get('to')
+
     const now = new Date()
     const todayStr = now.toISOString().slice(0, 10)
-    const startOfTodayIso = `${todayStr}T00:00:00.000Z`
-    const endOfTodayIso = `${todayStr}T23:59:59.999Z`
+    
+    // Period calculation
+    const fromStr = customFrom || todayStr
+    const toStr = customTo || todayStr
+    const startOfPeriodIso = `${fromStr}T00:00:00.000Z`
+    const endOfPeriodIso = `${toStr}T23:59:59.999Z`
 
     const curMonth = now.getMonth() + 1
     const curYear = now.getFullYear()
@@ -28,17 +36,18 @@ export async function GET(req: Request) {
 
     // Run parallel high-speed queries
     const [
-      todayPaymentsRes,
+      periodPaymentsRes,
       monthPaymentsRes,
       studentsCountRes,
-      todayLeadsRes,
+      periodLeadsRes,
       membersRes
     ] = await Promise.all([
-      // 1. Today's payments
+      // 1. Period's payments
       auth.supabaseAdmin
         .from('payments')
-        .select('id, amount_paid, payment_type, recorded_by, created_at, date_paid')
-        .or(`date_paid.eq.${todayStr},created_at.gte.${startOfTodayIso}`),
+        .select('id, student_id, amount_paid, payment_type, recorded_by, created_at, date_paid')
+        .gte('date_paid', fromStr)
+        .lte('date_paid', toStr),
 
       // 2. This month's total payments
       auth.supabaseAdmin
@@ -52,11 +61,12 @@ export async function GET(req: Request) {
         .select('id', { count: 'exact', head: true })
         .not('created_by', 'ilike', '%Auto-Pre-generated%'),
 
-      // 4. Today's active leads (to audit staff calls)
+      // 4. Period's active leads (to audit staff calls)
       auth.supabaseAdmin
         .from('leads')
         .select('id, assigned_member, status, created_at, comments')
-        .gte('created_at', startOfTodayIso),
+        .gte('created_at', startOfPeriodIso)
+        .lte('created_at', endOfPeriodIso),
 
       // 5. Active staff members
       auth.supabaseAdmin
@@ -66,11 +76,11 @@ export async function GET(req: Request) {
     ])
 
     // --- Compute Financials ---
-    const todayPayments = todayPaymentsRes.data || []
+    const periodPayments = periodPaymentsRes.data || []
     let todayIncome = 0
     const staffPaymentAudit: Record<string, { count: number; total: number }> = {}
 
-    for (const p of todayPayments) {
+    for (const p of periodPayments) {
       if (!['FREE', 'IMS'].includes(p.payment_type || '')) {
         const amt = Number(p.amount_paid) || 0
         todayIncome += amt
@@ -102,10 +112,10 @@ export async function GET(req: Request) {
     const targetProgress = Math.min(100, Math.round((monthIncome / monthlyTarget) * 100))
 
     // --- Compute Staff Work & Call Audit ---
-    const todayLeads = todayLeadsRes.data || []
+    const periodLeads = periodLeadsRes.data || []
     const staffCallAudit: Record<string, { totalCalls: number; hotConverted: number }> = {}
 
-    for (const lead of todayLeads) {
+    for (const lead of periodLeads) {
       const staff = lead.assigned_member || 'Unassigned'
       if (!staffCallAudit[staff]) staffCallAudit[staff] = { totalCalls: 0, hotConverted: 0 }
       staffCallAudit[staff].totalCalls += 1
@@ -152,11 +162,13 @@ export async function GET(req: Request) {
     return apiSuccess({
       generatedAt: now.toISOString(),
       dateStr: todayStr,
+      fromStr,
+      toStr,
       monthName: now.toLocaleString('en-US', { month: 'long' }),
       year: curYear,
       metrics: {
         todayIncome,
-        todayTransactionsCount: todayPayments.length,
+        todayTransactionsCount: periodPayments.length,
         monthIncome,
         monthlyTarget,
         targetProgress,
@@ -166,7 +178,12 @@ export async function GET(req: Request) {
         projectedMonthEndRevenue,
         atRiskUnpaidStudents
       },
-      staffRoster
+      staffRoster,
+      periodPaymentsSummary: {
+        totalAmount: todayIncome,
+        count: periodPayments.length,
+        byStaff: staffPaymentAudit
+      }
     })
   } catch (err: any) {
     return apiError(err.message || 'Error fetching tutor mobile summary', 500)
