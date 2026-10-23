@@ -9,7 +9,7 @@ import {
   Sparkles, Trophy, Layers, DollarSign, History, AlertCircle
 } from 'lucide-react'
 import Link from 'next/link'
-import GlassLoading3D from '@/components/ui/GlassLoading3D'
+import NeoLeafLoading from '@/components/ui/NeoLeafLoading'
 
 // ──────────────────────────────────────────────────────────────
 // Clean & Unified Pro Color Theme (No Rainbow clutter)
@@ -666,12 +666,7 @@ export default function AnalyticsDashboard() {
   }
 
   if (loading) {
-    return (
-      <GlassLoading3D
-        message="Loading analytics & live ledgers…"
-        subMessage="Syncing real-time records"
-      />
-    )
+    return <NeoLeafLoading />
   }
 
   return (
