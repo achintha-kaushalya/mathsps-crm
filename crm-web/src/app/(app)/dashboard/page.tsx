@@ -9,7 +9,7 @@ import {
   Sparkles, Trophy, Layers, DollarSign, History, AlertCircle
 } from 'lucide-react'
 import Link from 'next/link'
-import NeoLeafLoading from '@/components/ui/NeoLeafLoading'
+import PhoneDeliveryLoading from '@/components/ui/PhoneDeliveryLoading'
 
 // ──────────────────────────────────────────────────────────────
 // Clean & Unified Pro Color Theme (No Rainbow clutter)
@@ -666,7 +666,7 @@ export default function AnalyticsDashboard() {
   }
 
   if (loading) {
-    return <NeoLeafLoading />
+    return <PhoneDeliveryLoading />
   }
 
   return (
