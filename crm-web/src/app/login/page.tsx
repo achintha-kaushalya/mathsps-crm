@@ -175,12 +175,37 @@ function InteractiveLobbyLoginForm() {
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '24px 20px',
+      padding: '16px',
       background: '#f8fafc',
       fontFamily: 'var(--font-sans, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif)',
       position: 'relative',
       overflow: 'hidden'
     }}>
+      <style>{`
+        .login-split-card {
+          display: grid;
+          grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+          width: 100%;
+          max-width: 1040px;
+        }
+        .login-left-stage {
+          display: flex;
+        }
+        @media (max-width: 768px) {
+          .login-split-card {
+            grid-template-columns: 1fr !important;
+            max-width: 440px !important;
+            border-radius: 24px !important;
+          }
+          .login-left-stage {
+            display: none !important;
+          }
+          .login-right-col {
+            padding: 32px 24px !important;
+          }
+        }
+      `}</style>
+
       {/* Background Ambient Glows */}
       <div style={{
         position: 'absolute', top: -80, left: -80, width: 450, height: 450, borderRadius: '50%',
@@ -192,14 +217,10 @@ function InteractiveLobbyLoginForm() {
       }} />
 
       {/* Main Split-Screen Container */}
-      <div style={{
-        width: '100%',
-        maxWidth: 1040,
+      <div className="login-split-card" style={{
         background: '#ffffff',
         borderRadius: 28,
         boxShadow: '0 25px 60px -15px rgba(15, 23, 42, 0.08), 0 0 0 1px #e2e8f0',
-        display: 'grid',
-        gridTemplateColumns: 'minmax(0, 1.1fr) minmax(0, 1fr)',
         overflow: 'hidden',
         position: 'relative',
         zIndex: 10
@@ -208,10 +229,10 @@ function InteractiveLobbyLoginForm() {
         {/* LEFT COLUMN: Clean Studio Stage with Ground Shadow (Matching Reference) */}
         <div
           ref={leftColRef}
+          className="login-left-stage"
           style={{
             background: '#eef2f6',
             padding: '36px 32px 28px',
-            display: 'flex',
             flexDirection: 'column',
             justifyContent: 'space-between',
             borderRight: '1px solid #e2e8f0',
@@ -656,7 +677,7 @@ function InteractiveLobbyLoginForm() {
         </div>
 
         {/* RIGHT COLUMN: Clean Auth Console (MathsPS Branded) */}
-        <div style={{
+        <div className="login-right-col" style={{
           padding: '44px 38px',
           display: 'flex',
           flexDirection: 'column',
