@@ -173,16 +173,19 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      if (callEvent === 'terminate' || callEvent === 'terminated' || callEvent === 'offered' || callEvent === 'connect') {
-        try {
-          if (callEvent === 'terminate' || callEvent === 'terminated') {
+      if (callEvent === 'terminate' || callEvent === 'terminated') {
+        const terminateKey = `call_term_${callId}`
+        if (!isDuplicateMessage(terminateKey)) {
+          try {
             const followUpGreeting = `ආයුබෝවන්! ඔබ MathsPS වෙත ලබාදුන් ඇමතුමට ස්තූතියි. අපගේ පන්ති කාලසටහන් හෝ ගාස්තු විස්තර දැනගැනීමට ඔබට අවශ්‍ය ශ්‍රේණිය (6, 7, 8, 9, 10, 11) මෙහි එවන්න.`
             await sendWhatsAppText(callerPhone, followUpGreeting)
+            await syncWhatsAppLead(callerPhone, null, undefined, `Inbound Voice Call (${callEvent})`)
+          } catch (dispatchErr) {
+            console.error('Failed to dispatch auto-packet on call event:', dispatchErr)
           }
-          await syncWhatsAppLead(callerPhone, null, undefined, `Inbound Voice Call (${callEvent})`)
-        } catch (dispatchErr) {
-          console.error('Failed to dispatch auto-packet on call event:', dispatchErr)
         }
+      } else if (callEvent === 'connect' || callEvent === 'offer') {
+        await syncWhatsAppLead(callerPhone, null, undefined, `Inbound Voice Call (${callEvent})`).catch(() => {})
       }
 
       return NextResponse.json({ status: 'call_handled' }, { status: 200 })

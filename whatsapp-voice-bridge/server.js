@@ -7,11 +7,14 @@ require('dotenv').config()
 const express = require('express')
 const cors = require('cors')
 const { WebSocket } = require('ws')
+const OpusScript = require('opusscript')
 const {
   RTCPeerConnection,
   RTCSessionDescription,
   RTCRtpCodecParameters,
-  MediaStreamTrack
+  MediaStreamTrack,
+  RtpPacket,
+  RtpHeader
 } = require('werift')
 
 const app = express()
@@ -24,7 +27,7 @@ const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || ''
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || 'https://mathsps-lead-crm.vercel.app/api/whatsapp/webhook'
 
-// Active call sessions: callId -> { pc, geminiWs, callerPhone }
+// Active call sessions: callId -> session object
 const activeCalls = new Map()
 
 // System prompt for Live Voice Agent
@@ -45,7 +48,7 @@ Provide accurate answers:
 Keep your answers brief and conversational (1 to 2 sentences per turn), as in a natural voice phone conversation.
 Greet warmly: "ආයුබෝවන්! මම MathsPS කෘත්‍රිම බුද්ධි ගුරු සහායක. ඔබට අද උදව් කළ හැක්කේ කෙසේද?"`
 
-// In-memory debug logs for instant diagnosis
+// In-memory debug logs for diagnosis
 const debugLogs = []
 function logEvent(type, data) {
   try {
@@ -84,6 +87,62 @@ app.get('/debug-logs', (req, res) => {
 })
 
 /**
+ * 48kHz to 16kHz downsampler for caller microphone audio
+ */
+function downsample48to16(buffer48) {
+  const samples48 = Math.floor(buffer48.length / 2)
+  const samples16 = Math.floor(samples48 / 3)
+  const buffer16 = Buffer.alloc(samples16 * 2)
+  for (let i = 0; i < samples16; i++) {
+    const val = buffer48.readInt16LE(i * 3 * 2)
+    buffer16.writeInt16LE(val, i * 2)
+  }
+  return buffer16
+}
+
+/**
+ * Continuous 20ms RTP Media Pump
+ * Ensures WhatsApp client receives continuous audio stream and never times out (error 138021)
+ */
+function startMediaPump(callId) {
+  const call = activeCalls.get(callId)
+  if (!call || call.mediaTimer) return
+
+  logEvent('MEDIA_PUMP_STARTED', { callId })
+  const silenceOpus = Buffer.from([0xf8, 0xff, 0xfe]) // 20ms Opus comfort silence
+
+  call.mediaTimer = setInterval(() => {
+    const c = activeCalls.get(callId)
+    if (!c || !c.outgoingAudioTrack) {
+      clearInterval(call.mediaTimer)
+      return
+    }
+
+    let payload = silenceOpus
+    if (c.audioQueue.length > 0) {
+      payload = c.audioQueue.shift()
+    }
+
+    c.seq = (c.seq + 1) & 0xffff
+    c.ts = (c.ts + 960) & 0xffffffff // 20ms at 48000Hz = 960 samples
+
+    try {
+      const header = new RtpHeader({
+        payloadType: 111,
+        sequenceNumber: c.seq,
+        timestamp: c.ts,
+        ssrc: c.outgoingAudioTrack.ssrc || 10001,
+        marker: false
+      })
+      const packet = new RtpPacket(header, payload)
+      c.outgoingAudioTrack.writeRtp(packet)
+    } catch (e) {
+      // Avoid crash on closed track
+    }
+  }, 20)
+}
+
+/**
  * Inbound Call Signaling Hook
  * Receives the incoming call offer from Meta or forwarded by Vercel Webhook
  */
@@ -103,8 +162,7 @@ app.post('/webhook/call', async (req, res) => {
       from,
       event,
       action: callAction,
-      hasSdp: Boolean(incomingSdp),
-      raw_call
+      hasSdp: Boolean(incomingSdp)
     })
 
     // 1. Handle Call Termination
@@ -132,12 +190,20 @@ app.post('/webhook/call', async (req, res) => {
     pc.addTrack(outgoingAudioTrack)
 
     // Store in active calls map
-    activeCalls.set(call_id, {
+    const sessionData = {
       pc,
       outgoingAudioTrack,
       callerPhone: from,
-      startedAt: Date.now()
-    })
+      startedAt: Date.now(),
+      opusEncoder: new OpusScript(24000, 1, OpusScript.Application.VOIP),
+      opusDecoder: new OpusScript(48000, 1, OpusScript.Application.VOIP),
+      audioQueue: [],
+      seq: 0,
+      ts: 0,
+      pcmBuffer: Buffer.alloc(0),
+      mediaTimer: null
+    }
+    activeCalls.set(call_id, sessionData)
 
     let localSdp = null
     let sdpType = 'answer'
@@ -152,14 +218,13 @@ app.post('/webhook/call', async (req, res) => {
       sdpType = 'answer'
     } else {
       logEvent('WEBRTC_LOCAL_OFFER_GENERATED', { call_id })
-      // Meta did not provide SDP -> We create local SDP Offer
       const offer = await pc.createOffer()
       await pc.setLocalDescription(offer)
       localSdp = offer.sdp
       sdpType = 'offer'
     }
 
-    // Send accept / pre_accept to Meta Graph API
+    // Send accept to Meta Graph API
     if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID) {
       logEvent('META_API_SENDING_ACCEPT', { call_id, sdpType })
       try {
@@ -192,7 +257,7 @@ app.post('/webhook/call', async (req, res) => {
     }
 
     // Connect to Gemini Live Multimodal WebSocket
-    initGeminiLiveConnection(call_id, outgoingAudioTrack)
+    initGeminiLiveConnection(call_id)
 
     // Listen for incoming audio RTP packets from caller
     pc.ontrack = (evt) => {
@@ -201,23 +266,34 @@ app.post('/webhook/call', async (req, res) => {
 
       incomingTrack.onReceiveRtp.subscribe((rtp) => {
         const callData = activeCalls.get(call_id)
-        if (callData?.geminiWs && callData.geminiWs.readyState === WebSocket.OPEN) {
-          const pcmPayload = rtp.payload.toString('base64')
-          callData.geminiWs.send(JSON.stringify({
-            realtimeInput: {
-              mediaChunks: [{
-                mimeType: 'audio/pcm;rate=16000',
-                data: pcmPayload
-              }]
+        if (callData?.geminiWs && callData.geminiWs.readyState === WebSocket.OPEN && callData.opusDecoder) {
+          try {
+            // Decode incoming Opus from caller (48kHz PCM)
+            const pcm48 = callData.opusDecoder.decode(rtp.payload)
+            if (pcm48 && pcm48.length > 0) {
+              // Downsample 48kHz to 16kHz for Gemini input
+              const pcm16 = downsample48to16(pcm48)
+              callData.geminiWs.send(JSON.stringify({
+                realtimeInput: {
+                  mediaChunks: [{
+                    mimeType: 'audio/pcm;rate=16000',
+                    data: pcm16.toString('base64')
+                  }]
+                }
+              }))
             }
-          }))
+          } catch (e) {
+            // Ignore corrupted RTP audio frames
+          }
         }
       })
     }
 
     pc.connectionStateChange.subscribe((state) => {
       logEvent('WEBRTC_STATE_CHANGE', { call_id, state })
-      if (state === 'closed' || state === 'failed') {
+      if (state === 'connected') {
+        startMediaPump(call_id)
+      } else if (state === 'closed' || state === 'failed') {
         terminateCall(call_id)
       }
     })
@@ -235,26 +311,26 @@ app.post('/webhook/call', async (req, res) => {
 })
 
 /**
- * Connect to Google Gemini Multimodal Live API
+ * Connect to Google Gemini Multimodal Live API (v1beta)
  */
-function initGeminiLiveConnection(callId, outgoingTrack) {
+function initGeminiLiveConnection(callId) {
   if (!GEMINI_API_KEY) {
-    console.warn('[Gemini Live] GEMINI_API_KEY missing')
+    logEvent('GEMINI_KEY_MISSING', { callId })
     return
   }
 
-  const liveUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`
+  const liveUrl = `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${GEMINI_API_KEY}`
   const ws = new WebSocket(liveUrl)
 
   const callData = activeCalls.get(callId)
   if (callData) callData.geminiWs = ws
 
   ws.on('open', () => {
-    console.log(`[Gemini Live Connected] For call: ${callId}`)
-    // Send Session Setup
+    logEvent('GEMINI_WS_OPEN', { callId })
+    // Session Setup
     ws.send(JSON.stringify({
       setup: {
-        model: 'models/gemini-2.0-flash-exp',
+        model: 'models/gemini-2.5-flash-native-audio-preview-12-2025',
         generationConfig: {
           responseModalities: ['AUDIO'],
           speechConfig: {
@@ -273,30 +349,58 @@ function initGeminiLiveConnection(callId, outgoingTrack) {
   ws.on('message', (data) => {
     try {
       const msg = JSON.parse(data.toString())
-      // Handle audio stream from Gemini
+
+      // 1. Setup complete -> Immediately trigger Sinhala greeting
+      if (msg.setupComplete) {
+        logEvent('GEMINI_SETUP_COMPLETE', { callId })
+        ws.send(JSON.stringify({
+          clientContent: {
+            turns: [{
+              role: 'user',
+              parts: [{ text: 'Caller picked up the phone. Greet them warmly and politely in Sinhala: ආයුබෝවන්! මම MathsPS කෘත්‍රිම බුද්ධි ගුරු සහායක. ඔබට අද උදව් කළ හැක්කේ කෙසේද?' }]
+            }],
+            turnComplete: true
+          }
+        }))
+      }
+
+      // 2. Handle audio stream from Gemini
       const parts = msg.serverContent?.modelTurn?.parts
       if (parts) {
+        const c = activeCalls.get(callId)
+        if (!c || !c.opusEncoder) return
+
         for (const p of parts) {
           if (p.inlineData && p.inlineData.data) {
-            // Write generated audio back to caller
-            const audioBuffer = Buffer.from(p.inlineData.data, 'base64')
-            if (outgoingTrack && typeof outgoingTrack.writeRtp === 'function') {
-              outgoingTrack.writeRtp(audioBuffer)
+            const rawPcm = Buffer.from(p.inlineData.data, 'base64')
+            c.pcmBuffer = Buffer.concat([c.pcmBuffer, rawPcm])
+
+            // Slices of 20ms at 24000Hz = 480 samples = 960 bytes
+            while (c.pcmBuffer.length >= 960) {
+              const chunk = c.pcmBuffer.subarray(0, 960)
+              c.pcmBuffer = c.pcmBuffer.subarray(960)
+
+              try {
+                const opusFrame = c.opusEncoder.encode(chunk, 480)
+                c.audioQueue.push(opusFrame)
+              } catch (encErr) {
+                // Ignore encode error
+              }
             }
           }
         }
       }
     } catch (e) {
-      // Ignored
+      logEvent('GEMINI_MESSAGE_PARSE_ERROR', { callId, error: e.message })
     }
   })
 
-  ws.on('close', () => {
-    console.log(`[Gemini Live Closed] Call: ${callId}`)
+  ws.on('close', (code, reason) => {
+    logEvent('GEMINI_WS_CLOSED', { callId, code, reason: reason?.toString() })
   })
 
   ws.on('error', (e) => {
-    console.error(`[Gemini Live Error] Call: ${callId}`, e.message)
+    logEvent('GEMINI_WS_ERROR', { callId, error: e.message })
   })
 }
 
@@ -304,8 +408,17 @@ function terminateCall(callId) {
   const call = activeCalls.get(callId)
   if (!call) return
 
-  console.log(`[Terminating Call] ${callId} with ${call.callerPhone}`)
+  logEvent('TERMINATING_CALL', { callId, callerPhone: call.callerPhone })
 
+  if (call.mediaTimer) {
+    clearInterval(call.mediaTimer)
+  }
+  if (call.opusEncoder) {
+    try { call.opusEncoder.delete() } catch (e) {}
+  }
+  if (call.opusDecoder) {
+    try { call.opusDecoder.delete() } catch (e) {}
+  }
   if (call.geminiWs) {
     try { call.geminiWs.close() } catch (e) {}
   }
