@@ -6,20 +6,13 @@ import {
   Search,
   Command,
   X,
-  User,
-  Phone,
-  GraduationCap,
-  Clock,
-  Sparkles,
-  ArrowRight,
   PlusCircle,
   Truck,
   CreditCard,
-  FileSpreadsheet,
-  CornerDownLeft,
+  Phone,
+  ArrowRight,
   ChevronRight,
-  Shield,
-  Trash2
+  History
 } from 'lucide-react'
 import { extractLmsNumber } from '@/lib/types'
 
@@ -30,7 +23,6 @@ interface RecentItem {
   name: string
   subText?: string
   url: string
-  timestamp: number
 }
 
 const STORAGE_KEY = 'mathsps_omni_recent_v1'
@@ -42,13 +34,11 @@ export default function GlobalOmniHeader() {
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<{ students: any[]; leads: any[] }>({ students: [], leads: [] })
   const [recentItems, setRecentItems] = useState<RecentItem[]>([])
-  const [selectedIndex, setSelectedIndex] = useState(0)
 
-  const searchInputRef = useRef<HTMLInputElement>(null)
   const modalInputRef = useRef<HTMLInputElement>(null)
   const debounceRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Load recent history from LocalStorage
+  // Load history from LocalStorage
   useEffect(() => {
     try {
       const stored = localStorage.getItem(STORAGE_KEY)
@@ -58,11 +48,10 @@ export default function GlobalOmniHeader() {
     } catch {}
   }, [isOpen])
 
-  // Save to recent items
-  const addToRecent = (item: Omit<RecentItem, 'timestamp'>) => {
+  const addToRecent = (item: RecentItem) => {
     try {
-      const existing = recentItems.filter(i => i.url !== item.url)
-      const updated: RecentItem[] = [{ ...item, timestamp: Date.now() }, ...existing].slice(0, 8)
+      const filtered = recentItems.filter(i => i.url !== item.url)
+      const updated = [item, ...filtered].slice(0, 5)
       setRecentItems(updated)
       localStorage.setItem(STORAGE_KEY, JSON.stringify(updated))
     } catch {}
@@ -75,7 +64,7 @@ export default function GlobalOmniHeader() {
     } catch {}
   }
 
-  // Global Keyboard Shortcut: Cmd+K or Ctrl+K
+  // Keyboard shortcut: Cmd+K / Ctrl+K
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
@@ -89,7 +78,7 @@ export default function GlobalOmniHeader() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen])
 
-  // Focus modal input on open
+  // Focus on open
   useEffect(() => {
     if (isOpen) {
       setTimeout(() => {
@@ -101,9 +90,10 @@ export default function GlobalOmniHeader() {
     }
   }, [isOpen])
 
-  // Live Debounced Omni Search
+  // Ultra-fast search with 140ms debounce
   useEffect(() => {
-    if (!query.trim()) {
+    const trimmed = query.trim()
+    if (!trimmed || trimmed.length < 2) {
       setResults({ students: [], leads: [] })
       setLoading(false)
       return
@@ -114,7 +104,7 @@ export default function GlobalOmniHeader() {
 
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`/api/search?q=${encodeURIComponent(query.trim())}`)
+        const res = await fetch(`/api/search?q=${encodeURIComponent(trimmed)}`)
         if (res.ok) {
           const data = await res.json()
           setResults({
@@ -123,18 +113,17 @@ export default function GlobalOmniHeader() {
           })
         }
       } catch (err) {
-        console.error('Search query failed:', err)
+        console.error(err)
       } finally {
         setLoading(false)
       }
-    }, 200)
+    }, 140)
 
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
   }, [query])
 
-  // Quick navigation helpers
   const handleSelectStudent = (stu: any) => {
     const psCode = stu.ps_code
     addToRecent({
@@ -170,14 +159,14 @@ export default function GlobalOmniHeader() {
 
   return (
     <>
-      {/* ── 1. Top Glassmorphic Global Omni Header ── */}
+      {/* ── Top Bar ── */}
       <header
         style={{
           width: '100%',
-          height: 56,
+          height: 48,
           background: 'var(--bg-card)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
           borderBottom: '1px solid var(--border)',
           position: 'sticky',
           top: 0,
@@ -185,154 +174,117 @@ export default function GlobalOmniHeader() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 28px',
-          transition: 'all 0.2s ease',
+          padding: '0 24px',
         }}
       >
-        {/* Left: Brand / System Status */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <div
             style={{
-              width: 32,
-              height: 32,
-              borderRadius: 8,
-              background: 'linear-gradient(135deg, #0284c7 0%, #38bdf8 100%)',
+              width: 26,
+              height: 26,
+              borderRadius: 6,
+              background: '#0284c7',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               color: '#ffffff',
               fontWeight: 800,
-              fontSize: 14,
-              boxShadow: '0 2px 8px rgba(2, 132, 199, 0.25)',
+              fontSize: 13,
             }}
           >
             Σ
           </div>
-          <div style={{ display: 'flex', alignItems: 'baseline', gap: 6 }}>
-            <span style={{ fontWeight: 800, fontSize: 15, letterSpacing: '-0.3px', color: 'var(--text-primary)' }}>
-              MathsPS
-            </span>
-            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Executive Hub
-            </span>
-          </div>
+          <span style={{ fontWeight: 700, fontSize: 14, color: 'var(--text-primary)', letterSpacing: '-0.2px' }}>
+            MathsPS
+          </span>
         </div>
 
-        {/* Center: Global Omni Search Trigger Bar */}
-        <div style={{ flex: 1, maxWidth: 560, margin: '0 24px' }}>
+        {/* Minimal trigger input */}
+        <div style={{ flex: 1, maxWidth: 440, margin: '0 20px' }}>
           <div
             onClick={() => setIsOpen(true)}
             style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'space-between',
-              padding: '7px 14px',
-              borderRadius: 12,
+              padding: '6px 12px',
+              borderRadius: 8,
               background: 'var(--bg-base)',
               border: '1px solid var(--border)',
               cursor: 'pointer',
-              transition: 'border-color 0.15s, box-shadow 0.15s, background 0.15s',
-              boxShadow: 'var(--shadow-sm)',
+              height: 32,
             }}
-            className="hover-card"
           >
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: 'var(--text-muted)' }}>
-              <Search size={15} style={{ color: 'var(--accent-blue)' }} />
-              <span style={{ fontSize: 13, fontWeight: 500 }}>
-                Search students, phone, leads, F-codes, payments...
-              </span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)' }}>
+              <Search size={13} style={{ color: 'var(--accent-blue)' }} />
+              <span style={{ fontSize: 12.5 }}>Search anything...</span>
             </div>
-            <div
+            <kbd
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 4,
-                fontSize: 11,
+                gap: 2,
+                fontSize: 10.5,
                 fontWeight: 600,
                 color: 'var(--text-muted)',
                 background: 'var(--bg-card)',
-                padding: '3px 7px',
-                borderRadius: 6,
+                padding: '2px 5px',
+                borderRadius: 4,
                 border: '1px solid var(--border)',
               }}
             >
-              <Command size={11} /> K
-            </div>
+              <Command size={10} /> K
+            </kbd>
           </div>
         </div>
 
-        {/* Right: Quick Action Shortcuts */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <button
-            onClick={() => {
-              setIsOpen(true)
-            }}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6,
-              background: 'transparent',
-              border: '1px solid var(--border)',
-              borderRadius: 8,
-              padding: '6px 12px',
-              fontSize: 12,
-              fontWeight: 600,
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-            }}
-            className="btn-secondary"
-            title="Open Command Palette"
-          >
-            <Sparkles size={13} style={{ color: 'var(--accent-purple)' }} />
-            Omni Command
-          </button>
-        </div>
+        <div style={{ width: 60 }} />
       </header>
 
-      {/* ── 2. Modal Spotlight Command Palette (Cmd + K) ── */}
+      {/* ── Modal Command Palette (Clean & Concise) ── */}
       {isOpen && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0, 0, 0, 0.65)',
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
+            background: 'rgba(0, 0, 0, 0.55)',
+            backdropFilter: 'blur(4px)',
+            WebkitBackdropFilter: 'blur(4px)',
             zIndex: 99999,
             display: 'flex',
             alignItems: 'flex-start',
             justifyContent: 'center',
-            paddingTop: '10vh',
+            paddingTop: '12vh',
           }}
           onClick={() => setIsOpen(false)}
         >
           <div
             style={{
               width: '100%',
-              maxWidth: 640,
+              maxWidth: 540,
               background: 'var(--bg-card)',
-              borderRadius: 18,
+              borderRadius: 14,
               border: '1px solid var(--border-light)',
-              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.35)',
+              boxShadow: '0 20px 40px -10px rgba(0, 0, 0, 0.25)',
               overflow: 'hidden',
               display: 'flex',
               flexDirection: 'column',
-              maxHeight: '80vh',
+              maxHeight: '75vh',
             }}
             onClick={e => e.stopPropagation()}
             className="fade-in"
           >
-            {/* Search Input Box */}
+            {/* Input Header */}
             <div
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 12,
-                padding: '16px 20px',
+                gap: 10,
+                padding: '12px 16px',
                 borderBottom: '1px solid var(--border)',
               }}
             >
-              <Search size={20} style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
+              <Search size={16} style={{ color: 'var(--accent-blue)', flexShrink: 0 }} />
               <input
                 ref={modalInputRef}
                 style={{
@@ -340,33 +292,28 @@ export default function GlobalOmniHeader() {
                   background: 'transparent',
                   border: 'none',
                   outline: 'none',
-                  fontSize: 16,
+                  fontSize: 14,
                   color: 'var(--text-primary)',
                   fontWeight: 500,
                 }}
-                placeholder="Search anything (PS code, Student Name, Phone, F-code, Area)..."
+                placeholder="Search PS code, name, phone, F-code..."
                 value={query}
                 onChange={e => setQuery(e.target.value)}
               />
               {query && (
                 <button
                   onClick={() => setQuery('')}
-                  style={{
-                    background: 'transparent',
-                    border: 'none',
-                    color: 'var(--text-muted)',
-                    cursor: 'pointer',
-                  }}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
                 >
-                  <X size={16} />
+                  <X size={14} />
                 </button>
               )}
               <kbd
                 onClick={() => setIsOpen(false)}
                 style={{
-                  fontSize: 11,
-                  padding: '3px 8px',
-                  borderRadius: 6,
+                  fontSize: 10,
+                  padding: '2px 5px',
+                  borderRadius: 4,
                   background: 'var(--bg-base)',
                   border: '1px solid var(--border)',
                   color: 'var(--text-muted)',
@@ -377,35 +324,34 @@ export default function GlobalOmniHeader() {
               </kbd>
             </div>
 
-            {/* Results & History Body */}
-            <div style={{ overflowY: 'auto', padding: '12px 14px', flex: 1 }}>
+            {/* Results Body */}
+            <div style={{ overflowY: 'auto', padding: '10px 12px', flex: 1 }}>
               {loading && (
-                <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 13 }}>
-                  <div className="animate-spin" style={{ display: 'inline-block', marginBottom: 8 }}>🌀</div>
-                  <div>Searching across students, households & leads...</div>
+                <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                  Searching...
                 </div>
               )}
 
-              {/* A. If Query is empty: Show Recent Searches & Quick Nav Shortcuts */}
+              {/* Recent & Quick Actions (When input is empty) */}
               {!query.trim() && !loading && (
                 <>
                   {recentItems.length > 0 && (
-                    <div style={{ marginBottom: 18 }}>
+                    <div style={{ marginBottom: 12 }}>
                       <div
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'space-between',
-                          padding: '0 8px 8px',
-                          fontSize: 11,
+                          padding: '0 4px 6px',
+                          fontSize: 10.5,
                           fontWeight: 700,
                           color: 'var(--text-muted)',
                           textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
+                          letterSpacing: '0.04em',
                         }}
                       >
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                          <Clock size={12} /> Recently Viewed & Searched
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                          <History size={11} /> Recent
                         </span>
                         <button
                           onClick={clearRecent}
@@ -413,19 +359,15 @@ export default function GlobalOmniHeader() {
                             background: 'transparent',
                             border: 'none',
                             color: 'var(--text-muted)',
-                            fontSize: 11,
+                            fontSize: 10.5,
                             cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 4,
                           }}
-                          className="hover-color"
                         >
-                          <Trash2 size={11} /> Clear
+                          Clear
                         </button>
                       </div>
 
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                         {recentItems.map(item => (
                           <div
                             key={item.id + item.url}
@@ -434,62 +376,52 @@ export default function GlobalOmniHeader() {
                               display: 'flex',
                               alignItems: 'center',
                               justifyContent: 'space-between',
-                              padding: '9px 12px',
-                              borderRadius: 10,
+                              padding: '7px 10px',
+                              borderRadius: 8,
                               cursor: 'pointer',
-                              background: 'transparent',
-                              transition: 'background 0.15s ease',
                             }}
                             className="hover-bg"
                           >
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                              <div
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                              <span
                                 style={{
-                                  width: 28,
-                                  height: 28,
-                                  borderRadius: 8,
-                                  background: item.type === 'student' ? '#eff6ff' : '#faf5ff',
-                                  color: item.type === 'student' ? '#2563eb' : '#9333ea',
-                                  display: 'flex',
-                                  alignItems: 'center',
-                                  justifyContent: 'center',
                                   fontSize: 11,
                                   fontWeight: 700,
+                                  color: item.type === 'student' ? 'var(--accent-blue)' : 'var(--accent-purple)',
+                                  width: 55,
                                 }}
                               >
-                                {item.type === 'student' ? 'PS' : 'F'}
-                              </div>
-                              <div>
-                                <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>
-                                  {item.code} · {item.name}
-                                </div>
-                                {item.subText && (
-                                  <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{item.subText}</div>
-                                )}
-                              </div>
+                                {item.code}
+                              </span>
+                              <span style={{ fontSize: 12.5, fontWeight: 500, color: 'var(--text-primary)' }}>
+                                {item.name}
+                              </span>
+                              {item.subText && (
+                                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>· {item.subText}</span>
+                              )}
                             </div>
-                            <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+                            <ChevronRight size={12} style={{ color: 'var(--text-muted)' }} />
                           </div>
                         ))}
                       </div>
                     </div>
                   )}
 
-                  {/* Quick System Navigation Shortcuts */}
+                  {/* Shortcuts */}
                   <div>
                     <div
                       style={{
-                        padding: '0 8px 8px',
-                        fontSize: 11,
+                        padding: '0 4px 6px',
+                        fontSize: 10.5,
                         fontWeight: 700,
                         color: 'var(--text-muted)',
                         textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
+                        letterSpacing: '0.04em',
                       }}
                     >
-                      Quick System Shortcuts
+                      Shortcuts
                     </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
                       <button
                         onClick={() => {
                           setIsOpen(false)
@@ -498,9 +430,9 @@ export default function GlobalOmniHeader() {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 10,
-                          padding: '10px 14px',
-                          borderRadius: 10,
+                          gap: 8,
+                          padding: '8px 10px',
+                          borderRadius: 8,
                           background: 'var(--bg-base)',
                           border: '1px solid var(--border)',
                           cursor: 'pointer',
@@ -508,11 +440,8 @@ export default function GlobalOmniHeader() {
                         }}
                         className="hover-card"
                       >
-                        <PlusCircle size={16} style={{ color: 'var(--accent-blue)' }} />
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Add Student</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Enroll new student code</div>
-                        </div>
+                        <PlusCircle size={14} style={{ color: 'var(--accent-blue)' }} />
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>New Student</span>
                       </button>
 
                       <button
@@ -523,9 +452,9 @@ export default function GlobalOmniHeader() {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 10,
-                          padding: '10px 14px',
-                          borderRadius: 10,
+                          gap: 8,
+                          padding: '8px 10px',
+                          borderRadius: 8,
                           background: 'var(--bg-base)',
                           border: '1px solid var(--border)',
                           cursor: 'pointer',
@@ -533,11 +462,8 @@ export default function GlobalOmniHeader() {
                         }}
                         className="hover-card"
                       >
-                        <CreditCard size={16} style={{ color: 'var(--accent-green)' }} />
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Add Payment</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Bank slip, cash or free</div>
-                        </div>
+                        <CreditCard size={14} style={{ color: 'var(--accent-green)' }} />
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Add Payment</span>
                       </button>
 
                       <button
@@ -548,9 +474,9 @@ export default function GlobalOmniHeader() {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 10,
-                          padding: '10px 14px',
-                          borderRadius: 10,
+                          gap: 8,
+                          padding: '8px 10px',
+                          borderRadius: 8,
                           background: 'var(--bg-base)',
                           border: '1px solid var(--border)',
                           cursor: 'pointer',
@@ -558,11 +484,8 @@ export default function GlobalOmniHeader() {
                         }}
                         className="hover-card"
                       >
-                        <Phone size={16} style={{ color: 'var(--accent-purple)' }} />
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Leads Hub</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Campaign call center</div>
-                        </div>
+                        <Phone size={14} style={{ color: 'var(--accent-purple)' }} />
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Leads Hub</span>
                       </button>
 
                       <button
@@ -573,9 +496,9 @@ export default function GlobalOmniHeader() {
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          gap: 10,
-                          padding: '10px 14px',
-                          borderRadius: 10,
+                          gap: 8,
+                          padding: '8px 10px',
+                          borderRadius: 8,
                           background: 'var(--bg-base)',
                           border: '1px solid var(--border)',
                           cursor: 'pointer',
@@ -583,53 +506,41 @@ export default function GlobalOmniHeader() {
                         }}
                         className="hover-card"
                       >
-                        <Truck size={16} style={{ color: 'var(--accent-orange)' }} />
-                        <div>
-                          <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-primary)' }}>Deliveries</div>
-                          <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Tute & courier dispatch</div>
-                        </div>
+                        <Truck size={14} style={{ color: 'var(--accent-orange)' }} />
+                        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-primary)' }}>Deliveries</span>
                       </button>
                     </div>
                   </div>
                 </>
               )}
 
-              {/* B. If Query is typed: Categorized Search Results */}
+              {/* Dynamic Results */}
               {query.trim() && !loading && (
                 <>
                   {results.students.length === 0 && results.leads.length === 0 ? (
-                    <div style={{ padding: '36px 0', textAlign: 'center', color: 'var(--text-muted)' }}>
-                      <Search size={32} style={{ opacity: 0.3, marginBottom: 10 }} />
-                      <div style={{ fontSize: 14, fontWeight: 600 }}>No results found for &ldquo;{query}&rdquo;</div>
-                      <div style={{ fontSize: 12, marginTop: 4 }}>
-                        Try searching with PS Code, Student Name, Phone, or Town.
-                      </div>
+                    <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12.5 }}>
+                      No results for &ldquo;{query}&rdquo;
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                      {/* 1. Students Results */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                      {/* Students */}
                       {results.students.length > 0 && (
                         <div>
                           <div
                             style={{
-                              padding: '0 8px 6px',
-                              fontSize: 11,
+                              padding: '0 4px 4px',
+                              fontSize: 10.5,
                               fontWeight: 700,
                               color: 'var(--accent-blue)',
                               textTransform: 'uppercase',
-                              letterSpacing: '0.05em',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
+                              letterSpacing: '0.04em',
                             }}
                           >
-                            <span>Students ({results.students.length})</span>
-                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Press Enter to view</span>
+                            Students
                           </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             {results.students.map(stu => {
                               const lms = extractLmsNumber(stu)
-                              const hh = stu.household as any
                               return (
                                 <div
                                   key={stu.id}
@@ -638,44 +549,38 @@ export default function GlobalOmniHeader() {
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'space-between',
-                                    padding: '10px 14px',
-                                    borderRadius: 10,
+                                    padding: '7px 10px',
+                                    borderRadius: 8,
                                     cursor: 'pointer',
                                     background: 'var(--bg-base)',
                                     border: '1px solid var(--border)',
-                                    transition: 'transform 0.15s, border-color 0.15s',
                                   }}
                                   className="hover-card"
                                 >
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                    <div
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                    <span
                                       style={{
-                                        padding: '4px 8px',
-                                        borderRadius: 6,
+                                        padding: '2px 6px',
+                                        borderRadius: 4,
                                         background: '#eff6ff',
                                         color: '#2563eb',
                                         fontWeight: 700,
-                                        fontSize: 12,
-                                        border: '1px solid #bfdbfe',
+                                        fontSize: 11,
                                       }}
                                     >
                                       {stu.ps_code}
-                                    </div>
-                                    <div>
-                                      <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>
-                                        {stu.full_name || 'No Name Set'}
-                                      </div>
-                                      <div style={{ fontSize: 11.5, color: 'var(--text-muted)', display: 'flex', gap: 8, marginTop: 2 }}>
-                                        {stu.grade && <span>Grade {stu.grade}</span>}
-                                        {lms && <span style={{ color: '#10b981', fontWeight: 600 }}>📱 LMS: {lms}</span>}
-                                        {hh?.area && <span>📍 {hh.area}</span>}
-                                        {hh?.parent_phone && <span>📞 {hh.parent_phone}</span>}
-                                      </div>
-                                    </div>
+                                    </span>
+                                    <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>
+                                      {stu.full_name || 'No Name'}
+                                    </span>
+                                    {stu.grade && (
+                                      <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Gr {stu.grade}</span>
+                                    )}
+                                    {lms && (
+                                      <span style={{ fontSize: 11, color: '#10b981', fontWeight: 600 }}>{lms}</span>
+                                    )}
                                   </div>
-                                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent-blue)', fontSize: 12, fontWeight: 600 }}>
-                                    View Profile <ArrowRight size={13} />
-                                  </div>
+                                  <ArrowRight size={12} style={{ color: 'var(--accent-blue)' }} />
                                 </div>
                               )
                             })}
@@ -683,22 +588,22 @@ export default function GlobalOmniHeader() {
                         </div>
                       )}
 
-                      {/* 2. Leads Results */}
+                      {/* Leads */}
                       {results.leads.length > 0 && (
                         <div>
                           <div
                             style={{
-                              padding: '0 8px 6px',
-                              fontSize: 11,
+                              padding: '0 4px 4px',
+                              fontSize: 10.5,
                               fontWeight: 700,
                               color: 'var(--accent-purple)',
                               textTransform: 'uppercase',
-                              letterSpacing: '0.05em',
+                              letterSpacing: '0.04em',
                             }}
                           >
-                            Leads & Inquiries ({results.leads.length})
+                            Leads
                           </div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
                             {results.leads.map(lead => (
                               <div
                                 key={lead.id}
@@ -707,46 +612,40 @@ export default function GlobalOmniHeader() {
                                   display: 'flex',
                                   alignItems: 'center',
                                   justifyContent: 'space-between',
-                                  padding: '10px 14px',
-                                  borderRadius: 10,
+                                  padding: '7px 10px',
+                                  borderRadius: 8,
                                   cursor: 'pointer',
                                   background: 'var(--bg-base)',
                                   border: '1px solid var(--border)',
                                 }}
                                 className="hover-card"
                               >
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                                  <div
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <span
                                     style={{
-                                      padding: '4px 8px',
-                                      borderRadius: 6,
+                                      padding: '2px 6px',
+                                      borderRadius: 4,
                                       background: '#faf5ff',
                                       color: '#9333ea',
                                       fontWeight: 700,
-                                      fontSize: 12,
-                                      border: '1px solid #f3e8ff',
+                                      fontSize: 11,
                                     }}
                                   >
                                     {lead.fcode}
-                                  </div>
-                                  <div>
-                                    <div style={{ fontSize: 13.5, fontWeight: 700, color: 'var(--text-primary)' }}>
-                                      {lead.student_name || lead.parent_name || 'No Name'}
-                                    </div>
-                                    <div style={{ fontSize: 11.5, color: 'var(--text-muted)', display: 'flex', gap: 8, marginTop: 2 }}>
-                                      {lead.phone && <span>📞 {lead.phone}</span>}
-                                      {lead.grade && <span>Grade {lead.grade}</span>}
-                                      {lead.status && (
-                                        <span style={{ fontWeight: 600, color: 'var(--text-secondary)' }}>
-                                          [{lead.status}]
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
+                                  </span>
+                                  <span style={{ fontSize: 12.5, fontWeight: 600, color: 'var(--text-primary)' }}>
+                                    {lead.student_name || lead.parent_name || 'No Name'}
+                                  </span>
+                                  {lead.phone && (
+                                    <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{lead.phone}</span>
+                                  )}
+                                  {lead.status && (
+                                    <span style={{ fontSize: 10.5, fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                      [{lead.status}]
+                                    </span>
+                                  )}
                                 </div>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent-purple)', fontSize: 12, fontWeight: 600 }}>
-                                  Open in Leads <ArrowRight size={13} />
-                                </div>
+                                <ArrowRight size={12} style={{ color: 'var(--accent-purple)' }} />
                               </div>
                             ))}
                           </div>
@@ -758,25 +657,21 @@ export default function GlobalOmniHeader() {
               )}
             </div>
 
-            {/* Modal Footer Controls */}
+            {/* Clean Footer */}
             <div
               style={{
-                padding: '10px 18px',
+                padding: '6px 14px',
                 background: 'var(--bg-base)',
                 borderTop: '1px solid var(--border)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'space-between',
-                fontSize: 11.5,
+                fontSize: 11,
                 color: 'var(--text-muted)',
               }}
             >
-              <div style={{ display: 'flex', gap: 14 }}>
-                <span>Navigation: <kbd style={{ padding: '2px 5px', borderRadius: 4, border: '1px solid var(--border)' }}>↑</kbd> <kbd style={{ padding: '2px 5px', borderRadius: 4, border: '1px solid var(--border)' }}>↓</kbd></span>
-                <span>Select: <kbd style={{ padding: '2px 5px', borderRadius: 4, border: '1px solid var(--border)' }}>↵ Enter</kbd></span>
-                <span>Close: <kbd style={{ padding: '2px 5px', borderRadius: 4, border: '1px solid var(--border)' }}>ESC</kbd></span>
-              </div>
-              <div style={{ fontWeight: 600, color: 'var(--accent-blue)' }}>MathsPS Omni Search</div>
+              <span>Press <kbd style={{ padding: '1px 4px', borderRadius: 3, border: '1px solid var(--border)' }}>ESC</kbd> to exit</span>
+              <span style={{ fontWeight: 600, color: 'var(--accent-blue)' }}>MathsPS</span>
             </div>
           </div>
         </div>
