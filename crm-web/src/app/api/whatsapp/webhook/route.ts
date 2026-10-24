@@ -177,8 +177,11 @@ export async function POST(req: NextRequest) {
         const terminateKey = `call_term_${callId}`
         if (!isDuplicateMessage(terminateKey)) {
           try {
-            const followUpGreeting = `ආයුබෝවන්! ඔබ MathsPS වෙත ලබාදුන් ඇමතුමට ස්තූතියි. අපගේ පන්ති කාලසටහන් හෝ ගාස්තු විස්තර දැනගැනීමට ඔබට අවශ්‍ය ශ්‍රේණිය (6, 7, 8, 9, 10, 11) මෙහි එවන්න.`
-            await sendWhatsAppText(callerPhone, followUpGreeting)
+            const detailsAlreadySent = Boolean((call as any).detailsSent)
+            if (!detailsAlreadySent) {
+              const followUpGreeting = `ආයුබෝවන්! MathsPS වෙත ඔබ ලබාදුන් ඇමතුමට ස්තූතියි. අපගේ පන්ති කාලසටහන් හෝ ගාස්තු විස්තර දැනගැනීමට ඔබට අවශ්‍ය ශ්‍රේණිය (6, 7, 8, 9, 10, 11) මෙහි එවන්න.`
+              await sendWhatsAppText(callerPhone, followUpGreeting)
+            }
             await syncWhatsAppLead(callerPhone, null, undefined, `Inbound Voice Call (${callEvent})`)
           } catch (dispatchErr) {
             console.error('Failed to dispatch auto-packet on call event:', dispatchErr)

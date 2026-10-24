@@ -30,6 +30,94 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 const GEMINI_VOICE_NAME = process.env.GEMINI_VOICE_NAME || 'Charon' // 'Charon' (Deep, calm, professional male), 'Aoede' (Warm, natural female)
 const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || 'https://mathsps-lead-crm.vercel.app/api/whatsapp/webhook'
 
+// Official MathsPS Content Data
+const GRADE_FLYERS = {
+  6: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800',
+  7: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=800',
+  8: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?q=80&w=800',
+  9: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?q=80&w=800',
+  10: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800',
+  11: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=800'
+}
+
+const GRADE_TIMETABLES = {
+  6: 'සෑම සඳුදා දිනකම සවස 3.30 - 6.00',
+  7: 'සෑම අඟහරුවාදා දිනකම සවස 3.30 - 6.00',
+  8: 'සෑම බදාදා දිනකම සවස 3.30 - 6.00',
+  9: 'සෑම බ්‍රහස්පතින්දා දිනකම සවස 3.30 - 6.00',
+  10: 'සෑම සිකුරාදා දිනකම සවස 3.00 - 6.30',
+  11: 'සෑම සෙනසුරාදා දිනකම උදෑසන 8.00 - 12.30'
+}
+
+const BANK_DETAILS_TEXT = `🏛️ *MathsPS — ගාස්තු ගෙවීම් සඳහා බැංකු ගිණුම් විස්තර*
+
+ගිණුම් හිමියාගේ නම: *P. S. Perera / MathsPS*
+
+1️⃣ *Bank of Ceylon (BOC)*
+• ගිණුම් අංකය: *XXXXXXXXXX*
+• ශාඛාව: *Kandy City*
+
+2️⃣ *Commercial Bank*
+• ගිණුම් අංකය: *XXXXXXXXXX*
+• ශාඛාව: *Kandy*
+
+3️⃣ *Sampath Bank*
+• ගිණුම් අංකය: *XXXXXXXXXX*
+• ශාඛාව: *Peradeniya*
+
+📸 මුදල් ගෙවූ පසු ලදුපත (Payment Slip) හෝ Online Receipt එක මෙම WhatsApp අංකයටම හෝ අපගේ CRM පද්ධතියට එවන්න.`
+
+/**
+ * Dispatch text or media WhatsApp message directly to caller phone
+ */
+async function sendWhatsAppMessageToCaller(recipientPhone, text, imageUrl) {
+  if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID || !recipientPhone) return
+
+  const cleanPhone = recipientPhone.replace(/\D/g, '')
+
+  if (text) {
+    try {
+      await fetch(`https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: cleanPhone,
+          type: 'text',
+          text: { preview_url: true, body: text }
+        })
+      })
+    } catch (err) {
+      console.error('Error sending WhatsApp text:', err.message)
+    }
+  }
+
+  if (imageUrl) {
+    try {
+      await fetch(`https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: cleanPhone,
+          type: 'image',
+          image: { link: imageUrl }
+        })
+      })
+    } catch (err) {
+      console.error('Error sending WhatsApp image:', err.message)
+    }
+  }
+}
+
 // Pre-load instant studio greeting frames for 0.0s instant startup
 let PRE_BUFFERED_GREETING_FRAMES = []
 try {
@@ -64,8 +152,17 @@ Your personality and tone:
   * Grade 11: Every Saturday 8.00 AM - 12.30 PM
   * Class Modes: Physical Classes & Online Live Zoom with LMS Recordings.
   * Payment: Bank of Ceylon (BOC), Commercial Bank, Sampath Bank.
-- When the caller says "thank you", "thanks", "ok thanks", "bye", "හරි ස්තූතියි", "එහෙනම් තියන්නම්":
-  Politely conclude with "ස්තූතියි! සුභ දවසක් වේවා!" and call the 'end_call' function immediately to close the call.`
+
+SENDING DETAILS TO WHATSAPP RULES:
+- If the caller asks to receive details on WhatsApp (e.g., "මට WhatsApp එකට විස්තර එවන්න", "Send me timetable on WhatsApp", "Bank details එවන්න"):
+  1. Ask before sending if grade is unknown: "ඔබතුමා විස්තර බලාපොරොත්තු වන්නේ කුමන ශ්‍රේණිය (6 සිට 11 දක්වා) සඳහාද?"
+  2. If grade is known or agreed, politely confirm: "හොඳයි ඔබතුමාගේ මෙම WhatsApp අංකයටම [ශ්‍රේණිය] පන්ති කාලසටහන සහ විස්තර දැන්ම එවන්නද?"
+  3. Once confirmed or requested, you MUST call the 'send_whatsapp_details' tool immediately!
+  4. Immediately after calling the tool, say aloud: "මම දැන් ඔබතුමාගේ WhatsApp එකට විස්තර සහ පන්ති කාලසටහන එව්වා. කරුණාකර එය පරීක්ෂා කර බලන්න."
+
+CALL CLOSING RULES:
+- When the caller says "thank you", "thanks", "ok thanks", "bye", "හරි ස්තූතියි", "එහෙනම් තියන්නම්", or wants to hang up:
+  Politely conclude with "ස්තූතියි! සුභ දවසක් වේවා!" and call the 'end_call' tool immediately to hang up the phone call.`
 
 // In-memory debug logs for diagnosis
 const debugLogs = []
@@ -289,7 +386,8 @@ app.post('/webhook/call', async (req, res) => {
       ts: 0,
       pcmBuffer: Buffer.alloc(0),
       mediaTimer: null,
-      autoHangupTimer: null
+      autoHangupTimer: null,
+      detailsSent: false
     }
     activeCalls.set(call_id, sessionData)
 
@@ -396,7 +494,7 @@ function initGeminiLiveConnection(callId) {
 
   ws.on('open', () => {
     logEvent('GEMINI_WS_OPEN', { callId, voice: GEMINI_VOICE_NAME })
-    // Session Setup with professional voice + end_call Tool
+    // Session Setup with professional voice + tools
     ws.send(JSON.stringify({
       setup: {
         model: 'models/gemini-2.5-flash-native-audio-preview-12-2025',
@@ -409,16 +507,30 @@ function initGeminiLiveConnection(callId) {
           }
         },
         tools: [{
-          functionDeclarations: [{
-            name: 'end_call',
-            description: 'End and close the phone call when caller says goodbye, thank you, bye, ok thanks, හරි ස්තූතියි, or when conversation ends.',
-            parameters: {
-              type: 'OBJECT',
-              properties: {
-                reason: { type: 'STRING', description: 'Reason for hanging up' }
+          functionDeclarations: [
+            {
+              name: 'send_whatsapp_details',
+              description: 'Send class timetable, flyer, or bank payment details directly to caller WhatsApp chat during call. Use when caller asks for details to be sent to WhatsApp.',
+              parameters: {
+                type: 'OBJECT',
+                properties: {
+                  grade: { type: 'STRING', description: 'Grade number (6, 7, 8, 9, 10, or 11)' },
+                  include_bank: { type: 'BOOLEAN', description: 'True if caller requested bank details or payment info' },
+                  include_timetable: { type: 'BOOLEAN', description: 'True if caller requested class timetable or flyer' }
+                }
+              }
+            },
+            {
+              name: 'end_call',
+              description: 'End and close the phone call when caller says goodbye, thank you, bye, ok thanks, හරි ස්තූතියි, or when conversation ends.',
+              parameters: {
+                type: 'OBJECT',
+                properties: {
+                  reason: { type: 'STRING', description: 'Reason for hanging up' }
+                }
               }
             }
-          }]
+          ]
         }],
         systemInstruction: {
           parts: [{ text: SYSTEM_PROMPT }]
@@ -427,7 +539,7 @@ function initGeminiLiveConnection(callId) {
     }))
   })
 
-  ws.on('message', (data) => {
+  ws.on('message', async (data) => {
     try {
       const msg = JSON.parse(data.toString())
 
@@ -436,12 +548,62 @@ function initGeminiLiveConnection(callId) {
         logEvent('GEMINI_SETUP_COMPLETE', { callId })
       }
 
-      // 2. Handle Tool Call from Gemini to end call
+      // 2. Handle Tool Calls from Gemini
       if (msg.toolCall) {
         for (const fc of msg.toolCall.functionCalls || []) {
+          // Tool A: send_whatsapp_details
+          if (fc.name === 'send_whatsapp_details') {
+            const args = fc.args || {}
+            const gradeNum = parseInt(args.grade, 10)
+            logEvent('GEMINI_TOOL_SEND_WHATSAPP_DETAILS', { callId, args })
+
+            const c = activeCalls.get(callId)
+            if (c && c.callerPhone) {
+              c.detailsSent = true
+              let msgText = ''
+              if (gradeNum && GRADE_TIMETABLES[gradeNum]) {
+                msgText += `📚 *MathsPS — ${gradeNum} ශ්‍රේණිය පන්ති කාලසටහන*\n\n`
+                msgText += `👨‍🏫 ගුරුතුමා: *ප්‍රබුද්ධ සම්පත් සර් (B.Sc.)*\n`
+                msgText += `⏰ වේලාව: *${GRADE_TIMETABLES[gradeNum]}*\n`
+                msgText += `📍 ක්‍රමවේදය: Physical පන්ති සහ Online Zoom Live (LMS Recordings සහිතව)\n\n`
+              }
+              if (args.include_bank) {
+                msgText += `${BANK_DETAILS_TEXT}\n\n`
+              }
+              if (!msgText) {
+                msgText = `ආයුබෝවන්! ඔබ MathsPS වෙතින් විමසූ පන්ති විස්තර මෙසේය.\nඅමතර විස්තර සඳහා ඕනෑම වේලාවක මෙම අංකයට පණිවිඩයක් එවන්න.`
+              }
+
+              const flyerUrl = gradeNum ? GRADE_FLYERS[gradeNum] : null
+
+              // Send to caller phone asynchronously
+              sendWhatsAppMessageToCaller(c.callerPhone, msgText, flyerUrl).then(() => {
+                logEvent('WHATSAPP_DISPATCH_SUCCESS', { callId, phone: c.callerPhone, grade: gradeNum })
+              }).catch(err => {
+                logEvent('WHATSAPP_DISPATCH_ERROR', { callId, error: err.message })
+              })
+
+              // Return tool response to Gemini Live
+              ws.send(JSON.stringify({
+                clientContent: {
+                  turns: [{
+                    role: 'user',
+                    parts: [{
+                      toolResponse: {
+                        name: 'send_whatsapp_details',
+                        response: { status: 'success', delivered_to: c.callerPhone, grade: gradeNum }
+                      }
+                    }]
+                  }],
+                  turnComplete: true
+                }
+              }))
+            }
+          }
+
+          // Tool B: end_call
           if (fc.name === 'end_call') {
             logEvent('GEMINI_TOOL_END_CALL', { callId, reason: fc.args?.reason })
-            // Schedule hangup after 2.5s so final goodbye audio finishes playing
             const c = activeCalls.get(callId)
             if (c && !c.autoHangupTimer) {
               c.autoHangupTimer = setTimeout(() => {
@@ -522,7 +684,7 @@ function terminateCall(callId) {
   const call = activeCalls.get(callId)
   if (!call) return
 
-  logEvent('TERMINATING_CALL', { callId, callerPhone: call.callerPhone })
+  logEvent('TERMINATING_CALL', { callId, callerPhone: call.callerPhone, detailsSent: call.detailsSent })
 
   if (call.autoHangupTimer) {
     clearTimeout(call.autoHangupTimer)
@@ -573,7 +735,8 @@ function terminateCall(callId) {
               calls: [{
                 id: callId,
                 from: call.callerPhone,
-                event: 'terminated'
+                event: 'terminated',
+                detailsSent: call.detailsSent
               }]
             }
           }]
