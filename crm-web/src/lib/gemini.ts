@@ -196,47 +196,70 @@ CRITICAL: Return ONLY a valid JSON object with the following exact keys:
 
   contents.push({ parts })
 
-  try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents,
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        generationConfig: {
-          responseMimeType: 'application/json',
-          temperature: 0.2
-        }
+  const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-pro']
+  let lastError: any = null
+
+  for (const model of CANDIDATE_MODELS) {
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents,
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          generationConfig: {
+            responseMimeType: 'application/json',
+            temperature: 0.2
+          }
+        })
       })
-    })
 
-    if (!res.ok) {
-      const errBody = await res.text()
-      console.error('Gemini API Error:', res.status, errBody)
-      throw new Error(`Gemini API returned status ${res.status}`)
-    }
+      if (!res.ok) {
+        const errBody = await res.text()
+        console.warn(`Gemini Model ${model} returned ${res.status}:`, errBody)
+        lastError = new Error(`Model ${model} status ${res.status}`)
+        continue // Try next model
+      }
 
-    const data = await res.json()
-    const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text
+      const data = await res.json()
+      const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text
 
-    if (!rawText) {
-      throw new Error('Empty response from Gemini')
-    }
+      if (!rawText) {
+        throw new Error('Empty response from Gemini')
+      }
 
-    const parsed: ParentAiResult = JSON.parse(rawText)
-    return {
-      replyText: parsed.replyText || 'ආයුබෝවන්! ඔබගේ විස්තර සඳහා ස්තූතියි. අවශ්‍ය තොරතුරු පහතින් එවා ඇත.',
-      dispatchFlyerGrade: parsed.dispatchFlyerGrade ? Number(parsed.dispatchFlyerGrade) : null,
-      dispatchBank: Boolean(parsed.dispatchBank),
-      leadInfo: parsed.leadInfo || null
-    }
-  } catch (err: any) {
-    console.error('Failed to generate Parent AI response:', err)
-    return {
-      replyText: 'ආයුබෝවන් MathsPS වෙතින්! පන්ති කාලසටහන්, ගාස්තු සහ බැංකු විස්තර ලබාගැනීමට ඔබට අවශ්‍ය ශ්‍රේණිය (6, 7, 8, 9, 10, 11) අප වෙත එවන්න.',
-      dispatchFlyerGrade: null,
-      dispatchBank: false,
-      leadInfo: null
+      const parsed: ParentAiResult = JSON.parse(rawText)
+      return {
+        replyText: parsed.replyText || 'ආයුබෝවන්! ඔබගේ විස්තර සඳහා ස්තූතියි. අවශ්‍ය තොරතුරු පහතින් එවා ඇත.',
+        dispatchFlyerGrade: parsed.dispatchFlyerGrade ? Number(parsed.dispatchFlyerGrade) : null,
+        dispatchBank: Boolean(parsed.dispatchBank),
+        leadInfo: parsed.leadInfo || null
+      }
+    } catch (modelErr: any) {
+      console.warn(`Attempt with ${model} failed:`, modelErr.message)
+      lastError = modelErr
     }
   }
+
+  // Graceful rule-based fallback if all models are experiencing temporary Google outages
+  console.error('All Gemini candidate models failed, engaging smart local fallback:', lastError)
+  const textLower = (params.text || '').toLowerCase()
+  const gradeMatch = textLower.match(/\b(6|7|8|9|10|11)\b/)
+  const detectedGrade = gradeMatch ? parseInt(gradeMatch[1]) : null
+  const wantsBank = textLower.includes('bank') || textLower.includes('account') || textLower.includes('ගිණුම්') || textLower.includes('slip') || textLower.includes('fees') || textLower.includes('ගාස්තු')
+
+  let fallbackReply = 'ආයුබෝවන් MathsPS වෙතින්! මම ඔබගේ පන්ති සහ ගාස්තු විස්තර පිළිබඳ සහායකයා.'
+  if (detectedGrade) {
+    fallbackReply = `ආයුබෝවන්! ${detectedGrade} ශ්‍රේණිය පන්ති කාලසටහන සහ විස්තර පත්‍රිකාව පහතින් අමුණා ඇත. වැඩිදුර තොරතුරු සඳහා අප අමතන්න.`
+  } else if (wantsBank) {
+    fallbackReply = 'ආයුබෝවන්! ගාස්තු ගෙවීම් සඳහා බැංකු ගිණුම් විස්තර පහතින් එවා ඇත.'
+  }
+
+  return {
+    replyText: fallbackReply,
+    dispatchFlyerGrade: detectedGrade,
+    dispatchBank: wantsBank || !detectedGrade,
+    leadInfo: null
+  }
 }
+
