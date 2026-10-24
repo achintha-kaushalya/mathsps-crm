@@ -1,5 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { requireAuth, apiSuccess, apiError } from '@/lib/api/guard'
 
 export const dynamic = 'force-dynamic'
 
@@ -39,19 +38,13 @@ const DEFAULT_AI_CONFIG = {
   human_escalation_number: '0710631093'
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const authResult = await requireAuth(req)
+  if ('errorResponse' in authResult) return authResult.errorResponse
+  const { auth } = authResult
+
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json(DEFAULT_AI_CONFIG)
-    }
-
-    const supabase = createClient(supabaseUrl, serviceRoleKey)
-    
-    // Check if configuration exists in members/admin record notes or return default
-    const { data: adminRecord } = await supabase
+    const { data: adminRecord } = await auth.supabaseAdmin
       .from('members')
       .select('notes')
       .in('role', ['admin', 'owner'])
@@ -62,31 +55,25 @@ export async function GET() {
       try {
         const parsed = JSON.parse(adminRecord.notes)
         if (parsed.ai_agent_config) {
-          return NextResponse.json(parsed.ai_agent_config)
+          return apiSuccess(parsed.ai_agent_config)
         }
       } catch {}
     }
 
-    return NextResponse.json(DEFAULT_AI_CONFIG)
+    return apiSuccess(DEFAULT_AI_CONFIG)
   } catch (err: any) {
-    return NextResponse.json(DEFAULT_AI_CONFIG)
+    return apiSuccess(DEFAULT_AI_CONFIG)
   }
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(req: Request) {
+  const authResult = await requireAuth(req, ['admin', 'owner'])
+  if ('errorResponse' in authResult) return authResult.errorResponse
+  const { auth } = authResult
+
   try {
     const body = await req.json()
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
-    const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
-    if (!supabaseUrl || !serviceRoleKey) {
-      return NextResponse.json({ error: 'Database credentials missing' }, { status: 500 })
-    }
-
-    const supabase = createClient(supabaseUrl, serviceRoleKey)
-
-    // Store in admin member notes safely
-    const { data: adminRecord } = await supabase
+    const { data: adminRecord } = await auth.supabaseAdmin
       .from('members')
       .select('id, notes')
       .in('role', ['admin', 'owner'])
@@ -94,7 +81,7 @@ export async function POST(req: NextRequest) {
       .maybeSingle()
 
     if (!adminRecord) {
-      return NextResponse.json({ error: 'Admin record not found to persist config' }, { status: 404 })
+      return apiError('Admin record not found to persist config', 404)
     }
 
     let existingNotes: any = {}
@@ -104,16 +91,16 @@ export async function POST(req: NextRequest) {
 
     existingNotes.ai_agent_config = body
 
-    const { error: updateErr } = await supabase
+    const { error: updateErr } = await auth.supabaseAdmin
       .from('members')
       .update({ notes: JSON.stringify(existingNotes) })
       .eq('id', adminRecord.id)
 
     if (updateErr) throw updateErr
 
-    return NextResponse.json({ success: true, config: body })
+    return apiSuccess({ success: true, config: body })
   } catch (err: any) {
     console.error('Error saving AI config:', err)
-    return NextResponse.json({ error: err.message || 'Failed to save configuration' }, { status: 500 })
+    return apiError(err.message || 'Failed to save configuration', 500)
   }
 }
