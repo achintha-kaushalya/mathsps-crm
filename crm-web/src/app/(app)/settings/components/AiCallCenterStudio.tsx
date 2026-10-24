@@ -19,7 +19,10 @@ import {
   Clock,
   Play,
   Share2,
-  Check
+  Check,
+  Volume2,
+  VolumeX,
+  UserCheck
 } from 'lucide-react'
 
 export default function AiCallCenterStudio() {
@@ -29,7 +32,7 @@ export default function AiCallCenterStudio() {
   const [saveSuccess, setSaveSuccess] = useState(false)
 
   // Active Sub-Tab in Flow Builder
-  const [activeStep, setActiveStep] = useState<'flow' | 'prompts' | 'flyers' | 'banks' | 'test'>('flow')
+  const [activeStep, setActiveStep] = useState<'flow' | 'prompts' | 'flyers' | 'banks' | 'test' | 'ai-convo'>('ai-convo')
 
   // Test Console State
   const [testPhone, setTestPhone] = useState('')
@@ -37,6 +40,24 @@ export default function AiCallCenterStudio() {
   const [testType, setTestType] = useState<'BANK_DETAILS' | 'CLASS_FLYER'>('CLASS_FLYER')
   const [testSending, setTestSending] = useState(false)
   const [testStatus, setTestStatus] = useState('')
+
+  // Interactive Parent AI Conversation Simulator
+  const [chatMessages, setChatMessages] = useState<Array<{
+    role: 'parent' | 'ai'
+    text: string
+    flyerUrl?: string | null
+    grade?: number | null
+    bank?: boolean
+    lead?: any
+  }>>([
+    {
+      role: 'ai',
+      text: 'ආයුබෝවන් MathsPS වෙතින්! මම ඔබගේ පන්ති සහ ගාස්තු විස්තර පිළිබඳ සහායකයා. අද ඔබට උදව් කළ හැක්කේ කෙසේද?'
+    }
+  ])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null)
 
   useEffect(() => {
     loadConfig()
@@ -119,6 +140,70 @@ export default function AiCallCenterStudio() {
     } finally {
       setTestSending(false)
     }
+  }
+
+  // Handle Parent AI Real-Time Chat Simulation
+  async function handleSendChatMessage(overrideText?: string) {
+    const textToSend = overrideText || chatInput
+    if (!textToSend.trim() || chatLoading) return
+
+    const userMsg = { role: 'parent' as const, text: textToSend }
+    setChatMessages(prev => [...prev, userMsg])
+    setChatInput('')
+    setChatLoading(true)
+
+    try {
+      const res = await fetch('/api/ai-agent/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: textToSend })
+      })
+      const json = await res.json()
+      if (res.ok && json.success) {
+        const aiMsg = {
+          role: 'ai' as const,
+          text: json.data.replyText,
+          flyerUrl: json.data.flyerUrl,
+          grade: json.data.dispatchFlyerGrade,
+          bank: json.data.dispatchBank,
+          lead: json.data.leadInfo
+        }
+        setChatMessages(prev => [...prev, aiMsg])
+        speakText(json.data.replyText, chatMessages.length + 1)
+      } else {
+        setChatMessages(prev => [
+          ...prev,
+          { role: 'ai' as const, text: 'සමාවන්න, සේවාදායක දෝෂයක් හටගැණිනි. කරුණාකර නැවත උත්සාහ කරන්න.' }
+        ])
+      }
+    } catch (err: any) {
+      setChatMessages(prev => [
+        ...prev,
+        { role: 'ai' as const, text: 'Error: ' + err.message }
+      ])
+    } finally {
+      setChatLoading(false)
+    }
+  }
+
+  function speakText(text: string, idx: number) {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) return
+    window.speechSynthesis.cancel()
+    if (speakingIdx === idx) {
+      setSpeakingIdx(null)
+      return
+    }
+
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.lang = 'si-LK'
+    utterance.rate = 1.0
+    utterance.pitch = 1.0
+
+    utterance.onend = () => setSpeakingIdx(null)
+    utterance.onerror = () => setSpeakingIdx(null)
+
+    setSpeakingIdx(idx)
+    window.speechSynthesis.speak(utterance)
   }
 
   if (loading || !config) {
@@ -220,11 +305,12 @@ export default function AiCallCenterStudio() {
         }}
       >
         {[
-          { id: 'flow', label: '1. Architecture & Flow', icon: Layers, desc: 'Visual Wireframe' },
-          { id: 'prompts', label: '2. Voice & Greeting', icon: MessageSquare, desc: 'Personality & Rules' },
-          { id: 'flyers', label: '3. Class Timetables & Flyers', icon: ImageIcon, desc: 'Posters (Gr 6-11)' },
-          { id: 'banks', label: '4. Bank Accounts', icon: Building2, desc: 'Payment Slips' },
-          { id: 'test', label: '5. Live Simulator', icon: Zap, desc: 'Test Dispatch' },
+          { id: 'ai-convo', label: '1. Parent AI Voice Chat', icon: Sparkles, desc: 'Realtime Voice & Chat' },
+          { id: 'flow', label: '2. Architecture & Flow', icon: Layers, desc: 'Visual Wireframe' },
+          { id: 'prompts', label: '3. Voice & Greeting', icon: MessageSquare, desc: 'Personality & Rules' },
+          { id: 'flyers', label: '4. Class Timetables & Flyers', icon: ImageIcon, desc: 'Posters (Gr 6-11)' },
+          { id: 'banks', label: '5. Bank Accounts', icon: Building2, desc: 'Payment Slips' },
+          { id: 'test', label: '6. Live Simulator', icon: Zap, desc: 'Test Dispatch' },
         ].map(tab => {
           const Icon = tab.icon
           const isActive = activeStep === tab.id
@@ -274,6 +360,260 @@ export default function AiCallCenterStudio() {
       </div>
 
       {/* 3. Tab Contents */}
+      {/* ── 0. Parent AI Voice & Chat Interactive Console ── */}
+      {activeStep === 'ai-convo' && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: 20 }}>
+          {/* Left: Chat & Voice Interactive Stream */}
+          <div className="glass-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', height: 640 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--accent-blue)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                  Parent AI Voice &amp; Chat Live Console
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                  Test how the AI talks with parents, resolves schedules, and triggers WhatsApp packets in real-time.
+                </div>
+              </div>
+              <button
+                onClick={() => setChatMessages([
+                  { role: 'ai', text: config?.greeting_text || 'ආයුබෝවන් MathsPS වෙතින්! මම ඔබගේ පන්ති සහ ගාස්තු විස්තර පිළිබඳ සහායකයා. අද ඔබට උදව් කළ හැක්කේ කෙසේද?' }
+                ])}
+                className="btn-ghost"
+                style={{ fontSize: 11, padding: '4px 10px', height: 'auto' }}
+              >
+                Clear Chat
+              </button>
+            </div>
+
+            {/* Quick Test Chips */}
+            <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 10, marginBottom: 10 }}>
+              {[
+                '10 වසර පන්ති තියෙන්නේ කවද්ද?',
+                'Bank details සහ ගාස්තු විස්තර එවන්න',
+                'මගේ දුව කාවින්දි, කොළඹ, 11 වසර',
+                'Online Zoom classes තියෙනවද?',
+                'Grade 8 class timetable please'
+              ].map((chip, i) => (
+                <button
+                  key={i}
+                  onClick={() => handleSendChatMessage(chip)}
+                  disabled={chatLoading}
+                  style={{
+                    fontSize: 11.5,
+                    padding: '5px 12px',
+                    borderRadius: 20,
+                    background: 'rgba(56, 189, 248, 0.08)',
+                    border: '1px solid rgba(56, 189, 248, 0.25)',
+                    color: 'var(--accent-blue)',
+                    whiteSpace: 'nowrap',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease'
+                  }}
+                  className="hover-card"
+                >
+                  ⚡ {chip}
+                </button>
+              ))}
+            </div>
+
+            {/* Messages Body */}
+            <div
+              style={{
+                flex: 1,
+                overflowY: 'auto',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 14,
+                paddingRight: 6
+              }}
+            >
+              {chatMessages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: msg.role === 'parent' ? 'flex-end' : 'flex-start'
+                  }}
+                >
+                  <div
+                    style={{
+                      maxWidth: '82%',
+                      padding: '12px 16px',
+                      borderRadius: 14,
+                      background: msg.role === 'parent'
+                        ? 'linear-gradient(135deg, #0284c7 0%, #0369a1 100%)'
+                        : 'rgba(30, 41, 59, 0.85)',
+                      border: msg.role === 'parent'
+                        ? '1px solid rgba(56, 189, 248, 0.3)'
+                        : '1px solid rgba(255, 255, 255, 0.08)',
+                      color: '#ffffff',
+                      boxShadow: '0 2px 10px rgba(0, 0, 0, 0.25)',
+                      fontSize: 13,
+                      lineHeight: 1.5
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, marginBottom: 4 }}>
+                      <span style={{ fontSize: 10.5, fontWeight: 700, textTransform: 'uppercase', opacity: 0.8 }}>
+                        {msg.role === 'parent' ? '👤 Parent / Caller' : '🤖 MathsPS AI Agent'}
+                      </span>
+                      {msg.role === 'ai' && (
+                        <button
+                          onClick={() => speakText(msg.text, idx)}
+                          title="Listen to Sinhala Speech"
+                          style={{
+                            background: 'transparent',
+                            border: 'none',
+                            color: speakingIdx === idx ? '#38bdf8' : 'rgba(255, 255, 255, 0.6)',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            padding: 2
+                          }}
+                        >
+                          {speakingIdx === idx ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</div>
+
+                    {/* Triggered Actions Preview */}
+                    {msg.grade && msg.flyerUrl && (
+                      <div
+                        style={{
+                          marginTop: 10,
+                          padding: 10,
+                          borderRadius: 8,
+                          background: 'rgba(16, 185, 129, 0.1)',
+                          border: '1px solid rgba(16, 185, 129, 0.3)'
+                        }}
+                      >
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#10b981', display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
+                          <CheckCircle2 size={13} />
+                          Auto Dispatched Grade {msg.grade} Flyer to WhatsApp
+                        </div>
+                        <img
+                          src={msg.flyerUrl}
+                          alt={`Grade ${msg.grade} Flyer`}
+                          style={{ width: '100%', maxHeight: 140, objectFit: 'cover', borderRadius: 6 }}
+                        />
+                      </div>
+                    )}
+
+                    {msg.bank && (
+                      <div
+                        style={{
+                          marginTop: 10,
+                          padding: 10,
+                          borderRadius: 8,
+                          background: 'rgba(245, 158, 11, 0.1)',
+                          border: '1px solid rgba(245, 158, 11, 0.3)'
+                        }}
+                      >
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#f59e0b', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Building2 size={13} />
+                          Auto Dispatched Bank Accounts Packet to WhatsApp
+                        </div>
+                      </div>
+                    )}
+
+                    {msg.lead && (
+                      <div
+                        style={{
+                          marginTop: 10,
+                          padding: 10,
+                          borderRadius: 8,
+                          background: 'rgba(56, 189, 248, 0.1)',
+                          border: '1px solid rgba(56, 189, 248, 0.3)'
+                        }}
+                      >
+                        <div style={{ fontSize: 11, fontWeight: 700, color: '#38bdf8', display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <UserCheck size={13} />
+                          Captured Lead: {msg.lead.studentName || 'Student'} (Grade {msg.lead.grade || 'N/A'})
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+
+              {chatLoading && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: 'var(--text-muted)', fontSize: 12 }}>
+                  <RefreshCw size={14} className="animate-spin" />
+                  MathsPS AI is thinking &amp; resolving...
+                </div>
+              )}
+            </div>
+
+            {/* Input Bar */}
+            <div style={{ display: 'flex', gap: 10, marginTop: 14, paddingTop: 10, borderTop: '1px solid var(--border-subtle)' }}>
+              <input
+                className="input-field"
+                placeholder="Type question in Sinhala, Singlish, or English (e.g. 10 වසර පන්ති තියෙන්නේ කවද්ද?)..."
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') handleSendChatMessage()
+                }}
+              />
+              <button
+                onClick={() => handleSendChatMessage()}
+                disabled={chatLoading || !chatInput.trim()}
+                className="btn-primary"
+                style={{
+                  padding: '10px 18px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  fontWeight: 700,
+                  fontSize: 13
+                }}
+              >
+                {chatLoading ? <RefreshCw size={15} className="animate-spin" /> : <Send size={15} />}
+                Send
+              </button>
+            </div>
+          </div>
+
+          {/* Right: AI Intelligence Status Card */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div className="glass-card" style={{ padding: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 12 }}>
+                Model &amp; Engine Status
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, fontSize: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Engine</span>
+                  <span style={{ fontWeight: 700, color: '#38bdf8' }}>Gemini 3.8 Flash</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Languages</span>
+                  <span style={{ fontWeight: 600 }}>Sinhala, Singlish, English</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', paddingBottom: 8, borderBottom: '1px solid rgba(255,255,255,0.06)' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>WhatsApp Voice Notes</span>
+                  <span style={{ fontWeight: 600, color: '#10b981' }}>Supported (.ogg/opus)</span>
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Auto Lead Sync</span>
+                  <span style={{ fontWeight: 600, color: '#10b981' }}>Active (Supabase)</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-card" style={{ padding: 20 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 12 }}>
+                Autonomous Dispatches
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                Whenever a parent asks about a specific grade, the AI automatically dispatches the corresponding flyer with schedule times.
+                When payment, slip, or fees are inquired, the bank packet is automatically delivered.
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── A. Visual Flow Wireframe ── */}
       {activeStep === 'flow' && (
         <div className="glass-card" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
