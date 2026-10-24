@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: mathsps-voice-bridge
+    env: node
+    plan: free
+    region: oregon
+    rootDir: whatsapp-voice-bridge
+    buildCommand: npm install
+    startCommand: node server.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: CRM_WEBHOOK_URL
+        value: https://mathsps-lead-crm.vercel.app/api/whatsapp/webhook

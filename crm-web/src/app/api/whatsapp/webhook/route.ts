@@ -142,9 +142,26 @@ export async function POST(req: NextRequest) {
       const call = value.calls[0]
       const callerPhone = call.from
       const callId = call.id
-      const callEvent = call.event // 'offered', 'accepted', 'terminated'
+      const callEvent = call.event // 'offered', 'accepted', 'terminated', 'connect'
+      const session = call.session
 
       console.log(`[WhatsApp Call Event] From: ${callerPhone}, Event: ${callEvent}, ID: ${callId}`)
+
+      // Forward to persistent Voice Bridge if configured (Render / Fly.io / Local)
+      const voiceBridgeUrl = process.env.VOICE_BRIDGE_URL
+      if (voiceBridgeUrl) {
+        fetch(`${voiceBridgeUrl}/webhook/call`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            call_id: callId,
+            from: callerPhone,
+            event: callEvent,
+            session: session,
+            action: callEvent === 'terminated' ? 'terminate' : 'offer'
+          })
+        }).catch(err => console.error('[Voice Bridge Forwarding Error]:', err.message))
+      }
 
       if (callEvent === 'offered' || callEvent === 'terminated') {
         try {
@@ -158,6 +175,7 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ status: 'call_handled' }, { status: 200 })
     }
+
 
     // 2. Handle Inbound WhatsApp Text & Voice Notes
     if (value.messages && value.messages.length > 0) {
