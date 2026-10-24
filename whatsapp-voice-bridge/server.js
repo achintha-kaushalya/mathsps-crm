@@ -47,6 +47,17 @@ Greet warmly: "ආයුබෝවන්! මම MathsPS කෘත්‍රිම
 
 /**
  * Health check endpoint for Render / Fly.io uptime monitoring
+// In-memory debug logs for instant diagnosis
+const debugLogs = []
+function logEvent(type, data) {
+  const entry = { time: new Date().toISOString(), type, data }
+  console.log(`[${entry.time}] [${type}]`, typeof data === 'object' ? JSON.stringify(data) : data)
+  debugLogs.push(entry)
+  if (debugLogs.length > 50) debugLogs.shift()
+}
+
+/**
+ * Health check & debug logs endpoints
  */
 app.get('/', (req, res) => {
   res.json({
@@ -57,68 +68,97 @@ app.get('/', (req, res) => {
   })
 })
 
+app.get('/debug-logs', (req, res) => {
+  res.json({
+    active_calls: Array.from(activeCalls.keys()),
+    logs: debugLogs
+  })
+})
+
 /**
  * Inbound Call Signaling Hook
  * Receives the incoming call offer from Meta or forwarded by Vercel Webhook
  */
 app.post('/webhook/call', async (req, res) => {
   try {
-    const { call_id, from, session, action } = req.body
+    const { call_id, from, session, action, sdp, event, raw_call } = req.body
 
     if (!call_id) {
       return res.status(400).json({ error: 'Missing call_id' })
     }
 
-    console.log(`[Call Inbound] ID: ${call_id}, From: ${from}, Action: ${action || 'offer'}`)
+    const incomingSdp = sdp || session?.sdp || raw_call?.sdp || raw_call?.session?.sdp
+    const callAction = action || (event === 'terminate' || event === 'terminated' ? 'terminate' : 'offer')
+
+    logEvent('CALL_INBOUND', {
+      call_id,
+      from,
+      event,
+      action: callAction,
+      hasSdp: Boolean(incomingSdp),
+      raw_call
+    })
 
     // 1. Handle Call Termination
-    if (action === 'terminate' || action === 'reject') {
+    if (callAction === 'terminate' || callAction === 'reject' || event === 'terminate' || event === 'terminated') {
       terminateCall(call_id)
+      logEvent('CALL_TERMINATED', { call_id })
       return res.json({ status: 'terminated' })
     }
 
-    // 2. Handle Inbound WebRTC SDP Offer
-    if (session && session.sdp) {
-      console.log(`[WebRTC Offer Received] Setting up PeerConnection for ${call_id}...`)
+    // Initialize werift WebRTC PeerConnection
+    const pc = new RTCPeerConnection({
+      codecs: {
+        audio: [
+          new RTCRtpCodecParameters({
+            mimeType: 'audio/opus',
+            clockRate: 48000,
+            channels: 2
+          })
+        ]
+      }
+    })
 
-      // Initialize werift WebRTC PeerConnection
-      const pc = new RTCPeerConnection({
-        codecs: {
-          audio: [
-            new RTCRtpCodecParameters({
-              mimeType: 'audio/opus',
-              clockRate: 48000,
-              channels: 2
-            })
-          ]
-        }
-      })
+    // Audio track to send back to caller
+    const outgoingAudioTrack = new MediaStreamTrack({ kind: 'audio' })
+    pc.addTrack(outgoingAudioTrack)
 
-      // Audio track to send back to caller
-      const outgoingAudioTrack = new MediaStreamTrack({ kind: 'audio' })
-      pc.addTrack(outgoingAudioTrack)
+    // Store in active calls map
+    activeCalls.set(call_id, {
+      pc,
+      outgoingAudioTrack,
+      callerPhone: from,
+      startedAt: Date.now()
+    })
 
-      // Store in active calls map
-      activeCalls.set(call_id, {
-        pc,
-        outgoingAudioTrack,
-        callerPhone: from,
-        startedAt: Date.now()
-      })
+    let localSdp = null
+    let sdpType = 'answer'
 
-      // Set Remote Description (Meta's SDP offer)
+    if (incomingSdp) {
+      logEvent('WEBRTC_REMOTE_OFFER_RECEIVED', { call_id, sdpLength: incomingSdp.length })
+      // Meta provided SDP Offer -> We create SDP Answer
       await pc.setRemoteDescription(new RTCSessionDescription({
         type: 'offer',
-        sdp: session.sdp
+        sdp: incomingSdp
       }))
 
-      // Create Local Description (Our SDP answer)
       const answer = await pc.createAnswer()
       await pc.setLocalDescription(answer)
+      localSdp = answer.sdp
+      sdpType = 'answer'
+    } else {
+      logEvent('WEBRTC_LOCAL_OFFER_GENERATED', { call_id })
+      // Meta did not provide SDP -> We create local SDP Offer
+      const offer = await pc.createOffer()
+      await pc.setLocalDescription(offer)
+      localSdp = offer.sdp
+      sdpType = 'offer'
+    }
 
-      // Accept call on Meta WhatsApp Graph API
-      if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID) {
-        console.log(`[Meta Calling API] Sending 'accept' for call ${call_id}...`)
+    // Send accept / pre_accept to Meta Graph API
+    if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID) {
+      logEvent('META_API_SENDING_ACCEPT', { call_id, sdpType })
+      try {
         const metaRes = await fetch(`https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/calls`, {
           method: 'POST',
           headers: {
@@ -130,63 +170,62 @@ app.post('/webhook/call', async (req, res) => {
             call_id: call_id,
             action: 'accept',
             session: {
-              sdp_type: 'answer',
-              sdp: answer.sdp
+              sdp_type: sdpType,
+              sdp: localSdp
             }
           })
         })
 
         const metaData = await metaRes.json()
-        if (!metaRes.ok) {
-          console.error('[Meta Call Accept Failed]:', metaData)
-        } else {
-          console.log('[Meta Call Accepted Successfully]:', metaData)
-        }
-      }
-
-      // Connect to Gemini Live Multimodal WebSocket
-      initGeminiLiveConnection(call_id, outgoingAudioTrack)
-
-      // Listen for incoming audio RTP packets from caller
-      pc.ontrack = (event) => {
-        const incomingTrack = event.track
-        console.log(`[WebRTC Audio Streaming Started] Track ID: ${incomingTrack.id}`)
-
-        incomingTrack.onReceiveRtp.subscribe((rtp) => {
-          // Stream raw audio to Gemini Live
-          const callData = activeCalls.get(call_id)
-          if (callData?.geminiWs && callData.geminiWs.readyState === WebSocket.OPEN) {
-            // Forward audio frame to Gemini Live
-            const pcmPayload = rtp.payload.toString('base64')
-            callData.geminiWs.send(JSON.stringify({
-              realtimeInput: {
-                mediaChunks: [{
-                  mimeType: 'audio/pcm;rate=16000',
-                  data: pcmPayload
-                }]
-              }
-            }))
-          }
+        logEvent(metaRes.ok ? 'META_API_ACCEPT_SUCCESS' : 'META_API_ACCEPT_FAILED', {
+          call_id,
+          status: metaRes.status,
+          response: metaData
         })
+      } catch (metaErr) {
+        logEvent('META_API_NETWORK_ERROR', { call_id, error: metaErr.message })
       }
+    }
 
-      pc.connectionStateChange.subscribe((state) => {
-        console.log(`[WebRTC State Changed] Call ${call_id}: ${state}`)
-        if (state === 'closed' || state === 'failed') {
-          terminateCall(call_id)
+    // Connect to Gemini Live Multimodal WebSocket
+    initGeminiLiveConnection(call_id, outgoingAudioTrack)
+
+    // Listen for incoming audio RTP packets from caller
+    pc.ontrack = (evt) => {
+      const incomingTrack = evt.track
+      logEvent('WEBRTC_TRACK_STARTED', { call_id, trackId: incomingTrack.id })
+
+      incomingTrack.onReceiveRtp.subscribe((rtp) => {
+        const callData = activeCalls.get(call_id)
+        if (callData?.geminiWs && callData.geminiWs.readyState === WebSocket.OPEN) {
+          const pcmPayload = rtp.payload.toString('base64')
+          callData.geminiWs.send(JSON.stringify({
+            realtimeInput: {
+              mediaChunks: [{
+                mimeType: 'audio/pcm;rate=16000',
+                data: pcmPayload
+              }]
+            }
+          }))
         }
-      })
-
-      return res.json({
-        status: 'accepted',
-        call_id,
-        answer_sdp: answer.sdp
       })
     }
 
-    return res.json({ status: 'ignored' })
+    pc.connectionStateChange.subscribe((state) => {
+      logEvent('WEBRTC_STATE_CHANGE', { call_id, state })
+      if (state === 'closed' || state === 'failed') {
+        terminateCall(call_id)
+      }
+    })
+
+    return res.json({
+      status: 'accepted',
+      call_id,
+      sdp_type: sdpType,
+      sdp: localSdp
+    })
   } catch (err) {
-    console.error('[Call Handling Error]:', err)
+    logEvent('CALL_HANDLING_EXCEPTION', { error: err.message, stack: err.stack })
     return res.status(500).json({ error: err.message })
   }
 })

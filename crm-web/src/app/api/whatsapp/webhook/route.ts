@@ -142,31 +142,43 @@ export async function POST(req: NextRequest) {
       const call = value.calls[0]
       const callerPhone = call.from
       const callId = call.id
-      const callEvent = call.event // 'offered', 'accepted', 'terminated', 'connect'
+      const callEvent = call.event // 'connect', 'offer', 'offered', 'terminate', 'terminated'
       const session = call.session
+      const sdp = call.sdp || session?.sdp
 
-      console.log(`[WhatsApp Call Event] From: ${callerPhone}, Event: ${callEvent}, ID: ${callId}`)
+      console.log(`[WhatsApp Call Event FULL] From: ${callerPhone}, Event: ${callEvent}, ID: ${callId}, Payload:`, JSON.stringify(call))
 
       // Forward to persistent Voice Bridge if configured (Render / Fly.io / Local)
-      const voiceBridgeUrl = process.env.VOICE_BRIDGE_URL
+      const voiceBridgeUrl = process.env.VOICE_BRIDGE_URL || 'https://mathsps-voice-bridge.onrender.com'
       if (voiceBridgeUrl) {
-        fetch(`${voiceBridgeUrl}/webhook/call`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            call_id: callId,
-            from: callerPhone,
-            event: callEvent,
-            session: session,
-            action: callEvent === 'terminated' ? 'terminate' : 'offer'
+        try {
+          const bridgeRes = await fetch(`${voiceBridgeUrl}/webhook/call`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              call_id: callId,
+              from: callerPhone,
+              event: callEvent,
+              session: session,
+              sdp: sdp,
+              raw_call: call,
+              action: (callEvent === 'terminate' || callEvent === 'terminated') ? 'terminate' : 'offer'
+            }),
+            signal: AbortSignal.timeout(4000)
           })
-        }).catch(err => console.error('[Voice Bridge Forwarding Error]:', err.message))
+          const bridgeData = await bridgeRes.json().catch(() => ({}))
+          console.log(`[Voice Bridge Response] Call ${callId}:`, bridgeData)
+        } catch (err: any) {
+          console.error('[Voice Bridge Forwarding Error]:', err.message)
+        }
       }
 
-      if (callEvent === 'offered' || callEvent === 'terminated') {
+      if (callEvent === 'terminate' || callEvent === 'terminated' || callEvent === 'offered' || callEvent === 'connect') {
         try {
-          const followUpGreeting = `ආයුබෝවන්! ඔබ MathsPS වෙත ලබාදුන් ඇමතුමට ස්තූතියි. අපගේ පන්ති කාලසටහන් හෝ ගාස්තු විස්තර දැනගැනීමට ඔබට අවශ්‍ය ශ්‍රේණිය (6, 7, 8, 9, 10, 11) මෙහි එවන්න.`
-          await sendWhatsAppText(callerPhone, followUpGreeting)
+          if (callEvent === 'terminate' || callEvent === 'terminated') {
+            const followUpGreeting = `ආයුබෝවන්! ඔබ MathsPS වෙත ලබාදුන් ඇමතුමට ස්තූතියි. අපගේ පන්ති කාලසටහන් හෝ ගාස්තු විස්තර දැනගැනීමට ඔබට අවශ්‍ය ශ්‍රේණිය (6, 7, 8, 9, 10, 11) මෙහි එවන්න.`
+            await sendWhatsAppText(callerPhone, followUpGreeting)
+          }
           await syncWhatsAppLead(callerPhone, null, undefined, `Inbound Voice Call (${callEvent})`)
         } catch (dispatchErr) {
           console.error('Failed to dispatch auto-packet on call event:', dispatchErr)
