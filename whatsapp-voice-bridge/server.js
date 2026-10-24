@@ -67,17 +67,61 @@ const BANK_DETAILS_TEXT = `🏛️ *MathsPS — ගාස්තු ගෙවී�
 
 📸 මුදල් ගෙවූ පසු ලදුපත (Payment Slip) හෝ Online Receipt එක මෙම WhatsApp අංකයටම හෝ අපගේ CRM පද්ධතියට එවන්න.`
 
+// In-memory debug logs for diagnosis
+const debugLogs = []
+function logEvent(type, data) {
+  try {
+    const entry = { time: new Date().toISOString(), type, data: typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : data }
+    console.log(`[${entry.time}] [${type}]`, typeof data === 'object' ? JSON.stringify(data) : data)
+    debugLogs.push(entry)
+    if (debugLogs.length > 50) debugLogs.shift()
+  } catch (err) {
+    console.error('logEvent error:', err)
+  }
+}
+
 /**
  * Dispatch text or media WhatsApp message directly to caller phone
  */
-async function sendWhatsAppMessageToCaller(recipientPhone, text, imageUrl) {
-  if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID || !recipientPhone) return
+async function sendWhatsAppMessageToCaller(recipientPhone, text, imageUrl, caption) {
+  if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID || !recipientPhone) {
+    logEvent('WHATSAPP_DISPATCH_SKIPPED', { reason: 'missing credentials or phone', recipientPhone })
+    return false
+  }
 
   const cleanPhone = recipientPhone.replace(/\D/g, '')
 
+  // 1. Send Flyer Image first if provided
+  if (imageUrl) {
+    try {
+      const imgRes = await fetch(`https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          messaging_product: 'whatsapp',
+          recipient_type: 'individual',
+          to: cleanPhone,
+          type: 'image',
+          image: {
+            link: imageUrl,
+            caption: caption || undefined
+          }
+        })
+      })
+      const imgData = await imgRes.json().catch(() => ({}))
+      logEvent('WHATSAPP_IMAGE_API_RESULT', { status: imgRes.status, ok: imgRes.ok, response: imgData })
+    } catch (err) {
+      logEvent('WHATSAPP_IMAGE_API_ERROR', { error: err.message })
+    }
+  }
+
+  // 2. Send Timetable / Bank / Text Details
   if (text) {
     try {
-      await fetch(`https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+      const txtRes = await fetch(`https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
@@ -91,31 +135,72 @@ async function sendWhatsAppMessageToCaller(recipientPhone, text, imageUrl) {
           text: { preview_url: true, body: text }
         })
       })
+      const txtData = await txtRes.json().catch(() => ({}))
+      logEvent('WHATSAPP_TEXT_API_RESULT', { status: txtRes.status, ok: txtRes.ok, response: txtData })
     } catch (err) {
-      console.error('Error sending WhatsApp text:', err.message)
+      logEvent('WHATSAPP_TEXT_API_ERROR', { error: err.message })
     }
   }
 
-  if (imageUrl) {
-    try {
-      await fetch(`https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          messaging_product: 'whatsapp',
-          recipient_type: 'individual',
-          to: cleanPhone,
-          type: 'image',
-          image: { link: imageUrl }
-        })
-      })
-    } catch (err) {
-      console.error('Error sending WhatsApp image:', err.message)
+  return true
+}
+
+// Active call sessions: callId -> session object
+const activeCalls = new Map()
+
+/**
+ * Robust dispatcher for grade timetable & bank details
+ */
+function dispatchDetailsForGrade(callId, rawGrade, includeBank = true) {
+  const c = activeCalls.get(callId)
+  if (!c || !c.callerPhone) return false
+
+  let gradeNum = null
+  if (rawGrade) {
+    const str = String(rawGrade).toLowerCase()
+    const digitMatch = str.match(/\d+/)
+    if (digitMatch) {
+      gradeNum = parseInt(digitMatch[0], 10)
+    } else {
+      const wordMap = {
+        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10, 'eleven': 11,
+        'හය': 6, 'හත': 7, 'අට': 8, 'නවය': 9, 'දහය': 10, 'එකොළහ': 11
+      }
+      for (const [w, g] of Object.entries(wordMap)) {
+        if (str.includes(w)) { gradeNum = g; break }
+      }
     }
   }
+
+  c.detailsSent = true
+  if (gradeNum) c.requestedGrade = gradeNum
+
+  let msgText = ''
+  if (gradeNum && GRADE_TIMETABLES[gradeNum]) {
+    msgText += `📚 *MathsPS — ${gradeNum} ශ්‍රේණිය පන්ති කාලසටහන*\n\n`
+    msgText += `👨‍🏫 ගුරුතුමා: *ප්‍රබුද්ධ සම්පත් සර් (B.Sc.)*\n`
+    msgText += `⏰ වේලාව: *${GRADE_TIMETABLES[gradeNum]}*\n`
+    msgText += `📍 ක්‍රමවේදය: Physical පන්ති සහ Online Zoom Live (LMS Recordings සහිතව)\n\n`
+  }
+  if (includeBank) {
+    msgText += `${BANK_DETAILS_TEXT}\n\n`
+  }
+  if (!msgText) {
+    msgText = `ආයුබෝවන්! ඔබ MathsPS වෙතින් විමසූ පන්ති විස්තර මෙසේය.\nඅමතර විස්තර සඳහා ඕනෑම වේලාවක මෙම අංකයට පණිවිඩයක් එවන්න.`
+  }
+
+  const flyerUrl = gradeNum ? GRADE_FLYERS[gradeNum] : null
+  const flyerCaption = gradeNum ? `📊 MathsPS — ${gradeNum} ශ්‍රේණිය පන්ති විස්තර` : undefined
+
+  logEvent('DISPATCHING_WHATSAPP_DETAILS', { callId, phone: c.callerPhone, gradeNum, hasFlyer: Boolean(flyerUrl) })
+
+  sendWhatsAppMessageToCaller(c.callerPhone, msgText, flyerUrl, flyerCaption).then(() => {
+    logEvent('WHATSAPP_DISPATCH_SUCCESS', { callId, phone: c.callerPhone, grade: gradeNum })
+  }).catch(err => {
+    logEvent('WHATSAPP_DISPATCH_ERROR', { callId, error: err.message })
+  })
+
+  return { success: true, grade: gradeNum, phone: c.callerPhone }
 }
 
 // Pre-load instant studio greeting frames for 0.0s instant startup
@@ -130,9 +215,6 @@ try {
 } catch (loadErr) {
   console.warn('Could not pre-load greeting.opus.json:', loadErr.message)
 }
-
-// Active call sessions: callId -> session object
-const activeCalls = new Map()
 
 // System prompt for Live Voice Agent
 const SYSTEM_PROMPT = `You are the Senior Admissions Coordinator for MathsPS (Prabuddha Sampath Sir's Mathematics Academy, Sri Lanka).
@@ -155,27 +237,13 @@ Your personality and tone:
 
 SENDING DETAILS TO WHATSAPP RULES:
 - If the caller asks to receive details on WhatsApp (e.g., "මට WhatsApp එකට විස්තර එවන්න", "Send me timetable on WhatsApp", "Bank details එවන්න"):
-  1. Ask before sending if grade is unknown: "ඔබතුමා විස්තර බලාපොරොත්තු වන්නේ කුමන ශ්‍රේණිය (6 සිට 11 දක්වා) සඳහාද?"
-  2. If grade is known or agreed, politely confirm: "හොඳයි ඔබතුමාගේ මෙම WhatsApp අංකයටම [ශ්‍රේණිය] පන්ති කාලසටහන සහ විස්තර දැන්ම එවන්නද?"
-  3. Once confirmed or requested, you MUST call the 'send_whatsapp_details' tool immediately!
-  4. Immediately after calling the tool, say aloud: "මම දැන් ඔබතුමාගේ WhatsApp එකට විස්තර සහ පන්ති කාලසටහන එව්වා. කරුණාකර එය පරීක්ෂා කර බලන්න."
+  1. If grade is unknown, ask: "ඔබතුමා විස්තර බලාපොරොත්තු වන්නේ කුමන ශ්‍රේණිය (6 සිට 11 දක්වා) සඳහාද?"
+  2. If grade is known or once caller confirms, you MUST call the 'send_whatsapp_details' tool immediately!
+  3. When invoking the tool, say aloud: "මම දැන් ඔබතුමාගේ WhatsApp එකට විස්තර සහ පන්ති කාලසටහන එව්වා. කරුණාකර එය පරීක්ෂා කර බලන්න."
 
 CALL CLOSING RULES:
 - When the caller says "thank you", "thanks", "ok thanks", "bye", "හරි ස්තූතියි", "එහෙනම් තියන්නම්", or wants to hang up:
   Politely conclude with "ස්තූතියි! සුභ දවසක් වේවා!" and call the 'end_call' tool immediately to hang up the phone call.`
-
-// In-memory debug logs for diagnosis
-const debugLogs = []
-function logEvent(type, data) {
-  try {
-    const entry = { time: new Date().toISOString(), type, data: typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : data }
-    console.log(`[${entry.time}] [${type}]`, typeof data === 'object' ? JSON.stringify(data) : data)
-    debugLogs.push(entry)
-    if (debugLogs.length > 50) debugLogs.shift()
-  } catch (err) {
-    console.error('logEvent error:', err)
-  }
-}
 
 /**
  * Health check & debug logs endpoints
@@ -205,36 +273,45 @@ app.get('/debug-logs', (req, res) => {
 })
 
 /**
- * 48kHz to 16kHz downsampler for caller microphone audio
+ * 48kHz to 16kHz downsampler with 3-tap sample averaging
+ * Low-pass anti-aliasing filter prevents audio distortion into Gemini Live
  */
 function downsample48to16(buffer48) {
   const samples48 = Math.floor(buffer48.length / 2)
   const samples16 = Math.floor(samples48 / 3)
   const buffer16 = Buffer.alloc(samples16 * 2)
   for (let i = 0; i < samples16; i++) {
-    const val = buffer48.readInt16LE(i * 3 * 2)
-    buffer16.writeInt16LE(val, i * 2)
+    const idx = i * 3 * 2
+    const s1 = buffer48.readInt16LE(idx)
+    const s2 = buffer48.readInt16LE(idx + 2)
+    const s3 = buffer48.readInt16LE(idx + 4)
+    const avg = Math.round((s1 + s2 + s3) / 3)
+    buffer16.writeInt16LE(avg, i * 2)
   }
   return buffer16
 }
 
 /**
- * 24kHz to 48kHz upsampler for crystal-clear 48kHz Opus encoding
+ * 24kHz to 48kHz upsampler with linear interpolation
+ * Eliminates step-waveform aliasing and produces warm, natural studio speech
  */
 function upsample24to48(buf24) {
   const samples = Math.floor(buf24.length / 2)
   const buf48 = Buffer.alloc(samples * 4)
   for (let i = 0; i < samples; i++) {
-    const val = buf24.readInt16LE(i * 2)
-    buf48.writeInt16LE(val, i * 4)
-    buf48.writeInt16LE(val, i * 4 + 2)
+    const current = buf24.readInt16LE(i * 2)
+    const next = (i + 1 < samples) ? buf24.readInt16LE((i + 1) * 2) : current
+    const mid = Math.round((current + next) / 2)
+    buf48.writeInt16LE(current, i * 4)
+    buf48.writeInt16LE(mid, i * 4 + 2)
   }
   return buf48
 }
 
 /**
- * Continuous 20ms RTP Media Pump with 120ms Jitter Buffer
- * Ensures smooth, unbroken Sinhala speech playback and prevents WebRTC timeout (error 138021)
+ * Continuous 20ms RTP Media Pump with Smooth Hysteresis Jitter Buffer
+ * Prevents choppy voice ("kedi kedi ahenne") by smoothly buffering packets
+ * and keeping connection alive with comfort silence to avoid WhatsApp timeout (error 138021)
  */
 function startMediaPump(callId) {
   const call = activeCalls.get(callId)
@@ -243,7 +320,8 @@ function startMediaPump(callId) {
   logEvent('MEDIA_PUMP_STARTED', { callId })
   const silenceOpus = Buffer.from([0xf8, 0xff, 0xfe]) // 20ms Opus comfort silence
   let isPlayingSpeech = false
-  const JITTER_BUFFER_THRESHOLD = 6 // 6 * 20ms = 120ms pre-buffer to prevent stutter
+  let emptyTicks = 0
+  const PRE_BUFFER_THRESHOLD = 3 // 3 * 20ms = 60ms initial buffer (fast pickup, no lag)
 
   call.mediaTimer = setInterval(() => {
     const c = activeCalls.get(callId)
@@ -256,15 +334,23 @@ function startMediaPump(callId) {
 
     if (c.audioQueue.length > 0) {
       if (!isPlayingSpeech) {
-        if (c.audioQueue.length >= JITTER_BUFFER_THRESHOLD) {
+        if (c.audioQueue.length >= PRE_BUFFER_THRESHOLD) {
           isPlayingSpeech = true
+          emptyTicks = 0
           payload = c.audioQueue.shift()
         }
       } else {
+        emptyTicks = 0
         payload = c.audioQueue.shift()
       }
     } else {
-      isPlayingSpeech = false
+      if (isPlayingSpeech) {
+        emptyTicks++
+        // Sustain playing state across small network gaps (up to 200ms = 10 ticks)
+        if (emptyTicks > 10) {
+          isPlayingSpeech = false
+        }
+      }
     }
 
     c.seq = (c.seq + 1) & 0xffff
@@ -287,7 +373,7 @@ function startMediaPump(callId) {
 }
 
 /**
- * Handle incoming caller audio track and pipe to Gemini Live
+ * Handle incoming caller audio track and pipe to Gemini Live in steady 80ms chunks
  */
 function setupIncomingTrack(incomingTrack, call_id) {
   if (!incomingTrack || incomingTrack._listening) return
@@ -308,16 +394,24 @@ function setupIncomingTrack(incomingTrack, call_id) {
         // Decode incoming Opus from caller (48kHz 16-bit PCM)
         const pcm48 = callData.opusDecoder.decode(rtp.payload)
         if (pcm48 && pcm48.length > 0) {
-          // Downsample 48kHz to 16kHz for Gemini input
           const pcm16 = downsample48to16(pcm48)
-          callData.geminiWs.send(JSON.stringify({
-            realtimeInput: {
-              mediaChunks: [{
-                mimeType: 'audio/pcm;rate=16000',
-                data: pcm16.toString('base64')
-              }]
-            }
-          }))
+          callData.callerPcmBuffer = Buffer.concat([callData.callerPcmBuffer || Buffer.alloc(0), pcm16])
+
+          // Accumulate 80ms of audio (1280 samples = 2560 bytes) before sending to Gemini
+          // This keeps WebSocket transmission smooth and prevents socket congestion
+          while (callData.callerPcmBuffer.length >= 2560) {
+            const chunk = callData.callerPcmBuffer.subarray(0, 2560)
+            callData.callerPcmBuffer = callData.callerPcmBuffer.subarray(2560)
+
+            callData.geminiWs.send(JSON.stringify({
+              realtimeInput: {
+                mediaChunks: [{
+                  mimeType: 'audio/pcm;rate=16000',
+                  data: chunk.toString('base64')
+                }]
+              }
+            }))
+          }
         }
       } catch (e) {
         // Ignore corrupted RTP audio frames
@@ -328,7 +422,7 @@ function setupIncomingTrack(incomingTrack, call_id) {
 
 /**
  * Inbound Call Signaling Hook
- * Receives the incoming call offer from Meta or forwarded by Vercel Webhook
+ * Receives incoming call offers from Meta or forwarded by Vercel Webhook
  */
 app.post('/webhook/call', async (req, res) => {
   try {
@@ -385,9 +479,11 @@ app.post('/webhook/call', async (req, res) => {
       seq: 0,
       ts: 0,
       pcmBuffer: Buffer.alloc(0),
+      callerPcmBuffer: Buffer.alloc(0),
       mediaTimer: null,
       autoHangupTimer: null,
-      detailsSent: false
+      detailsSent: false,
+      requestedGrade: null
     }
     activeCalls.set(call_id, sessionData)
 
@@ -554,56 +650,47 @@ function initGeminiLiveConnection(callId) {
           // Tool A: send_whatsapp_details
           if (fc.name === 'send_whatsapp_details') {
             const args = fc.args || {}
-            const gradeNum = parseInt(args.grade, 10)
             logEvent('GEMINI_TOOL_SEND_WHATSAPP_DETAILS', { callId, args })
+            const result = dispatchDetailsForGrade(callId, args.grade, args.include_bank !== false)
 
-            const c = activeCalls.get(callId)
-            if (c && c.callerPhone) {
-              c.detailsSent = true
-              let msgText = ''
-              if (gradeNum && GRADE_TIMETABLES[gradeNum]) {
-                msgText += `📚 *MathsPS — ${gradeNum} ශ්‍රේණිය පන්ති කාලසටහන*\n\n`
-                msgText += `👨‍🏫 ගුරුතුමා: *ප්‍රබුද්ධ සම්පත් සර් (B.Sc.)*\n`
-                msgText += `⏰ වේලාව: *${GRADE_TIMETABLES[gradeNum]}*\n`
-                msgText += `📍 ක්‍රමවේදය: Physical පන්ති සහ Online Zoom Live (LMS Recordings සහිතව)\n\n`
-              }
-              if (args.include_bank) {
-                msgText += `${BANK_DETAILS_TEXT}\n\n`
-              }
-              if (!msgText) {
-                msgText = `ආයුබෝවන්! ඔබ MathsPS වෙතින් විමසූ පන්ති විස්තර මෙසේය.\nඅමතර විස්තර සඳහා ඕනෑම වේලාවක මෙම අංකයට පණිවිඩයක් එවන්න.`
-              }
-
-              const flyerUrl = gradeNum ? GRADE_FLYERS[gradeNum] : null
-
-              // Send to caller phone asynchronously
-              sendWhatsAppMessageToCaller(c.callerPhone, msgText, flyerUrl).then(() => {
-                logEvent('WHATSAPP_DISPATCH_SUCCESS', { callId, phone: c.callerPhone, grade: gradeNum })
-              }).catch(err => {
-                logEvent('WHATSAPP_DISPATCH_ERROR', { callId, error: err.message })
-              })
-
-              // Return tool response to Gemini Live
+            // CRITICAL FIX: Send valid toolResponse conforming to Gemini BidiGenerateContent protocol
+            try {
               ws.send(JSON.stringify({
-                clientContent: {
-                  turns: [{
-                    role: 'user',
-                    parts: [{
-                      toolResponse: {
-                        name: 'send_whatsapp_details',
-                        response: { status: 'success', delivered_to: c.callerPhone, grade: gradeNum }
+                toolResponse: {
+                  functionResponses: [
+                    {
+                      id: fc.id,
+                      name: fc.name,
+                      response: {
+                        output: result || { success: true }
                       }
-                    }]
-                  }],
-                  turnComplete: true
+                    }
+                  ]
                 }
               }))
+              logEvent('GEMINI_TOOL_RESPONSE_SENT', { callId, tool: fc.name, id: fc.id })
+            } catch (err) {
+              logEvent('GEMINI_TOOL_RESPONSE_SEND_ERROR', { callId, error: err.message })
             }
           }
 
           // Tool B: end_call
           if (fc.name === 'end_call') {
             logEvent('GEMINI_TOOL_END_CALL', { callId, reason: fc.args?.reason })
+            try {
+              ws.send(JSON.stringify({
+                toolResponse: {
+                  functionResponses: [
+                    {
+                      id: fc.id,
+                      name: fc.name,
+                      response: { output: { success: true, status: 'terminating' } }
+                    }
+                  ]
+                }
+              }))
+            } catch (e) {}
+
             const c = activeCalls.get(callId)
             if (c && !c.autoHangupTimer) {
               c.autoHangupTimer = setTimeout(() => {
@@ -641,7 +728,7 @@ function initGeminiLiveConnection(callId) {
               c.pcmBuffer = c.pcmBuffer.subarray(960)
 
               try {
-                // Upsample 24kHz to 48kHz and encode with 48kHz Opus
+                // Upsample 24kHz to 48kHz with interpolation and encode with 48kHz Opus
                 const chunk48 = upsample24to48(chunk24)
                 const opusFrame = c.opusEncoder.encode(chunk48, 960)
                 c.audioQueue.push(opusFrame)
@@ -651,12 +738,33 @@ function initGeminiLiveConnection(callId) {
             }
           }
 
-          // Check text transcript for auto-hangup parting phrases
+          // Safety Net: Monitor text transcript for intent triggers & auto-hangup
           if (p.text) {
             const lowerText = p.text.toLowerCase()
+
+            // Safety Intent A: If AI confirms details are being sent, ensure dispatch immediately!
+            if (!c.detailsSent) {
+              const sendingTriggers = [
+                'whatsapp එකට', 'විස්තර එව්වා', 'කාලසටහන එව්වා', 'විස්තර එවන්නම්',
+                'පරීක්ෂා කර බලන්න', 'whatsapp එකට එව්වා', 'send whatsapp'
+              ]
+              if (sendingTriggers.some(t => lowerText.includes(t))) {
+                const gradeMatch = lowerText.match(/(?:grade\s*|ශ්‍රේණිය\s*|ශ්‍රේණියේ\s*)?(\b[6-9]|10|11\b)/)
+                const inferredGrade = gradeMatch ? parseInt(gradeMatch[1], 10) : c.requestedGrade || 10
+                logEvent('INTENT_TRIGGERED_WHATSAPP_DISPATCH', { callId, textSnippet: p.text.slice(0, 60), inferredGrade })
+                dispatchDetailsForGrade(callId, inferredGrade, true)
+              }
+            }
+
+            // Track grade mentions
+            const gMatch = lowerText.match(/(?:grade\s*|ශ්‍රේණිය\s*|ශ්‍රේණියේ\s*)?(\b[6-9]|10|11\b)/)
+            if (gMatch) {
+              c.requestedGrade = parseInt(gMatch[1], 10)
+            }
+
+            // Safety Auto-hangup trigger
             if (lowerText.includes('සුභ දවසක්') || lowerText.includes('have a great day') || lowerText.includes('goodbye')) {
-              const c = activeCalls.get(callId)
-              if (c && !c.autoHangupTimer) {
+              if (!c.autoHangupTimer) {
                 logEvent('SCHEDULED_AUTO_HANGUP', { callId, reason: p.text.slice(0, 50) })
                 c.autoHangupTimer = setTimeout(() => {
                   terminateCall(callId)
@@ -673,6 +781,14 @@ function initGeminiLiveConnection(callId) {
 
   ws.on('close', (code, reason) => {
     logEvent('GEMINI_WS_CLOSED', { callId, code, reason: reason?.toString() })
+    // Resilience: If closed prematurely while WebRTC call is still active, attempt reconnect
+    const c = activeCalls.get(callId)
+    if (c && c.pc && c.pc.connectionState === 'connected' && code !== 1000 && !c.autoHangupTimer) {
+      logEvent('GEMINI_AUTO_RECONNECTING', { callId })
+      setTimeout(() => {
+        if (activeCalls.has(callId)) initGeminiLiveConnection(callId)
+      }, 500)
+    }
   })
 
   ws.on('error', (e) => {
@@ -684,7 +800,18 @@ function terminateCall(callId) {
   const call = activeCalls.get(callId)
   if (!call) return
 
-  logEvent('TERMINATING_CALL', { callId, callerPhone: call.callerPhone, detailsSent: call.detailsSent })
+  logEvent('TERMINATING_CALL', {
+    callId,
+    callerPhone: call.callerPhone,
+    detailsSent: call.detailsSent,
+    requestedGrade: call.requestedGrade
+  })
+
+  // Fallback: If caller asked for a grade during the call but details were not dispatched yet, deliver now!
+  if (!call.detailsSent && call.requestedGrade && call.callerPhone) {
+    logEvent('FALLBACK_POST_CALL_DISPATCH', { callId, grade: call.requestedGrade, phone: call.callerPhone })
+    dispatchDetailsForGrade(callId, call.requestedGrade, true)
+  }
 
   if (call.autoHangupTimer) {
     clearTimeout(call.autoHangupTimer)
@@ -705,6 +832,8 @@ function terminateCall(callId) {
     try { call.pc.close() } catch (e) {}
   }
 
+  const callerPhone = call.callerPhone
+  const detailsSent = call.detailsSent
   activeCalls.delete(callId)
 
   // Trigger hangup on Meta WhatsApp Graph API to end call on caller phone
@@ -724,7 +853,7 @@ function terminateCall(callId) {
   }
 
   // Trigger follow-up WhatsApp dispatch through CRM
-  if (call.callerPhone && CRM_WEBHOOK_URL) {
+  if (callerPhone && CRM_WEBHOOK_URL) {
     fetch(CRM_WEBHOOK_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -734,9 +863,9 @@ function terminateCall(callId) {
             value: {
               calls: [{
                 id: callId,
-                from: call.callerPhone,
+                from: callerPhone,
                 event: 'terminated',
-                detailsSent: call.detailsSent
+                detailsSent: detailsSent
               }]
             }
           }]
