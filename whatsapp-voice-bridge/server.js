@@ -141,14 +141,10 @@ app.post('/webhook/call', async (req, res) => {
 
     let localSdp = null
     let sdpType = 'answer'
-
     if (incomingSdp) {
       logEvent('WEBRTC_REMOTE_OFFER_RECEIVED', { call_id, sdpLength: incomingSdp.length })
       // Meta provided SDP Offer -> We create SDP Answer
-      await pc.setRemoteDescription(new RTCSessionDescription({
-        type: 'offer',
-        sdp: incomingSdp
-      }))
+      await pc.setRemoteDescription(new RTCSessionDescription(incomingSdp, 'offer'))
 
       const answer = await pc.createAnswer()
       await pc.setLocalDescription(answer)
