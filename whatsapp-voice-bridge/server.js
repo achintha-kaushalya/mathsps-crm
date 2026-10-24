@@ -45,15 +45,17 @@ Provide accurate answers:
 Keep your answers brief and conversational (1 to 2 sentences per turn), as in a natural voice phone conversation.
 Greet warmly: "ආයුබෝවන්! මම MathsPS කෘත්‍රිම බුද්ධි ගුරු සහායක. ඔබට අද උදව් කළ හැක්කේ කෙසේද?"`
 
-/**
- * Health check endpoint for Render / Fly.io uptime monitoring
 // In-memory debug logs for instant diagnosis
 const debugLogs = []
 function logEvent(type, data) {
-  const entry = { time: new Date().toISOString(), type, data }
-  console.log(`[${entry.time}] [${type}]`, typeof data === 'object' ? JSON.stringify(data) : data)
-  debugLogs.push(entry)
-  if (debugLogs.length > 50) debugLogs.shift()
+  try {
+    const entry = { time: new Date().toISOString(), type, data: typeof data === 'object' ? JSON.parse(JSON.stringify(data)) : data }
+    console.log(`[${entry.time}] [${type}]`, typeof data === 'object' ? JSON.stringify(data) : data)
+    debugLogs.push(entry)
+    if (debugLogs.length > 50) debugLogs.shift()
+  } catch (err) {
+    console.error('logEvent error:', err)
+  }
 }
 
 /**
@@ -69,10 +71,16 @@ app.get('/', (req, res) => {
 })
 
 app.get('/debug-logs', (req, res) => {
-  res.json({
-    active_calls: Array.from(activeCalls.keys()),
-    logs: debugLogs
-  })
+  try {
+    res.json({
+      status: 'ok',
+      active_calls: Array.from(activeCalls.keys()),
+      count: debugLogs.length,
+      logs: debugLogs
+    })
+  } catch (err) {
+    res.status(500).json({ error: err.message })
+  }
 })
 
 /**
