@@ -150,13 +150,14 @@ Key Knowledge Base:
 Tone & Language Guidelines:
 - Always respond in natural, respectful, and polite Sinhala (සිංහල).
 - Speak warmly as an education coordinator talking to a Sri Lankan parent ("ආයුබෝවන් දෙමාපියනි / ආයුබෝවන්!").
-- Keep replies clear, conversational, and direct (2-4 concise sentences).
-- If the parent asks in Singlish or English, answer primarily in friendly Sinhala with English terms as appropriate.
+- Keep replies clear, conversational, and direct (1-3 concise sentences).
+- If the parent says "Hi" or "Hello", welcome them warmly and ask which grade (Grade 6 - 11) they are inquiring about.
+- If the parent says "Thank you", reply politely with "ඔබටත් ස්තූතියි! දරුවාගේ අධ්‍යාපන කටයුතු සාර්ථක වේවා!" and do NOT send flyers or bank details.
 
-Action Intents to Trigger:
-- If the parent asks about a specific grade (e.g., Grade 6, 7, 8, 9, 10, 11) or asks for the flyer/timetable: set "dispatchFlyerGrade" to that grade number (6-11).
-- If the parent asks about bank accounts, payment slips, fees, how to pay, or bank deposit details: set "dispatchBank" to true.
-- If the parent mentions student name, school, or grade for registration: extract into "leadInfo".
+STRICT ACTION TRIGGER RULES:
+- "dispatchFlyerGrade": ONLY set this to a grade number (6-11) if the parent SPECIFICALLY asked about that grade's class, times, or timetable. NEVER set this for "Hi", "Hello", or "Thank you".
+- "dispatchBank": ONLY set this to true if the parent SPECIFICALLY asked for bank accounts, fees payment details, or bank slip instructions. NEVER set this to true for greetings or thank you messages.
+- "leadInfo": Extract studentName, grade, school ONLY if provided by the parent.
 
 CRITICAL: Return ONLY a valid JSON object with the following exact keys:
 {
@@ -196,7 +197,8 @@ CRITICAL: Return ONLY a valid JSON object with the following exact keys:
 
   contents.push({ parts })
 
-  const CANDIDATE_MODELS = ['gemini-3.8-flash', 'gemini-3.5-flash', 'gemini-2.5-pro']
+  // High-availability models with generous free-tier limits
+  const CANDIDATE_MODELS = ['gemini-3.5-flash', 'gemini-3.5-flash-lite', 'gemini-flash-lite-latest']
   let lastError: any = null
 
   for (const model of CANDIDATE_MODELS) {
@@ -209,16 +211,16 @@ CRITICAL: Return ONLY a valid JSON object with the following exact keys:
           systemInstruction: { parts: [{ text: systemInstruction }] },
           generationConfig: {
             responseMimeType: 'application/json',
-            temperature: 0.2
+            temperature: 0.1
           }
         })
       })
 
       if (!res.ok) {
         const errBody = await res.text()
-        console.warn(`Gemini Model ${model} returned ${res.status}:`, errBody)
+        console.warn(`Gemini Model ${model} returned ${res.status}:`, errBody.slice(0, 120))
         lastError = new Error(`Model ${model} status ${res.status}`)
-        continue // Try next model
+        continue
       }
 
       const data = await res.json()
@@ -230,7 +232,7 @@ CRITICAL: Return ONLY a valid JSON object with the following exact keys:
 
       const parsed: ParentAiResult = JSON.parse(rawText)
       return {
-        replyText: parsed.replyText || 'ආයුබෝවන්! ඔබගේ විස්තර සඳහා ස්තූතියි. අවශ්‍ය තොරතුරු පහතින් එවා ඇත.',
+        replyText: parsed.replyText || 'ආයුබෝවන්! MathsPS වෙතින් ඔබව සාදරයෙන් පිළිගනිමු.',
         dispatchFlyerGrade: parsed.dispatchFlyerGrade ? Number(parsed.dispatchFlyerGrade) : null,
         dispatchBank: Boolean(parsed.dispatchBank),
         leadInfo: parsed.leadInfo || null
@@ -241,9 +243,30 @@ CRITICAL: Return ONLY a valid JSON object with the following exact keys:
     }
   }
 
-  // Graceful rule-based fallback if all models are experiencing temporary Google outages
+  // Smart local fallback if Google models are momentarily unavailable
   console.error('All Gemini candidate models failed, engaging smart local fallback:', lastError)
   const textLower = (params.text || '').toLowerCase()
+  const isGratitude = textLower.includes('thank') || textLower.includes('ස්තූති') || textLower.includes('sthuthi') || textLower.includes('හරි') || textLower.includes('ok')
+  const isGreeting = textLower === 'hi' || textLower === 'hello' || textLower === 'hey' || textLower === 'halo' || textLower === 'ආයුබෝවන්'
+
+  if (isGratitude) {
+    return {
+      replyText: 'ඔබටත් ස්තූතියි! දරුවාගේ අධ්‍යාපන කටයුතු සාර්ථක වේවා! තවත් යම් තොරතුරක් අවශ්‍ය නම් ඕනෑම වෙලාවක අප අමතන්න.',
+      dispatchFlyerGrade: null,
+      dispatchBank: false,
+      leadInfo: null
+    }
+  }
+
+  if (isGreeting) {
+    return {
+      replyText: 'ආයුබෝවන් MathsPS වෙතින්! ප්‍රබුද්ධ සම්පත් සර්ගේ ගණිත පන්ති පිළිබඳ තොරතුරු දැනගැනීමට දරුවා ඉගෙනුම ලබන ශ්‍රේණිය (6 ශ්‍රේණියේ සිට 11 ශ්‍රේණිය දක්වා) මෙහි දන්වන්න.',
+      dispatchFlyerGrade: null,
+      dispatchBank: false,
+      leadInfo: null
+    }
+  }
+
   const gradeMatch = textLower.match(/\b(6|7|8|9|10|11)\b/)
   const detectedGrade = gradeMatch ? parseInt(gradeMatch[1]) : null
   const wantsBank = textLower.includes('bank') || textLower.includes('account') || textLower.includes('ගිණුම්') || textLower.includes('slip') || textLower.includes('fees') || textLower.includes('ගාස්තු')
@@ -258,8 +281,9 @@ CRITICAL: Return ONLY a valid JSON object with the following exact keys:
   return {
     replyText: fallbackReply,
     dispatchFlyerGrade: detectedGrade,
-    dispatchBank: wantsBank || !detectedGrade,
+    dispatchBank: Boolean(wantsBank),
     leadInfo: null
   }
 }
+
 

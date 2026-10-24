@@ -98,6 +98,24 @@ async function syncWhatsAppLead(phone: string, grade?: number | null, studentNam
   }
 }
 
+const PROCESSED_CACHE_LIMIT = 500
+const processedMessageIds = new Map<string, number>()
+
+function isDuplicateMessage(msgId: string): boolean {
+  if (!msgId) return false
+  const now = Date.now()
+  for (const [id, time] of processedMessageIds.entries()) {
+    if (now - time > 10 * 60 * 1000) processedMessageIds.delete(id)
+  }
+  if (processedMessageIds.has(msgId)) return true
+  processedMessageIds.set(msgId, now)
+  if (processedMessageIds.size > PROCESSED_CACHE_LIMIT) {
+    const oldestKey = processedMessageIds.keys().next().value
+    if (oldestKey) processedMessageIds.delete(oldestKey)
+  }
+  return false
+}
+
 /**
  * [REQ-WA-02] Real-Time WhatsApp Autonomous Parent Voice & Message Agent (POST)
  */
@@ -114,6 +132,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: 'ignored' }, { status: 200 })
     }
 
+    // Ignore delivery receipts and read receipts
+    if (value.statuses && value.statuses.length > 0) {
+      return NextResponse.json({ status: 'status_ignored' }, { status: 200 })
+    }
+
     // 1. Handle Inbound WhatsApp Voice Call Signaling Events
     if (value.calls && value.calls.length > 0) {
       const call = value.calls[0]
@@ -125,9 +148,8 @@ export async function POST(req: NextRequest) {
 
       if (callEvent === 'offered' || callEvent === 'terminated') {
         try {
-          const followUpGreeting = `ආයුබෝවන්! ඔබ MathsPS වෙත ලබාදුන් ඇමතුමට ස්තූතියි. අපගේ පන්ති කාලසටහන් හෝ ගාස්තු විස්තර දැනගැනීමට ඔබට අවශ්‍ය ශ්‍රේණිය (6, 7, 8, 9, 10, 11) මෙහි එවන්න. ගාස්තු ගෙවීමේ බැංකු ගිණුම් විස්තරද පහතින් අමුණා ඇත.`
+          const followUpGreeting = `ආයුබෝවන්! ඔබ MathsPS වෙත ලබාදුන් ඇමතුමට ස්තූතියි. අපගේ පන්ති කාලසටහන් හෝ ගාස්තු විස්තර දැනගැනීමට ඔබට අවශ්‍ය ශ්‍රේණිය (6, 7, 8, 9, 10, 11) මෙහි එවන්න.`
           await sendWhatsAppText(callerPhone, followUpGreeting)
-          await sendWhatsAppText(callerPhone, getStandardBankDetailsText())
           await syncWhatsAppLead(callerPhone, null, undefined, `Inbound Voice Call (${callEvent})`)
         } catch (dispatchErr) {
           console.error('Failed to dispatch auto-packet on call event:', dispatchErr)
@@ -140,11 +162,18 @@ export async function POST(req: NextRequest) {
     // 2. Handle Inbound WhatsApp Text & Voice Notes
     if (value.messages && value.messages.length > 0) {
       const message = value.messages[0]
+      const messageId = message.id
       const senderPhone = message.from
       const msgType = message.type
       const msgBody = message.text?.body?.trim() || ''
 
-      console.log(`[WhatsApp Inbound] From: ${senderPhone}, Type: ${msgType}`)
+      // Deduplication: Meta retries webhook if network latency occurs
+      if (isDuplicateMessage(messageId)) {
+        console.log(`[WhatsApp Deduplicated] Skipping duplicate message ID: ${messageId}`)
+        return NextResponse.json({ status: 'duplicate_ignored' }, { status: 200 })
+      }
+
+      console.log(`[WhatsApp Inbound] ID: ${messageId}, From: ${senderPhone}, Type: ${msgType}`)
 
       let aiResult = null
 
