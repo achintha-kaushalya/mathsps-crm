@@ -361,44 +361,13 @@ export default function StudentDetailPage() {
     if (!confirm(`Are you sure you want to delete payment record for ${MONTH_NUM_TO_NAME(payment.month)} ${payment.year} (${cName})?`)) return
 
     try {
-      const { error: err } = await supabase.from('payments').delete().eq('id', payment.id)
-      if (err) throw err
+      const res = await fetch(`/api/payments?id=${encodeURIComponent(payment.id)}`, {
+        method: 'DELETE'
+      })
 
-      if (student) {
-        await recalculateBalanceLedger(student.id, payment.class_type)
-
-        // Check if there are any other payments left for this class
-        const { data: remaining } = await supabase
-          .from('payments')
-          .select('id')
-          .eq('student_id', student.id)
-          .eq('class_type', payment.class_type)
-
-        if (!remaining || remaining.length === 0) {
-          // If no payments remain, ask to clean up the enrollment
-          await supabase
-            .from('enrollments')
-            .delete()
-            .eq('student_id', student.id)
-            .eq('class_type', payment.class_type)
-        }
-
-        // Log enterprise audit event
-        logAuditEvent({
-          action: 'PAYMENT_DELETE',
-          entityType: 'payment',
-          entityId: payment.id,
-          userName: currentUserName,
-          oldData: {
-            ps_code: student.ps_code,
-            student_name: student.full_name,
-            amount_paid: payment.amount_paid,
-            month: payment.month,
-            year: payment.year,
-            class_type: payment.class_type,
-            date_paid: payment.date_paid
-          }
-        })
+      const result = await res.json()
+      if (!res.ok) {
+        throw new Error(result.error || 'Failed to delete payment')
       }
 
       await load()

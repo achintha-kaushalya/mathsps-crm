@@ -298,6 +298,9 @@ export default function MasterLeadsSpreadsheet() {
     let updateObj: any = {}
     if (field === 'paid' || field === 'repeat_student' || field === 'second_call_done') {
       updateObj[field] = value === true || value === 'Yes'
+    } else if (field === 'grade') {
+      const cleanVal = String(value || '').trim().replace(/[^0-9]/g, '')
+      updateObj['grade'] = cleanVal ? parseInt(cleanVal, 10) : null
     } else {
       updateObj[field] = value || null
     }
@@ -713,7 +716,7 @@ export default function MasterLeadsSpreadsheet() {
                   <td style={{ textAlign: 'center' }}>
                     <GridCell
                       editable={canEditFullRow}
-                      value={lead.grade || '—'}
+                      value={lead.grade}
                       onFocus={() => broadcastCellFocus(lead.id, 'grade')}
                       onSave={v => saveCell(lead.id, 'grade', v, lead)}
                     />
@@ -723,7 +726,7 @@ export default function MasterLeadsSpreadsheet() {
                   <td>
                     <GridCell
                       editable={canEditFullRow}
-                      value={lead.campaign || '—'}
+                      value={lead.campaign}
                       onFocus={() => broadcastCellFocus(lead.id, 'campaign')}
                       onSave={v => saveCell(lead.id, 'campaign', v, lead)}
                     />
@@ -742,7 +745,7 @@ export default function MasterLeadsSpreadsheet() {
                     )}
                     <GridCell
                       editable={canEditFullRow}
-                      value={lead.comments || '—'}
+                      value={lead.comments}
                       onFocus={() => broadcastCellFocus(lead.id, 'comments')}
                       onSave={v => saveCell(lead.id, 'comments', v, lead)}
                     />
@@ -783,7 +786,7 @@ export default function MasterLeadsSpreadsheet() {
                   <td style={{ maxWidth: 100, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     <GridCell
                       editable={editable}
-                      value={lead.second_call_notes || '—'}
+                      value={lead.second_call_notes}
                       onFocus={() => broadcastCellFocus(lead.id, 'second_call_notes')}
                       onSave={v => saveCell(lead.id, 'second_call_notes', v, lead)}
                     />
@@ -802,7 +805,7 @@ export default function MasterLeadsSpreadsheet() {
                   <td style={{ maxWidth: 80, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     <GridCell
                       editable={isAdmin}
-                      value={lead.paid_grades || '—'}
+                      value={lead.paid_grades}
                       onFocus={() => broadcastCellFocus(lead.id, 'paid_grades')}
                       onSave={v => saveCell(lead.id, 'paid_grades', v, lead)}
                     />
@@ -1044,28 +1047,60 @@ export default function MasterLeadsSpreadsheet() {
   )
 }
 
-function GridCell({ editable, value, onSave, onFocus }: { editable: boolean; value: string; onSave: (v: string) => void; onFocus?: () => void }) {
+function GridCell({
+  editable,
+  value,
+  onSave,
+  onFocus,
+  placeholder = '—'
+}: {
+  editable: boolean
+  value: any
+  onSave: (v: string) => void
+  onFocus?: () => void
+  placeholder?: string
+}) {
   const [editing, setEditing] = useState(false)
-  const [val, setVal] = useState(value)
+  const displayVal = value !== null && value !== undefined && value !== '' ? String(value) : ''
+  const [val, setVal] = useState(displayVal)
 
-  useEffect(() => { setVal(value) }, [value])
+  useEffect(() => {
+    setVal(value !== null && value !== undefined && value !== '' ? String(value) : '')
+  }, [value])
 
   if (!editable) {
-    return <span style={{ fontSize: 11.5, color: 'var(--text-secondary)' }}>{value}</span>
+    return (
+      <span style={{ fontSize: 11.5, color: displayVal ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+        {displayVal || placeholder}
+      </span>
+    )
   }
 
   if (editing) {
     return (
       <input
         className="input-field"
-        style={{ padding: '1px 4px', fontSize: 11.5, height: 22 }}
+        style={{ padding: '1px 4px', fontSize: 11.5, height: 22, textAlign: 'inherit' }}
         value={val}
         onChange={e => setVal(e.target.value)}
         onFocus={onFocus}
-        onBlur={() => { setEditing(false); onSave(val) }}
+        onBlur={() => {
+          setEditing(false)
+          if (val !== displayVal) {
+            onSave(val)
+          }
+        }}
         onKeyDown={e => {
-          if (e.key === 'Enter') { setEditing(false); onSave(val) }
-          if (e.key === 'Escape') { setEditing(false); setVal(value) }
+          if (e.key === 'Enter') {
+            setEditing(false)
+            if (val !== displayVal) {
+              onSave(val)
+            }
+          }
+          if (e.key === 'Escape') {
+            setEditing(false)
+            setVal(displayVal)
+          }
         }}
         autoFocus
       />
@@ -1074,11 +1109,24 @@ function GridCell({ editable, value, onSave, onFocus }: { editable: boolean; val
 
   return (
     <div
-      onClick={() => { setEditing(true); if (onFocus) onFocus() }}
-      style={{ cursor: 'pointer', padding: '1px 3px', borderRadius: 4, minHeight: 18, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+      onClick={() => {
+        setEditing(true)
+        if (onFocus) onFocus()
+      }}
+      style={{
+        cursor: 'pointer',
+        padding: '1px 3px',
+        borderRadius: 4,
+        minHeight: 18,
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap'
+      }}
       title="Click to edit cell"
     >
-      <span style={{ fontSize: 11.5 }}>{val}</span>
+      <span style={{ fontSize: 11.5, color: displayVal ? 'inherit' : 'var(--text-muted)' }}>
+        {displayVal || placeholder}
+      </span>
     </div>
   )
 }
