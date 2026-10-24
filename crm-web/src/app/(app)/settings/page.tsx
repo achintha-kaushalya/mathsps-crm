@@ -28,12 +28,14 @@ import {
   Check
 } from 'lucide-react'
 import EmailAutomationCard from './components/EmailAutomationCard'
+import AiCallCenterStudio from './components/AiCallCenterStudio'
+import { Bot } from 'lucide-react'
 
 export default function SettingsPage() {
   const supabase = createClient()
 
   // Primary Tab State
-  const [activeTab, setActiveTab] = useState<'account_security' | 'database_backup' | 'email_automation' | 'diagnostics'>('account_security')
+  const [activeTab, setActiveTab] = useState<'account_security' | 'database_backup' | 'email_automation' | 'ai_callcenter' | 'diagnostics'>('account_security')
 
   // User Profile
   const [email, setEmail] = useState('')
@@ -469,6 +471,42 @@ export default function SettingsPage() {
           {isAdmin && (
             <button
               type="button"
+              onClick={() => setActiveTab('ai_callcenter')}
+              style={{
+                padding: '8px 16px',
+                borderRadius: 8,
+                boxSizing: 'border-box',
+                border: activeTab === 'ai_callcenter' ? '1px solid #10b981' : '1px solid transparent',
+                background: activeTab === 'ai_callcenter' ? 'rgba(16, 185, 129, 0.15)' : 'transparent',
+                color: activeTab === 'ai_callcenter' ? '#10b981' : 'var(--text-secondary)',
+                fontWeight: 600,
+                fontSize: 13,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+                whiteSpace: 'nowrap',
+                transition: 'background 0.15s ease, color 0.15s ease, border-color 0.15s ease'
+              }}
+            >
+              <Bot size={15} style={{ color: activeTab === 'ai_callcenter' ? '#10b981' : 'var(--accent-blue)' }} />
+              <span>24/7 AI Call Center Studio</span>
+              <span style={{
+                fontSize: 10,
+                padding: '1px 6px',
+                borderRadius: 6,
+                background: '#10b981',
+                color: '#fff',
+                fontWeight: 800
+              }}>
+                LIVE API
+              </span>
+            </button>
+          )}
+
+          {isAdmin && (
+            <button
+              type="button"
               onClick={() => setActiveTab('diagnostics')}
               style={{
                 padding: '8px 16px',
@@ -825,6 +863,13 @@ export default function SettingsPage() {
                 <Trash2 size={15} style={{ color: '#f87171' }} /> Reset Local UI State &amp; Cache
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Tab 5: 24/7 AI Call Center Studio & Flow Builder */}
+        {activeTab === 'ai_callcenter' && isAdmin && (
+          <div className="fade-in">
+            <AiCallCenterStudio />
           </div>
         )}
 
