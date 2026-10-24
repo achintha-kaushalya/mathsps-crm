@@ -46,7 +46,7 @@ Provide accurate answers:
 - Class Modes: Physical Classes & Online Live Zoom with LMS Recordings.
 - Payments: Bank of Ceylon (BOC), Commercial Bank, Sampath Bank.
 Keep your answers brief and conversational (1 to 2 sentences per turn), as in a natural voice phone conversation.
-Greet warmly: "ආයුබෝවන්! මම MathsPS කෘත්‍රිම බුද්ධි ගුරු සහායක. ඔබට අද උදව් කළ හැක්කේ කෙසේද?"`
+When the caller asks a question, answer directly in fluent Sinhala.`
 
 // In-memory debug logs for diagnosis
 const debugLogs = []
@@ -101,8 +101,8 @@ function downsample48to16(buffer48) {
 }
 
 /**
- * Continuous 20ms RTP Media Pump
- * Ensures WhatsApp client receives continuous audio stream and never times out (error 138021)
+ * Continuous 20ms RTP Media Pump with 120ms Jitter Buffer
+ * Ensures smooth, unbroken Sinhala speech playback and prevents WebRTC timeout (error 138021)
  */
 function startMediaPump(callId) {
   const call = activeCalls.get(callId)
@@ -110,6 +110,8 @@ function startMediaPump(callId) {
 
   logEvent('MEDIA_PUMP_STARTED', { callId })
   const silenceOpus = Buffer.from([0xf8, 0xff, 0xfe]) // 20ms Opus comfort silence
+  let isPlayingSpeech = false
+  const JITTER_BUFFER_THRESHOLD = 6 // 6 * 20ms = 120ms pre-buffer to prevent stutter
 
   call.mediaTimer = setInterval(() => {
     const c = activeCalls.get(callId)
@@ -119,8 +121,18 @@ function startMediaPump(callId) {
     }
 
     let payload = silenceOpus
+
     if (c.audioQueue.length > 0) {
-      payload = c.audioQueue.shift()
+      if (!isPlayingSpeech) {
+        if (c.audioQueue.length >= JITTER_BUFFER_THRESHOLD) {
+          isPlayingSpeech = true
+          payload = c.audioQueue.shift()
+        }
+      } else {
+        payload = c.audioQueue.shift()
+      }
+    } else {
+      isPlayingSpeech = false
     }
 
     c.seq = (c.seq + 1) & 0xffff
@@ -140,6 +152,46 @@ function startMediaPump(callId) {
       // Avoid crash on closed track
     }
   }, 20)
+}
+
+/**
+ * Handle incoming caller audio track and pipe to Gemini Live
+ */
+function setupIncomingTrack(incomingTrack, call_id) {
+  if (!incomingTrack || incomingTrack._listening) return
+  incomingTrack._listening = true
+
+  logEvent('WEBRTC_TRACK_REGISTERED', { call_id, trackId: incomingTrack.id })
+  let packetCount = 0
+
+  incomingTrack.onReceiveRtp.subscribe((rtp) => {
+    packetCount++
+    if (packetCount === 1 || packetCount % 200 === 0) {
+      logEvent('CALLER_AUDIO_STREAMING', { call_id, packetCount })
+    }
+
+    const callData = activeCalls.get(call_id)
+    if (callData?.geminiWs && callData.geminiWs.readyState === WebSocket.OPEN && callData.opusDecoder) {
+      try {
+        // Decode incoming Opus from caller (48kHz 16-bit PCM)
+        const pcm48 = callData.opusDecoder.decode(rtp.payload)
+        if (pcm48 && pcm48.length > 0) {
+          // Downsample 48kHz to 16kHz for Gemini input
+          const pcm16 = downsample48to16(pcm48)
+          callData.geminiWs.send(JSON.stringify({
+            realtimeInput: {
+              mediaChunks: [{
+                mimeType: 'audio/pcm;rate=16000',
+                data: pcm16.toString('base64')
+              }]
+            }
+          }))
+        }
+      } catch (e) {
+        // Ignore corrupted RTP audio frames
+      }
+    }
+  })
 }
 
 /**
@@ -205,6 +257,19 @@ app.post('/webhook/call', async (req, res) => {
     }
     activeCalls.set(call_id, sessionData)
 
+    // IMPORTANT: Register track event listeners BEFORE setRemoteDescription
+    pc.onTrack.subscribe((track) => setupIncomingTrack(track, call_id))
+    pc.ontrack = (evt) => setupIncomingTrack(evt.track, call_id)
+
+    pc.connectionStateChange.subscribe((state) => {
+      logEvent('WEBRTC_STATE_CHANGE', { call_id, state })
+      if (state === 'connected') {
+        startMediaPump(call_id)
+      } else if (state === 'closed' || state === 'failed') {
+        terminateCall(call_id)
+      }
+    })
+
     let localSdp = null
     let sdpType = 'answer'
     if (incomingSdp) {
@@ -222,6 +287,13 @@ app.post('/webhook/call', async (req, res) => {
       await pc.setLocalDescription(offer)
       localSdp = offer.sdp
       sdpType = 'offer'
+    }
+
+    // Capture any remote track created during setRemoteDescription
+    for (const receiver of pc.getReceivers()) {
+      if (receiver.track) {
+        setupIncomingTrack(receiver.track, call_id)
+      }
     }
 
     // Send accept to Meta Graph API
@@ -258,45 +330,6 @@ app.post('/webhook/call', async (req, res) => {
 
     // Connect to Gemini Live Multimodal WebSocket
     initGeminiLiveConnection(call_id)
-
-    // Listen for incoming audio RTP packets from caller
-    pc.ontrack = (evt) => {
-      const incomingTrack = evt.track
-      logEvent('WEBRTC_TRACK_STARTED', { call_id, trackId: incomingTrack.id })
-
-      incomingTrack.onReceiveRtp.subscribe((rtp) => {
-        const callData = activeCalls.get(call_id)
-        if (callData?.geminiWs && callData.geminiWs.readyState === WebSocket.OPEN && callData.opusDecoder) {
-          try {
-            // Decode incoming Opus from caller (48kHz PCM)
-            const pcm48 = callData.opusDecoder.decode(rtp.payload)
-            if (pcm48 && pcm48.length > 0) {
-              // Downsample 48kHz to 16kHz for Gemini input
-              const pcm16 = downsample48to16(pcm48)
-              callData.geminiWs.send(JSON.stringify({
-                realtimeInput: {
-                  mediaChunks: [{
-                    mimeType: 'audio/pcm;rate=16000',
-                    data: pcm16.toString('base64')
-                  }]
-                }
-              }))
-            }
-          } catch (e) {
-            // Ignore corrupted RTP audio frames
-          }
-        }
-      })
-    }
-
-    pc.connectionStateChange.subscribe((state) => {
-      logEvent('WEBRTC_STATE_CHANGE', { call_id, state })
-      if (state === 'connected') {
-        startMediaPump(call_id)
-      } else if (state === 'closed' || state === 'failed') {
-        terminateCall(call_id)
-      }
-    })
 
     return res.json({
       status: 'accepted',
@@ -364,7 +397,17 @@ function initGeminiLiveConnection(callId) {
         }))
       }
 
-      // 2. Handle audio stream from Gemini
+      // 2. Handle interruption: user started speaking while AI was speaking
+      if (msg.serverContent?.interrupted) {
+        logEvent('GEMINI_INTERRUPTED', { callId })
+        const c = activeCalls.get(callId)
+        if (c) {
+          c.audioQueue = []
+          c.pcmBuffer = Buffer.alloc(0)
+        }
+      }
+
+      // 3. Handle audio stream from Gemini
       const parts = msg.serverContent?.modelTurn?.parts
       if (parts) {
         const c = activeCalls.get(callId)
