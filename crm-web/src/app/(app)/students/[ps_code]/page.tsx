@@ -157,6 +157,24 @@ export default function StudentDetailPage() {
       setAddressInput(hh.address || '')
       setAreaInput(hh.area || '')
 
+      // Record in Recent Omni Search History
+      try {
+        const stored = localStorage.getItem('mathsps_omni_recent_v1')
+        const items = stored ? JSON.parse(stored) : []
+        const currentUrl = `/students/${encodeURIComponent(stu.ps_code)}`
+        const filtered = items.filter((i: any) => i.url !== currentUrl)
+        const updated = [{
+          id: stu.id,
+          type: 'student',
+          code: stu.ps_code,
+          name: stu.full_name || 'No Name',
+          subText: stu.grade ? `Grade ${stu.grade}` : '',
+          url: currentUrl,
+          timestamp: Date.now()
+        }, ...filtered].slice(0, 8)
+        localStorage.setItem('mathsps_omni_recent_v1', JSON.stringify(updated))
+      } catch {}
+
       const [
         { data: pays },
         { data: enrols },
