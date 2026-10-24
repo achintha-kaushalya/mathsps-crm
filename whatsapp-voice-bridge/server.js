@@ -4,6 +4,8 @@
  */
 
 require('dotenv').config()
+const fs = require('fs')
+const path = require('path')
 const express = require('express')
 const cors = require('cors')
 const { WebSocket } = require('ws')
@@ -25,28 +27,45 @@ const PORT = process.env.PORT || 8080
 const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || '1045258928679015'
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || ''
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
+const GEMINI_VOICE_NAME = process.env.GEMINI_VOICE_NAME || 'Charon' // 'Charon' (Deep, calm, professional male), 'Aoede' (Warm, natural female)
 const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || 'https://mathsps-lead-crm.vercel.app/api/whatsapp/webhook'
+
+// Pre-load instant studio greeting frames for 0.0s instant startup
+let PRE_BUFFERED_GREETING_FRAMES = []
+try {
+  const greetingPath = path.join(__dirname, 'greeting.opus.json')
+  if (fs.existsSync(greetingPath)) {
+    const rawFrames = JSON.parse(fs.readFileSync(greetingPath, 'utf8'))
+    PRE_BUFFERED_GREETING_FRAMES = rawFrames.map(f => Buffer.from(f, 'base64'))
+    console.log(`🎙️ Pre-loaded ${PRE_BUFFERED_GREETING_FRAMES.length} greeting Opus frames for zero-latency call pickup.`)
+  }
+} catch (loadErr) {
+  console.warn('Could not pre-load greeting.opus.json:', loadErr.message)
+}
 
 // Active call sessions: callId -> session object
 const activeCalls = new Map()
 
 // System prompt for Live Voice Agent
-const SYSTEM_PROMPT = `You are MathsPS AI Live Voice Agent for Prabuddha Sampath Sir's Mathematics Classes in Sri Lanka (MathsPS).
-You are currently on a live phone call with a parent or student.
-Always speak in natural, polite, respectful, and friendly Sinhala (සිංහල).
-Provide accurate answers:
-- Teacher: Prabuddha Sampath Sir (B.Sc.)
-- Grades: Grade 6 to 11
-- Grade 6: Every Monday 3.30 PM - 6.00 PM
-- Grade 7: Every Tuesday 3.30 PM - 6.00 PM
-- Grade 8: Every Wednesday 3.30 PM - 6.00 PM
-- Grade 9: Every Thursday 3.30 PM - 6.00 PM
-- Grade 10: Every Friday 3.00 PM - 6.30 PM
-- Grade 11: Every Saturday 8.00 AM - 12.30 PM
-- Class Modes: Physical Classes & Online Live Zoom with LMS Recordings.
-- Payments: Bank of Ceylon (BOC), Commercial Bank, Sampath Bank.
-Keep your answers brief and conversational (1 to 2 sentences per turn), as in a natural voice phone conversation.
-When the caller asks a question, answer directly in fluent Sinhala.`
+const SYSTEM_PROMPT = `You are the Senior Admissions Coordinator for MathsPS (Prabuddha Sampath Sir's Mathematics Academy, Sri Lanka).
+You are currently speaking directly with a parent or student on a live WhatsApp phone call.
+Your personality and tone:
+- Speak in a warm, dignified, calm, articulate, and professional Sinhala (ගෞරවනීය, සුහදශීලී, පැහැදිලි කථන ශෛලියක්).
+- Address the caller respectfully using polite honorifics (e.g., "ඔබතුමා / ඔබතුමිය", "කරුණාවෙන්", "ස්තූතියි").
+- Do NOT sound like an automated robotic script. Use natural human conversational pacing, clear pronunciation, and concise answers (1 to 2 sentences per turn).
+- Accurate facts:
+  * Teacher: Prabuddha Sampath Sir (B.Sc.)
+  * Grades: Grade 6 to 11
+  * Grade 6: Every Monday 3.30 PM - 6.00 PM
+  * Grade 7: Every Tuesday 3.30 PM - 6.00 PM
+  * Grade 8: Every Wednesday 3.30 PM - 6.00 PM
+  * Grade 9: Every Thursday 3.30 PM - 6.00 PM
+  * Grade 10: Every Friday 3.00 PM - 6.30 PM
+  * Grade 11: Every Saturday 8.00 AM - 12.30 PM
+  * Class Modes: Physical Classes & Online Live Zoom with LMS Recordings.
+  * Payment: Bank of Ceylon (BOC), Commercial Bank, Sampath Bank.
+- When the caller says "thank you", "thanks", "ok thanks", "bye", "හරි ස්තූතියි", "එහෙනම් තියන්නම්":
+  Politely conclude with "ස්තූතියි! සුභ දවසක් වේවා!" and call the 'end_call' function immediately to close the call.`
 
 // In-memory debug logs for diagnosis
 const debugLogs = []
@@ -69,6 +88,7 @@ app.get('/', (req, res) => {
     status: 'online',
     service: 'MathsPS WhatsApp Realtime Voice Bridge',
     active_calls: activeCalls.size,
+    voice: GEMINI_VOICE_NAME,
     timestamp: new Date().toISOString()
   })
 })
@@ -78,6 +98,7 @@ app.get('/debug-logs', (req, res) => {
     res.json({
       status: 'ok',
       active_calls: Array.from(activeCalls.keys()),
+      voice: GEMINI_VOICE_NAME,
       count: debugLogs.length,
       logs: debugLogs
     })
@@ -98,6 +119,20 @@ function downsample48to16(buffer48) {
     buffer16.writeInt16LE(val, i * 2)
   }
   return buffer16
+}
+
+/**
+ * 24kHz to 48kHz upsampler for crystal-clear 48kHz Opus encoding
+ */
+function upsample24to48(buf24) {
+  const samples = Math.floor(buf24.length / 2)
+  const buf48 = Buffer.alloc(samples * 4)
+  for (let i = 0; i < samples; i++) {
+    const val = buf24.readInt16LE(i * 2)
+    buf48.writeInt16LE(val, i * 4)
+    buf48.writeInt16LE(val, i * 4 + 2)
+  }
+  return buf48
 }
 
 /**
@@ -247,13 +282,14 @@ app.post('/webhook/call', async (req, res) => {
       outgoingAudioTrack,
       callerPhone: from,
       startedAt: Date.now(),
-      opusEncoder: new OpusScript(24000, 1, OpusScript.Application.VOIP),
+      opusEncoder: new OpusScript(48000, 1, OpusScript.Application.VOIP), // 48kHz native Opus encoder
       opusDecoder: new OpusScript(48000, 1, OpusScript.Application.VOIP),
-      audioQueue: [],
+      audioQueue: PRE_BUFFERED_GREETING_FRAMES.length > 0 ? [...PRE_BUFFERED_GREETING_FRAMES] : [],
       seq: 0,
       ts: 0,
       pcmBuffer: Buffer.alloc(0),
-      mediaTimer: null
+      mediaTimer: null,
+      autoHangupTimer: null
     }
     activeCalls.set(call_id, sessionData)
 
@@ -359,8 +395,8 @@ function initGeminiLiveConnection(callId) {
   if (callData) callData.geminiWs = ws
 
   ws.on('open', () => {
-    logEvent('GEMINI_WS_OPEN', { callId })
-    // Session Setup
+    logEvent('GEMINI_WS_OPEN', { callId, voice: GEMINI_VOICE_NAME })
+    // Session Setup with professional voice + end_call Tool
     ws.send(JSON.stringify({
       setup: {
         model: 'models/gemini-2.5-flash-native-audio-preview-12-2025',
@@ -368,10 +404,22 @@ function initGeminiLiveConnection(callId) {
           responseModalities: ['AUDIO'],
           speechConfig: {
             voiceConfig: {
-              prebuiltVoiceConfig: { voiceName: 'Puck' }
+              prebuiltVoiceConfig: { voiceName: GEMINI_VOICE_NAME }
             }
           }
         },
+        tools: [{
+          functionDeclarations: [{
+            name: 'end_call',
+            description: 'End and close the phone call when caller says goodbye, thank you, bye, ok thanks, හරි ස්තූතියි, or when conversation ends.',
+            parameters: {
+              type: 'OBJECT',
+              properties: {
+                reason: { type: 'STRING', description: 'Reason for hanging up' }
+              }
+            }
+          }]
+        }],
         systemInstruction: {
           parts: [{ text: SYSTEM_PROMPT }]
         }
@@ -383,21 +431,28 @@ function initGeminiLiveConnection(callId) {
     try {
       const msg = JSON.parse(data.toString())
 
-      // 1. Setup complete -> Immediately trigger Sinhala greeting
+      // 1. Setup complete -> Session ready for incoming caller audio
       if (msg.setupComplete) {
         logEvent('GEMINI_SETUP_COMPLETE', { callId })
-        ws.send(JSON.stringify({
-          clientContent: {
-            turns: [{
-              role: 'user',
-              parts: [{ text: 'Caller picked up the phone. Greet them warmly and politely in Sinhala: ආයුබෝවන්! මම MathsPS කෘත්‍රිම බුද්ධි ගුරු සහායක. ඔබට අද උදව් කළ හැක්කේ කෙසේද?' }]
-            }],
-            turnComplete: true
-          }
-        }))
       }
 
-      // 2. Handle interruption: user started speaking while AI was speaking
+      // 2. Handle Tool Call from Gemini to end call
+      if (msg.toolCall) {
+        for (const fc of msg.toolCall.functionCalls || []) {
+          if (fc.name === 'end_call') {
+            logEvent('GEMINI_TOOL_END_CALL', { callId, reason: fc.args?.reason })
+            // Schedule hangup after 2.5s so final goodbye audio finishes playing
+            const c = activeCalls.get(callId)
+            if (c && !c.autoHangupTimer) {
+              c.autoHangupTimer = setTimeout(() => {
+                terminateCall(callId)
+              }, 2500)
+            }
+          }
+        }
+      }
+
+      // 3. Handle interruption: user started speaking while AI was speaking
       if (msg.serverContent?.interrupted) {
         logEvent('GEMINI_INTERRUPTED', { callId })
         const c = activeCalls.get(callId)
@@ -407,7 +462,7 @@ function initGeminiLiveConnection(callId) {
         }
       }
 
-      // 3. Handle audio stream from Gemini
+      // 4. Handle audio stream from Gemini
       const parts = msg.serverContent?.modelTurn?.parts
       if (parts) {
         const c = activeCalls.get(callId)
@@ -415,19 +470,35 @@ function initGeminiLiveConnection(callId) {
 
         for (const p of parts) {
           if (p.inlineData && p.inlineData.data) {
-            const rawPcm = Buffer.from(p.inlineData.data, 'base64')
-            c.pcmBuffer = Buffer.concat([c.pcmBuffer, rawPcm])
+            const rawPcm24 = Buffer.from(p.inlineData.data, 'base64')
+            c.pcmBuffer = Buffer.concat([c.pcmBuffer, rawPcm24])
 
             // Slices of 20ms at 24000Hz = 480 samples = 960 bytes
             while (c.pcmBuffer.length >= 960) {
-              const chunk = c.pcmBuffer.subarray(0, 960)
+              const chunk24 = c.pcmBuffer.subarray(0, 960)
               c.pcmBuffer = c.pcmBuffer.subarray(960)
 
               try {
-                const opusFrame = c.opusEncoder.encode(chunk, 480)
+                // Upsample 24kHz to 48kHz and encode with 48kHz Opus
+                const chunk48 = upsample24to48(chunk24)
+                const opusFrame = c.opusEncoder.encode(chunk48, 960)
                 c.audioQueue.push(opusFrame)
               } catch (encErr) {
                 // Ignore encode error
+              }
+            }
+          }
+
+          // Check text transcript for auto-hangup parting phrases
+          if (p.text) {
+            const lowerText = p.text.toLowerCase()
+            if (lowerText.includes('සුභ දවසක්') || lowerText.includes('have a great day') || lowerText.includes('goodbye')) {
+              const c = activeCalls.get(callId)
+              if (c && !c.autoHangupTimer) {
+                logEvent('SCHEDULED_AUTO_HANGUP', { callId, reason: p.text.slice(0, 50) })
+                c.autoHangupTimer = setTimeout(() => {
+                  terminateCall(callId)
+                }, 3000)
               }
             }
           }
@@ -453,6 +524,9 @@ function terminateCall(callId) {
 
   logEvent('TERMINATING_CALL', { callId, callerPhone: call.callerPhone })
 
+  if (call.autoHangupTimer) {
+    clearTimeout(call.autoHangupTimer)
+  }
   if (call.mediaTimer) {
     clearInterval(call.mediaTimer)
   }
@@ -470,6 +544,22 @@ function terminateCall(callId) {
   }
 
   activeCalls.delete(callId)
+
+  // Trigger hangup on Meta WhatsApp Graph API to end call on caller phone
+  if (WHATSAPP_ACCESS_TOKEN && WHATSAPP_PHONE_NUMBER_ID) {
+    fetch(`https://graph.facebook.com/v21.0/${WHATSAPP_PHONE_NUMBER_ID}/calls`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${WHATSAPP_ACCESS_TOKEN}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        messaging_product: 'whatsapp',
+        call_id: callId,
+        action: 'terminate'
+      })
+    }).catch(() => {})
+  }
 
   // Trigger follow-up WhatsApp dispatch through CRM
   if (call.callerPhone && CRM_WEBHOOK_URL) {
@@ -497,4 +587,5 @@ app.listen(PORT, () => {
   console.log(`🚀 MathsPS WhatsApp Live Voice Bridge running on port ${PORT}`)
   console.log(`   Health: http://localhost:${PORT}/`)
   console.log(`   Signaling: http://localhost:${PORT}/webhook/call`)
+  console.log(`   Voice: ${GEMINI_VOICE_NAME}`)
 })
