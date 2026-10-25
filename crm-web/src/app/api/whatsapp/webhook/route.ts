@@ -190,18 +190,9 @@ export async function POST(req: NextRequest) {
         const terminateKey = `call_term_${callId}`
         if (!isDuplicateMessage(terminateKey)) {
           try {
-            const detailsAlreadySent = Boolean((call as any).detailsSent)
-            if (!detailsAlreadySent) {
-              const sendGreeting = shouldSendGreeting(callerPhone)
-              // Concise, friendly follow-up: Only prepend greeting if first time or after long time (>24h)
-              const followUpText = sendGreeting
-                ? 'ආයුබෝවන්! ප්‍රබුද්ධ සම්පත් සර්ගේ ගණිත පන්ති ඇමතුමට ස්තූතියි. පන්ති විස්තර සඳහා ඔබගේ ශ්‍රේණිය (5 - 11) මෙහි එවන්න.'
-                : 'පන්ති විස්තර ලබාගැනීමට ඔබ විමසන ශ්‍රේණිය (5 - 11) මෙහි එවන්න.'
-              await sendWhatsAppText(callerPhone, followUpText)
-            }
             await syncWhatsAppLead(callerPhone, null, undefined, `Inbound Voice Call (${callEvent})`)
           } catch (dispatchErr) {
-            console.error('Failed to dispatch auto-packet on call event:', dispatchErr)
+            console.error('Failed to sync lead on call event:', dispatchErr)
           }
         }
       } else if (callEvent === 'connect' || callEvent === 'offer') {

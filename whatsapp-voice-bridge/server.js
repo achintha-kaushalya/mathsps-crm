@@ -316,9 +316,11 @@ CRITICAL SINHALA PRONUNCIATION & PHONETICS RULES:
   * Times: E.g., "8.00 - 10.30" speak as "උදෑසන අටේ සිට දහයයි තිහ දක්වා". E.g., "6.00" speak as "සවස හයට".
   * Fees: E.g., "Rs. 2,500" speak as "රුපියල් දෙදහස් පන්සියයක්".
 
-Your personality and tone:
+Your personality, tone and addressing rules:
 - Speak in a warm, dignified, calm, articulate, and professional tone.
-- Address the caller respectfully (e.g., "ඔබතුමා / ඔබතුමිය", "පුතේ", "ස්තූතියි").
+- CRITICAL ADDRESSING RULE (NEVER MIX FORMS): Never use multiple address forms together like "පුතේ / යාළුවා" or "පොඩ්ඩනේ / පුතේ". Pick EXACTLY ONE appropriate persona:
+  * If the caller is a student -> Address as "පුතා" or "පුතේ".
+  * If the caller is a parent -> Address respectfully as "ආදරණීය අම්මේ / තාත්තේ" or "ඔබතුමා / ඔබතුමිය".
 - Keep answers concise and clear (1 to 2 sentences per turn).
 - Accurate facts:
   * Teacher: Prabuddha Sampath Sir (B.Sc.)
@@ -470,7 +472,7 @@ function startMediaPump(callId) {
         payloadType: 111,
         sequenceNumber: c.seq,
         timestamp: c.ts,
-        ssrc: c.outgoingAudioTrack.ssrc || 10001,
+        ssrc: c.ssrc || c.outgoingAudioTrack.ssrc || 10001,
         marker: false
       })
       const packet = new RtpPacket(header, payload)
@@ -574,12 +576,14 @@ app.post('/webhook/call', async (req, res) => {
 
     // Audio track to send back to caller
     const outgoingAudioTrack = new MediaStreamTrack({ kind: 'audio' })
-    pc.addTrack(outgoingAudioTrack)
+    const sender = pc.addTrack(outgoingAudioTrack)
 
     // Store in active calls map
     const sessionData = {
       pc,
       outgoingAudioTrack,
+      sender,
+      ssrc: null,
       callerPhone: from,
       startedAt: Date.now(),
       opusEncoder: new OpusScript(48000, 1, OpusScript.Application.VOIP), // 48kHz native Opus encoder
@@ -628,6 +632,17 @@ app.post('/webhook/call', async (req, res) => {
       sdpType = 'offer'
     }
 
+    // Extract exact negotiated SSRC from local SDP
+    if (localSdp) {
+      const ssrcMatch = localSdp.match(/a=ssrc:(\d+)/)
+      if (ssrcMatch) {
+        sessionData.ssrc = parseInt(ssrcMatch[1], 10)
+        logEvent('WEBRTC_SSRC_EXTRACTED', { call_id, ssrc: sessionData.ssrc })
+      } else if (sender.ssrc) {
+        sessionData.ssrc = sender.ssrc
+      }
+    }
+
     // Capture any remote track created during setRemoteDescription
     for (const receiver of pc.getReceivers()) {
       if (receiver.track) {
@@ -666,6 +681,9 @@ app.post('/webhook/call', async (req, res) => {
         logEvent('META_API_NETWORK_ERROR', { call_id, error: metaErr.message })
       }
     }
+
+    // Start RTP pump immediately to maintain carrier audio clock
+    startMediaPump(call_id)
 
     // Connect to Gemini Live Multimodal WebSocket
     initGeminiLiveConnection(call_id)
@@ -748,9 +766,23 @@ function initGeminiLiveConnection(callId) {
     try {
       const msg = JSON.parse(data.toString())
 
-      // 1. Setup complete -> Session ready for incoming caller audio
+      // 1. Setup complete -> Prime Gemini to start speaking immediately
       if (msg.setupComplete) {
         logEvent('GEMINI_SETUP_COMPLETE', { callId })
+        try {
+          ws.send(JSON.stringify({
+            clientContent: {
+              turns: [{
+                role: 'user',
+                parts: [{ text: 'The caller has just connected and answered the phone call. Greet them warmly and politely in Sinhala immediately: ආයුබෝවන්! මම ප්‍රබුද්ධ සම්පත් සර්ගේ ගණිත පන්ති සහායකයා. අද ඔබට උදව් කළ හැක්කේ කෙසේද?' }]
+              }],
+              turnComplete: true
+            }
+          }))
+          logEvent('GEMINI_INITIAL_GREETING_TRIGGERED', { callId })
+        } catch (initErr) {
+          logEvent('GEMINI_INITIAL_GREETING_ERROR', { callId, error: initErr.message })
+        }
       }
 
       // 2. Handle Tool Calls from Gemini
