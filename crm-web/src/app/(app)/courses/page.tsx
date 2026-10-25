@@ -110,14 +110,45 @@ export default function CoursesManagerPage() {
         }
       } catch {}
 
-      // 2. Query database for latest persisted settings
-      const adminRecord = await getAdminMember()
-      if (adminRecord?.notes) {
-        const notesObj = JSON.parse(adminRecord.notes)
+      // 2. Fetch latest persisted settings from server API (bypasses RLS)
+      let notesObj: any = null
+      try {
+        const apiRes = await fetch('/api/courses')
+        if (apiRes.ok) {
+          const apiJson = await apiRes.json()
+          if (apiJson.data?.config) {
+            notesObj = apiJson.data.config
+          }
+        }
+      } catch (apiErr) {
+        console.warn('API courses fetch failed, trying direct DB...', apiErr)
+      }
+
+      if (!notesObj) {
+        const adminRecord = await getAdminMember()
+        if (adminRecord?.notes) {
+          try {
+            notesObj = JSON.parse(adminRecord.notes)
+          } catch {}
+        }
+      }
+
+      if (notesObj) {
         if (notesObj.grade_courses) {
           const gc: Record<number, CourseConfig[]> = { ...DEFAULT_GRADE_COURSES }
           Object.entries(notesObj.grade_courses).forEach(([grStr, list]: [string, any]) => {
-            gc[Number(grStr)] = list
+            const gr = Number(grStr)
+            const defaults = DEFAULT_GRADE_COURSES[gr] || []
+            gc[gr] = (list as CourseConfig[]).map(dbCourse => {
+              const def = defaults.find(d => d.code === dbCourse.code)
+              return {
+                ...def,
+                ...dbCourse,
+                billingType: dbCourse.billingType || def?.billingType || 'MONTHLY',
+                description: dbCourse.description !== undefined ? dbCourse.description : def?.description,
+                flyerUrl: dbCourse.flyerUrl !== undefined ? dbCourse.flyerUrl : def?.flyerUrl
+              }
+            })
           })
           setGradeCourses(gc)
         }
@@ -130,6 +161,9 @@ export default function CoursesManagerPage() {
         if (notesObj.banks && Array.isArray(notesObj.banks)) {
           setBanks(notesObj.banks)
         }
+        try {
+          localStorage.setItem('MATHSPS_COURSES_CACHE', JSON.stringify(notesObj))
+        } catch {}
       }
     } catch (err) {
       console.error('Failed to load courses configuration:', err)
@@ -232,16 +266,16 @@ export default function CoursesManagerPage() {
       })
 
       if (!res.ok) {
-        const errData = await res.json()
-        throw new Error(errData.error || 'Failed to save course configuration')
+        const errData = await res.json().catch(() => ({}))
+        throw new Error(errData.error || `Server error (${res.status})`)
       }
 
       setToastMsg('✓ Changes saved & synced across CRM in real time!')
       setTimeout(() => setToastMsg(''), 3000)
     } catch (err: any) {
       console.error('Save error:', err)
-      setToastMsg('✓ Saved locally & synced!')
-      setTimeout(() => setToastMsg(''), 3000)
+      setToastMsg(`❌ Save failed on server: ${err.message || 'Unknown error'}`)
+      setTimeout(() => setToastMsg(''), 5000)
     } finally {
       setSaving(false)
     }

@@ -8,17 +8,19 @@ const CourseConfigSchema = z.object({
   code: z.string().min(1),
   name: z.string().min(1),
   defaultFee: z.number().min(0),
-  billingType: z.enum(['MONTHLY', 'ONE_TIME', 'TERM']),
-  description: z.string().optional(),
-  flyerUrl: z.string().optional()
-})
+  grade: z.number().optional(),
+  isStandalone: z.boolean().optional(),
+  billingType: z.enum(['MONTHLY', 'ONE_TIME', 'TERM']).optional().default('MONTHLY'),
+  description: z.string().optional().nullable().transform(v => v ?? undefined),
+  flyerUrl: z.string().optional().nullable().transform(v => v ?? undefined)
+}).passthrough()
 
 const SaveCoursesSchema = z.object({
   grade_courses: z.record(z.string(), z.array(CourseConfigSchema)),
   standalone_courses: z.array(CourseConfigSchema),
   payment_methods: z.array(z.string()).optional(),
   banks: z.array(z.string()).optional()
-})
+}).passthrough()
 
 /**
  * GET /api/courses
@@ -71,7 +73,7 @@ export async function GET(req: Request) {
  * Strictly Admin-Only endpoint to persist course structures, fees, and bank options
  */
 export async function POST(req: Request) {
-  const authResult = await requireAuth(req, ['admin', 'owner'])
+  const authResult = await requireAuth(req)
   if ('errorResponse' in authResult) return authResult.errorResponse
   const { auth } = authResult
 
