@@ -316,8 +316,9 @@ CRITICAL SINHALA PRONUNCIATION & PHONETICS RULES:
   * Times: E.g., "8.00 - 10.30" speak as "උදෑසන අටේ සිට දහයයි තිහ දක්වා". E.g., "6.00" speak as "සවස හයට".
   * Fees: E.g., "Rs. 2,500" speak as "රුපියල් දෙදහස් පන්සියයක්".
 
-Your personality, tone and addressing rules:
-- Speak in a warm, dignified, calm, articulate, and professional tone.
+Your personality, tone and pacing rules:
+- Speak in a calm, warm, dignified, and articulate tone.
+- SPEECH PACING & TEMPO (CRITICAL): Speak at a slightly relaxed, measured, and unhurried pace. DO NOT rush or speak too fast! Enunciate every syllable clearly so Sinhala words sound smooth, melodious, and easy to understand over the phone.
 - CRITICAL ADDRESSING RULE (NEVER MIX FORMS): Never use multiple address forms together like "පුතේ / යාළුවා" or "පොඩ්ඩනේ / පුතේ". Pick EXACTLY ONE appropriate persona:
   * If the caller is a student -> Address as "පුතා" or "පුතේ".
   * If the caller is a parent -> Address respectfully as "ආදරණීය අම්මේ / තාත්තේ" or "ඔබතුමා / ඔබතුමිය".
@@ -431,8 +432,8 @@ function startMediaPump(callId) {
 
     let payload = silenceOpus
 
-    // High latency drift protection: only drain gently if queue exceeds 3 full seconds of backlog
-    if (c.audioQueue.length > MAX_QUEUE_FRAMES) {
+    // High latency drift protection: only drain gently if dynamic stream queue exceeds 3 full seconds of backlog
+    if (c.audioQueue.length > MAX_QUEUE_FRAMES && !c.isPlayingGreeting) {
       c.audioQueue.splice(0, c.audioQueue.length - MAX_QUEUE_FRAMES)
     }
 
@@ -451,6 +452,9 @@ function startMediaPump(callId) {
         lastValidOpus = payload
       }
     } else {
+      if (c.isPlayingGreeting) {
+        c.isPlayingGreeting = false
+      }
       if (isPlayingSpeech) {
         emptyTicks++
         // Packet Loss Concealment (PLC):
@@ -601,7 +605,8 @@ app.post('/webhook/call', async (req, res) => {
       startedAt: Date.now(),
       opusEncoder: new OpusScript(48000, 1, OpusScript.Application.VOIP), // 48kHz native Opus encoder
       opusDecoder: new OpusScript(48000, 1, OpusScript.Application.VOIP),
-      audioQueue: [], // Start clean - Gemini Live streams speech directly on connection
+      audioQueue: PRE_BUFFERED_GREETING_FRAMES.length > 0 ? [...PRE_BUFFERED_GREETING_FRAMES] : [],
+      isPlayingGreeting: PRE_BUFFERED_GREETING_FRAMES.length > 0,
       seq: 0,
       ts: 0,
       pcmBuffer: Buffer.alloc(0),
@@ -779,7 +784,7 @@ function initGeminiLiveConnection(callId) {
     try {
       const msg = JSON.parse(data.toString())
 
-      // 1. Setup complete -> Prime Gemini to start speaking immediately
+      // 1. Setup complete -> Prime Gemini context: greeting already played, speak calmly and clearly
       if (msg.setupComplete) {
         logEvent('GEMINI_SETUP_COMPLETE', { callId })
         try {
@@ -787,14 +792,14 @@ function initGeminiLiveConnection(callId) {
             clientContent: {
               turns: [{
                 role: 'user',
-                parts: [{ text: 'The caller has just connected and answered the phone call. Greet them warmly and politely in Sinhala immediately: ආයුබෝවන්! මම ප්‍රබුද්ධ සම්පත් සර්ගේ ගණිත පන්ති සහායකයා. අද ඔබට උදව් කළ හැක්කේ කෙසේද?' }]
+                parts: [{ text: 'The caller has connected and the initial welcome greeting has just finished playing to them. Please listen to what they ask or say next, and respond in calm, clear, unhurried, natural Sinhala or English, speaking at a relaxed, steady pace.' }]
               }],
               turnComplete: true
             }
           }))
-          logEvent('GEMINI_INITIAL_GREETING_TRIGGERED', { callId })
+          logEvent('GEMINI_CONTEXT_PRIMED', { callId })
         } catch (initErr) {
-          logEvent('GEMINI_INITIAL_GREETING_ERROR', { callId, error: initErr.message })
+          logEvent('GEMINI_CONTEXT_PRIME_ERROR', { callId, error: initErr.message })
         }
       }
 
