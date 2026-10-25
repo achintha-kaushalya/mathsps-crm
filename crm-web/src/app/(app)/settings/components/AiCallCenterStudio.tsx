@@ -22,7 +22,13 @@ import {
   Check,
   Volume2,
   VolumeX,
-  UserCheck
+  UserCheck,
+  Brain,
+  GraduationCap,
+  AlertCircle,
+  Trash2,
+  HelpCircle,
+  Download
 } from 'lucide-react'
 
 export default function AiCallCenterStudio() {
@@ -32,7 +38,21 @@ export default function AiCallCenterStudio() {
   const [saveSuccess, setSaveSuccess] = useState(false)
 
   // Active Sub-Tab in Flow Builder
-  const [activeStep, setActiveStep] = useState<'flow' | 'prompts' | 'flyers' | 'banks' | 'test' | 'ai-convo'>('ai-convo')
+  const [activeStep, setActiveStep] = useState<'learning' | 'flow' | 'prompts' | 'flyers' | 'banks' | 'test' | 'ai-convo'>('learning')
+
+  // Learning Inbox State
+  const [unresolvedInquiries, setUnresolvedInquiries] = useState<any[]>([])
+  const [learnedKnowledge, setLearnedKnowledge] = useState<any[]>([])
+  const [learningStats, setLearningStats] = useState({ pendingCount: 0, learnedCount: 0 })
+  const [learningLoading, setLearningLoading] = useState(false)
+  const [activeReplyingId, setActiveReplyingId] = useState<string | null>(null)
+  const [replyText, setReplyText] = useState('')
+  const [submittingReply, setSubmittingReply] = useState(false)
+
+  // Manual New Knowledge Entry
+  const [manualQuestion, setManualQuestion] = useState('')
+  const [manualAnswer, setManualAnswer] = useState('')
+  const [manualCategory, setManualCategory] = useState('General')
 
   // Test Console State
   const [testPhone, setTestPhone] = useState('')
@@ -61,7 +81,128 @@ export default function AiCallCenterStudio() {
 
   useEffect(() => {
     loadConfig()
+    loadLearningData()
   }, [])
+
+  async function loadLearningData() {
+    setLearningLoading(true)
+    try {
+      const res = await fetch('/api/ai-agent/learning')
+      if (res.ok) {
+        const json = await res.json()
+        if (json.success) {
+          setUnresolvedInquiries(json.unresolved || [])
+          setLearnedKnowledge(json.learned || [])
+          setLearningStats(json.stats || { pendingCount: 0, learnedCount: 0 })
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load learning data:', e)
+    } finally {
+      setLearningLoading(false)
+    }
+  }
+
+  async function handleResolveInquiry(inquiry: any) {
+    if (!replyText.trim()) return
+    setSubmittingReply(true)
+    try {
+      const res = await fetch('/api/ai-agent/learning', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'resolve_and_teach',
+          inquiryId: inquiry.id,
+          callerPhone: inquiry.callerPhone,
+          canonicalQuestion: inquiry.question,
+          answer: replyText.trim(),
+          category: 'Parent Inquiries'
+        })
+      })
+      const json = await res.json()
+      if (json.success) {
+        setReplyText('')
+        setActiveReplyingId(null)
+        loadLearningData()
+      } else {
+        alert('Error: ' + json.error)
+      }
+    } catch (err: any) {
+      alert('Failed to send reply and teach AI: ' + err.message)
+    } finally {
+      setSubmittingReply(false)
+    }
+  }
+
+  async function handleAddManualKnowledge() {
+    if (!manualQuestion.trim() || !manualAnswer.trim()) return
+    setSubmittingReply(true)
+    try {
+      const res = await fetch('/api/ai-agent/learning', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'resolve_and_teach',
+          canonicalQuestion: manualQuestion.trim(),
+          answer: manualAnswer.trim(),
+          category: manualCategory
+        })
+      })
+      const json = await res.json()
+      if (json.success) {
+        setManualQuestion('')
+        setManualAnswer('')
+        loadLearningData()
+      } else {
+        alert('Error: ' + json.error)
+      }
+    } catch (err: any) {
+      alert('Failed: ' + err.message)
+    } finally {
+      setSubmittingReply(false)
+    }
+  }
+
+  async function handleDeleteKnowledge(qaId: string) {
+    if (!confirm('Are you sure you want to remove this learned knowledge from AI memory?')) return
+    try {
+      const res = await fetch('/api/ai-agent/learning', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'delete_knowledge',
+          qaId
+        })
+      })
+      if (res.ok) loadLearningData()
+    } catch (e) {}
+  }
+
+  function handleExportFineTuningDataset() {
+    if (learnedKnowledge.length === 0) {
+      alert('No learned knowledge entries to export yet!')
+      return
+    }
+
+    // Format into standard JSONL Chat Fine-Tuning Corpus
+    const lines = learnedKnowledge.map(k => JSON.stringify({
+      messages: [
+        { role: 'system', content: 'You are the Senior Admissions Coordinator for Prabuddha Sampath Sir Mathematics Classes in Sri Lanka. Speak in fluent Sinhala, Singlish and English.' },
+        { role: 'user', content: k.question },
+        { role: 'assistant', content: k.answer }
+      ]
+    }))
+
+    const blob = new Blob([lines.join('\n')], { type: 'application/jsonl' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `prabuddha_ai_finetune_dataset_${new Date().toISOString().slice(0, 10)}.jsonl`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
 
   async function loadConfig() {
     setLoading(true)
@@ -305,12 +446,13 @@ export default function AiCallCenterStudio() {
         }}
       >
         {[
-          { id: 'ai-convo', label: '1. Parent AI Voice Chat', icon: Sparkles, desc: 'Realtime Voice & Chat' },
-          { id: 'flow', label: '2. Architecture & Flow', icon: Layers, desc: 'Visual Wireframe' },
-          { id: 'prompts', label: '3. Voice & Greeting', icon: MessageSquare, desc: 'Personality & Rules' },
-          { id: 'flyers', label: '4. Class Timetables & Flyers', icon: ImageIcon, desc: 'Posters (Gr 6-11)' },
-          { id: 'banks', label: '5. Bank Accounts', icon: Building2, desc: 'Payment Slips' },
-          { id: 'test', label: '6. Live Simulator', icon: Zap, desc: 'Test Dispatch' },
+          { id: 'learning', label: '1. AI Brain & Learning', icon: Brain, desc: `${learningStats.pendingCount} Pending · ${learningStats.learnedCount} Learned` },
+          { id: 'ai-convo', label: '2. Parent Voice Chat', icon: Sparkles, desc: 'Realtime Voice & Chat' },
+          { id: 'flow', label: '3. Architecture & Flow', icon: Layers, desc: 'Visual Wireframe' },
+          { id: 'prompts', label: '4. Voice & Greeting', icon: MessageSquare, desc: 'Personality & Rules' },
+          { id: 'flyers', label: '5. Timetables & Flyers', icon: ImageIcon, desc: 'Posters (Gr 6-11)' },
+          { id: 'banks', label: '6. Bank Accounts', icon: Building2, desc: 'Payment Slips' },
+          { id: 'test', label: '7. Live Simulator', icon: Zap, desc: 'Test Dispatch' },
         ].map(tab => {
           const Icon = tab.icon
           const isActive = activeStep === tab.id
@@ -360,7 +502,273 @@ export default function AiCallCenterStudio() {
       </div>
 
       {/* 3. Tab Contents */}
-      {/* ── 0. Parent AI Voice & Chat Interactive Console ── */}
+      {/* ── 0. AI Brain & Learning Inbox (HITL & Dataset Synthesizer) ── */}
+      {activeStep === 'learning' && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+          {/* Top Metric Cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 14 }}>
+            <div className="stat-card" style={{ borderLeft: '4px solid #f59e0b' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>PENDING QUESTIONS</span>
+                <AlertCircle size={16} color="#f59e0b" />
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: '#f59e0b' }}>{learningStats.pendingCount}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Questions callers asked that need Admin approval</div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid #10b981' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>LEARNED BRAIN MEMORY</span>
+                <GraduationCap size={16} color="#10b981" />
+              </div>
+              <div style={{ fontSize: 28, fontWeight: 800, color: '#10b981' }}>{learningStats.learnedCount}</div>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>Active custom directives taught by Admin</div>
+            </div>
+
+            <div className="stat-card" style={{ borderLeft: '4px solid var(--accent-blue)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)' }}>COMMERCIAL EXPORT</span>
+                <Download size={16} color="var(--accent-blue)" />
+              </div>
+              <button
+                onClick={handleExportFineTuningDataset}
+                className="btn-primary"
+                style={{
+                  fontSize: 12,
+                  padding: '7px 14px',
+                  fontWeight: 700,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginTop: 6
+                }}
+              >
+                <Download size={14} /> Export JSONL Dataset
+              </button>
+              <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 6 }}>Fine-tuning corpus for other call centers</div>
+            </div>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1.2fr) minmax(0, 1fr)', gap: 20 }}>
+            {/* Left: Pending Inquiries Feed */}
+            <div className="glass-card" style={{ padding: 22, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#f59e0b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Questions Needing Your Answer
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                    Type the verified answer. It will send to parent&apos;s WhatsApp and permanently teach the AI.
+                  </div>
+                </div>
+                <button onClick={loadLearningData} className="btn-ghost" style={{ padding: 6 }}>
+                  <RefreshCw size={14} className={learningLoading ? 'animate-spin' : ''} />
+                </button>
+              </div>
+
+              {unresolvedInquiries.filter(u => u.status === 'PENDING').length === 0 ? (
+                <div style={{ padding: '40px 20px', textAlign: 'center', color: 'var(--text-muted)' }}>
+                  <CheckCircle2 size={32} color="#10b981" style={{ margin: '0 auto 10px' }} />
+                  <div style={{ fontWeight: 700, color: '#ffffff' }}>All Questions Answered!</div>
+                  <div style={{ fontSize: 12 }}>The AI has answered all recent callers with high confidence.</div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14, maxHeight: 520, overflowY: 'auto' }}>
+                  {unresolvedInquiries.filter(u => u.status === 'PENDING').map(inq => (
+                    <div
+                      key={inq.id}
+                      style={{
+                        padding: 16,
+                        borderRadius: 12,
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid rgba(245, 158, 11, 0.25)',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 10
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                        <div>
+                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
+                            {inq.source || 'VOICE CALL'}
+                          </span>
+                          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
+                            From: {inq.callerPhone} · {new Date(inq.createdAt).toLocaleTimeString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ fontSize: 13.5, fontWeight: 700, color: '#ffffff' }}>
+                        &ldquo;{inq.question}&rdquo;
+                      </div>
+
+                      {activeReplyingId === inq.id ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 4 }}>
+                          <textarea
+                            className="input-field"
+                            placeholder="Type verified human answer in Sinhala / Singlish (e.g. ඔව් පුතේ, අගෝස්තු නිවාඩුවේ සම්මන්ත්‍රණය පැවැත්වෙනවා...)"
+                            value={replyText}
+                            onChange={e => setReplyText(e.target.value)}
+                            style={{ minHeight: 80, fontSize: 12.5 }}
+                          />
+                          <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+                            <button
+                              onClick={() => { setActiveReplyingId(null); setReplyText('') }}
+                              className="btn-ghost"
+                              style={{ fontSize: 12 }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              onClick={() => handleResolveInquiry(inq)}
+                              disabled={submittingReply || !replyText.trim()}
+                              className="btn-primary"
+                              style={{
+                                fontSize: 12,
+                                padding: '8px 14px',
+                                background: 'linear-gradient(135deg, #059669 0%, #10b981 100%)'
+                              }}
+                            >
+                              {submittingReply ? <RefreshCw size={13} className="animate-spin" /> : <Send size={13} />}
+                              Send to WhatsApp &amp; Save to Brain
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+                          <button
+                            onClick={() => {
+                              setActiveReplyingId(inq.id)
+                              setReplyText('')
+                            }}
+                            className="btn-primary"
+                            style={{ fontSize: 12, padding: '6px 12px' }}
+                          >
+                            Teach AI &amp; Reply
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Right: Permanent Learned Brain Knowledge */}
+            <div className="glass-card" style={{ padding: 22, display: 'flex', flexDirection: 'column' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    Active Learned Brain Memory ({learnedKnowledge.length})
+                  </div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                    Directives the AI automatically uses to answer incoming calls and WhatsApp messages.
+                  </div>
+                </div>
+              </div>
+
+              {/* Add Custom Rule Manually */}
+              <div
+                style={{
+                  padding: 14,
+                  borderRadius: 12,
+                  background: 'rgba(16, 185, 129, 0.05)',
+                  border: '1px solid rgba(16, 185, 129, 0.2)',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 8,
+                  marginBottom: 16
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#10b981' }}>+ Teach AI a New Knowledge Directively</div>
+                <input
+                  className="input-field"
+                  placeholder="Question / Topic (e.g. Paper class එකට tute එක ලැබෙනවද?)"
+                  value={manualQuestion}
+                  onChange={e => setManualQuestion(e.target.value)}
+                  style={{ fontSize: 12 }}
+                />
+                <textarea
+                  className="input-field"
+                  placeholder="Verified Answer (e.g. ඔව්, Speed Post මඟින් නිවසටම tute එක ලැබෙනවා...)"
+                  value={manualAnswer}
+                  onChange={e => setManualAnswer(e.target.value)}
+                  style={{ minHeight: 60, fontSize: 12 }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <select
+                    className="input-field"
+                    value={manualCategory}
+                    onChange={e => setManualCategory(e.target.value)}
+                    style={{ width: 'auto', fontSize: 11.5, padding: '4px 10px' }}
+                  >
+                    <option value="General">General</option>
+                    <option value="Delivery & Tutes">Delivery &amp; Tutes</option>
+                    <option value="Special Seminars">Special Seminars</option>
+                    <option value="Payments">Payments</option>
+                  </select>
+                  <button
+                    onClick={handleAddManualKnowledge}
+                    disabled={submittingReply || !manualQuestion.trim() || !manualAnswer.trim()}
+                    className="btn-primary"
+                    style={{ fontSize: 11.5, padding: '6px 14px' }}
+                  >
+                    {submittingReply ? <RefreshCw size={12} className="animate-spin" /> : <Save size={12} />}
+                    Save to AI Memory
+                  </button>
+                </div>
+              </div>
+
+              {/* List of Learned Rules */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 400, overflowY: 'auto' }}>
+                {learnedKnowledge.length === 0 ? (
+                  <div style={{ padding: '30px 10px', textAlign: 'center', color: 'var(--text-muted)', fontSize: 12 }}>
+                    No custom knowledge entries yet. Teach the AI from pending questions above!
+                  </div>
+                ) : (
+                  learnedKnowledge.map(k => (
+                    <div
+                      key={k.id}
+                      style={{
+                        padding: 12,
+                        borderRadius: 10,
+                        background: 'rgba(255, 255, 255, 0.02)',
+                        border: '1px solid rgba(255, 255, 255, 0.06)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: 10
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                          <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 6px', borderRadius: 4, background: 'rgba(16,185,129,0.15)', color: '#10b981' }}>
+                            {k.category || 'General'}
+                          </span>
+                          <span style={{ fontSize: 11.5, fontWeight: 700, color: '#ffffff' }}>{k.question}</span>
+                        </div>
+                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                          {k.answer}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleDeleteKnowledge(k.id)}
+                        className="btn-ghost"
+                        style={{ padding: 4, color: 'var(--text-muted)' }}
+                        title="Remove knowledge"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── 1. Parent AI Voice & Chat Interactive Console ── */}
       {activeStep === 'ai-convo' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 340px', gap: 20 }}>
           {/* Left: Chat & Voice Interactive Stream */}

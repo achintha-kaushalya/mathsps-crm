@@ -40,6 +40,7 @@ export async function GET() {
   try {
     let gradeCourses: Record<number, CourseConfig[]> = DEFAULT_GRADE_COURSES
     let standaloneCourses: CourseConfig[] = DEFAULT_STANDALONE_COURSES
+    let learnedQa: any[] = []
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -70,6 +71,9 @@ export async function GET() {
           }
           if (notesObj.standalone_courses) {
             standaloneCourses = notesObj.standalone_courses
+          }
+          if (Array.isArray(notesObj.learned_qa)) {
+            learnedQa = notesObj.learned_qa
           }
         } catch {}
       }
@@ -143,6 +147,7 @@ export async function GET() {
         }
       },
       courses: allCourses,
+      learned_qa: learnedQa || [],
       timestamp: new Date().toISOString()
     }, {
       status: 200,

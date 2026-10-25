@@ -156,6 +156,7 @@ async function sendWhatsAppMessageToCaller(recipientPhone, text, imageUrl, capti
 // In-memory curriculum cache synced from CRM
 let DYNAMIC_COURSES = []
 let DYNAMIC_BANK_DETAILS = BANK_DETAILS_TEXT
+let DYNAMIC_LEARNED_QA = []
 
 async function refreshCurriculumFromCrm() {
   try {
@@ -169,6 +170,10 @@ async function refreshCurriculumFromCrm() {
       }
       if (data.academy?.bankDetails) {
         DYNAMIC_BANK_DETAILS = data.academy.bankDetails
+      }
+      if (data.learned_qa && Array.isArray(data.learned_qa)) {
+        DYNAMIC_LEARNED_QA = data.learned_qa
+        logEvent('DYNAMIC_LEARNED_QA_SYNCED', { count: DYNAMIC_LEARNED_QA.length })
       }
     }
   } catch (err) {
@@ -288,9 +293,16 @@ function buildSystemPrompt() {
     ).join('\n')
   }
 
+  let learnedKnowledgeText = ''
+  if (DYNAMIC_LEARNED_QA.length > 0) {
+    learnedKnowledgeText = `\n[Learned Knowledge & Custom Admin Directives]:\n` + 
+      DYNAMIC_LEARNED_QA.map((k, i) => `Rule ${i+1}: Q: "${k.question}" -> A: "${k.answer}"`).join('\n') + `\n`
+  }
+
   return `You are the Senior Admissions Coordinator for Prabuddha Sampath Sir's Mathematics Classes in Sri Lanka (ප්‍රබුද්ධ සම්පත් සර්ගේ ගණිත පන්ති).
 DO NOT use the word or technical brand "MathsPS" anywhere! Your official identity is "ප්‍රබුද්ධ සම්පත්" / "Prabuddha Sampath Sir".
 You are currently speaking directly with a parent or student on a live WhatsApp phone call.
+${learnedKnowledgeText}
 
 LANGUAGE & CONVERSATIONAL INTELLIGENCE:
 - If caller speaks Sinhala -> Speak in natural, friendly, modern Sri Lankan Sinhala / Singlish.
@@ -741,6 +753,17 @@ function initGeminiLiveConnection(callId) {
                   reason: { type: 'STRING', description: 'Reason for hanging up' }
                 }
               }
+            },
+            {
+              name: 'escalate_unanswered_inquiry',
+              description: 'Call this tool when caller asks a question or custom request not covered in your knowledge base (e.g. special discounts, private classes, custom bus routes). Informs caller you will verify and get back to them.',
+              parameters: {
+                type: 'OBJECT',
+                properties: {
+                  question: { type: 'STRING', description: 'The question or inquiry that could not be answered' }
+                },
+                required: ['question']
+              }
             }
           ]
         }],
@@ -813,6 +836,42 @@ function initGeminiLiveConnection(callId) {
                 terminateCall(callId)
               }, 2500)
             }
+          }
+
+          // Tool C: escalate_unanswered_inquiry (Auto-learning loop)
+          if (fc.name === 'escalate_unanswered_inquiry') {
+            const question = fc.args?.question || 'Unknown inquiry from voice call'
+            logEvent('GEMINI_TOOL_ESCALATE_INQUIRY', { callId, question })
+            const c = activeCalls.get(callId)
+            const callerPhone = c?.callerPhone || 'Voice Caller'
+
+            try {
+              const crmBase = CRM_WEBHOOK_URL.replace(/\/api\/whatsapp\/webhook\/?$/, '')
+              fetch(`${crmBase}/api/ai-agent/learning`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'escalate',
+                  callerPhone,
+                  question,
+                  source: 'VOICE_CALL'
+                })
+              }).catch(e => console.error('Voice escalation log error:', e.message))
+            } catch (err) {}
+
+            try {
+              ws.send(JSON.stringify({
+                toolResponse: {
+                  functionResponses: [
+                    {
+                      id: fc.id,
+                      name: fc.name,
+                      response: { output: { success: true, message: 'Logged for admin review' } }
+                    }
+                  ]
+                }
+              }))
+            } catch (e) {}
           }
         }
       }

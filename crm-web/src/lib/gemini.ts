@@ -48,6 +48,7 @@ const DEFAULT_FLYERS: Record<number, string> = {
 export async function getLiveAiConfig() {
   let gradeCourses: Record<number, any[]> = {}
   let standaloneCourses: any[] = []
+  let learnedQa: any[] = []
 
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
@@ -75,6 +76,7 @@ export async function getLiveAiConfig() {
         const parsed = JSON.parse(data.notes)
         if (parsed.grade_courses) gradeCourses = parsed.grade_courses
         if (parsed.standalone_courses) standaloneCourses = parsed.standalone_courses
+        if (Array.isArray(parsed.learned_qa)) learnedQa = parsed.learned_qa
       }
     }
   } catch (e) {
@@ -101,6 +103,7 @@ export async function getLiveAiConfig() {
     class_flyers: derivedFlyers,
     grade_courses: gradeCourses,
     standalone_courses: standaloneCourses,
+    learned_qa: learnedQa,
     human_escalation_number: '071 063 1093'
   }
 }
@@ -195,6 +198,14 @@ Grade 11: ${liveConfig.timetables?.[11] || DEFAULT_TIMETABLES[11]}
     })
   }
 
+  let learnedKnowledgeText = ''
+  if (liveConfig.learned_qa && Array.isArray(liveConfig.learned_qa) && liveConfig.learned_qa.length > 0) {
+    learnedKnowledgeText = `\n[Learned Knowledge & Custom Admin Directives]:\n` +
+      liveConfig.learned_qa.map((qa: any, idx: number) => 
+        `Q${idx + 1}: ${qa.question}\nVerified Answer: ${qa.answer}`
+      ).join('\n\n')
+  }
+
   const systemInstruction = `You are the official intelligent representative for Prabuddha Sampath Sir's Mathematics Classes in Sri Lanka (ප්‍රබුද්ධ සම්පත් සර්ගේ ගණිත පන්ති).
 DO NOT use the word or brand "MathsPS" anywhere! The official identity is always "ප්‍රබුද්ධ සම්පත්" / "Prabuddha Sampath Sir".
 
@@ -232,6 +243,7 @@ Key Knowledge Base:
 - Online LMS & Recordings: www.prabuddhamaths.com (Tutes Speed Post මඟින් නිවසටම එවනු ලැබේ).
 - Active Courses & Curriculum:
 ${coursesKnowledgeText}
+${learnedKnowledgeText}
 - Bank Accounts for Fee Payment:
   1. BOC: 76336481 (A.M.P.S.Adikari, Malkaduwawa)
   2. HNB: 040020010793 (A.M.P.S.Adikari, Chilaw)
@@ -254,17 +266,20 @@ STRICT ACTION TRIGGER RULES:
 
 CRITICAL: Return ONLY a valid JSON object with the following exact keys:
 {
-  "replyText": "The Sinhala message to send to the parent",
+  "replyText": "The Sinhala / English message to send to the parent",
   "dispatchFlyerGrade": number or null,
   "dispatchFlyerUrl": string or null,
   "dispatchBank": boolean,
+  "needsEscalation": boolean,
+  "unansweredQuestion": string or null,
   "leadInfo": {
     "studentName": string or undefined,
     "grade": number or undefined,
     "school": string or undefined,
     "note": string or undefined
   } or null
-}`
+}
+* "needsEscalation": Set to true IF the parent/student asks a question or custom request that is NOT covered in your knowledge base (e.g., special discounts, private classes, custom bus routes, new exam dates not listed). In "replyText", politely inform them you will check with Prabuddha Sir/management and get back to them shortly. Set "unansweredQuestion" to their exact inquiry.`
 
   const contents: any[] = []
   const parts: any[] = []

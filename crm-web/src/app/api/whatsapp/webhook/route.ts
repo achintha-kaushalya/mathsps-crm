@@ -281,7 +281,26 @@ export async function POST(req: NextRequest) {
           await sendWhatsAppText(senderPhone, getStandardBankDetailsText())
         }
 
-        // 4. Sync lead to CRM database
+        // Step 4: Auto-Escalate to Admin Learning Inbox if question is unknown/unanswered
+        if ((aiResult as any).needsEscalation || (aiResult as any).unansweredQuestion) {
+          try {
+            const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://mathsps-lead-crm.vercel.app'
+            await fetch(`${baseUrl}/api/ai-agent/learning`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'escalate',
+                callerPhone: senderPhone,
+                question: (aiResult as any).unansweredQuestion || msgBody || 'Voice Inquiry',
+                source: 'WHATSAPP_CHAT'
+              })
+            })
+          } catch (escErr) {
+            console.error('Failed to auto-escalate inquiry to learning inbox:', escErr)
+          }
+        }
+
+        // 5. Sync lead to CRM database
         await syncWhatsAppLead(
           senderPhone,
           aiResult.dispatchFlyerGrade,
