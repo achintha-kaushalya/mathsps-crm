@@ -3,7 +3,7 @@ services:
     name: mathsps-voice-bridge
     env: node
     plan: free
-    region: oregon
+    region: singapore
     rootDir: whatsapp-voice-bridge
     buildCommand: npm install
     startCommand: node server.js
