@@ -418,9 +418,9 @@ function startMediaPump(callId) {
   let emptyTicks = 0
   let lastValidOpus = silenceOpus
   // Dynamic Jitter Buffer:
-  // Starts with 7 frames (140ms) buffer to absorb transcontinental network jitter (Render -> Colombo)
-  const JITTER_BUFFER_TARGET = 7 // 7 * 20ms = 140ms smooth jitter buffer
-  const MAX_QUEUE_FRAMES = 50   // Prevent latency drift over 1 second
+  // Starts playback once 4 frames (80ms) accumulate to ensure smooth continuous stream
+  const JITTER_BUFFER_TARGET = 4 // 4 * 20ms = 80ms smooth jitter buffer
+  const MAX_QUEUE_FRAMES = 150   // 3.0s burst tolerance before gentle drain
 
   call.mediaTimer = setInterval(() => {
     const c = activeCalls.get(callId)
@@ -431,9 +431,9 @@ function startMediaPump(callId) {
 
     let payload = silenceOpus
 
-    // High latency drift protection: if queue gets unnaturally backed up, gently drain old frames
+    // High latency drift protection: only drain gently if queue exceeds 3 full seconds of backlog
     if (c.audioQueue.length > MAX_QUEUE_FRAMES) {
-      c.audioQueue.splice(0, c.audioQueue.length - JITTER_BUFFER_TARGET)
+      c.audioQueue.splice(0, c.audioQueue.length - MAX_QUEUE_FRAMES)
     }
 
     if (c.audioQueue.length > 0) {
@@ -514,14 +514,27 @@ function setupIncomingTrack(incomingTrack, call_id) {
             const chunk = callData.callerPcmBuffer.subarray(0, 2560)
             callData.callerPcmBuffer = callData.callerPcmBuffer.subarray(2560)
 
-            callData.geminiWs.send(JSON.stringify({
-              realtimeInput: {
-                mediaChunks: [{
-                  mimeType: 'audio/pcm;rate=16000',
-                  data: chunk.toString('base64')
-                }]
-              }
-            }))
+            // VAD Energy Filter: Calculate peak amplitude in this 80ms chunk
+            // If caller is silent or has only ambient room noise (< 300 peak amplitude),
+            // suppress or don't trigger false interruptions while Gemini is actively speaking
+            let peakAmp = 0
+            for (let i = 0; i < 1280; i++) {
+              const amp = Math.abs(chunk.readInt16LE(i * 2))
+              if (amp > peakAmp) peakAmp = amp
+            }
+
+            // Only forward audio if there is actual acoustic voice energy (> 300 amplitude)
+            // or send zeroed quiet audio so Gemini maintains its context without false barge-in
+            if (peakAmp >= 300) {
+              callData.geminiWs.send(JSON.stringify({
+                realtimeInput: {
+                  mediaChunks: [{
+                    mimeType: 'audio/pcm;rate=16000',
+                    data: chunk.toString('base64')
+                  }]
+                }
+              }))
+            }
           }
         }
       } catch (e) {
@@ -588,7 +601,7 @@ app.post('/webhook/call', async (req, res) => {
       startedAt: Date.now(),
       opusEncoder: new OpusScript(48000, 1, OpusScript.Application.VOIP), // 48kHz native Opus encoder
       opusDecoder: new OpusScript(48000, 1, OpusScript.Application.VOIP),
-      audioQueue: PRE_BUFFERED_GREETING_FRAMES.length > 0 ? [...PRE_BUFFERED_GREETING_FRAMES] : [],
+      audioQueue: [], // Start clean - Gemini Live streams speech directly on connection
       seq: 0,
       ts: 0,
       pcmBuffer: Buffer.alloc(0),
