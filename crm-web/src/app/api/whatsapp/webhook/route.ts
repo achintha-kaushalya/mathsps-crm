@@ -100,6 +100,9 @@ async function syncWhatsAppLead(phone: string, grade?: number | null, studentNam
 
 const PROCESSED_CACHE_LIMIT = 500
 const processedMessageIds = new Map<string, number>()
+// Track last message / call timestamp per phone number (to avoid repeated "Ayubowan" greetings within 24h)
+const phoneLastActivity = new Map<string, number>()
+const ONE_DAY_MS = 24 * 60 * 60 * 1000
 
 function isDuplicateMessage(msgId: string): boolean {
   if (!msgId) return false
@@ -114,6 +117,16 @@ function isDuplicateMessage(msgId: string): boolean {
     if (oldestKey) processedMessageIds.delete(oldestKey)
   }
   return false
+}
+
+function shouldSendGreeting(phone: string): boolean {
+  if (!phone) return true
+  const now = Date.now()
+  const lastActive = phoneLastActivity.get(phone)
+  // Only send greeting if this is first contact or inactive for more than 24 hours (1 day)
+  const isNewOrLongTime = !lastActive || (now - lastActive > ONE_DAY_MS)
+  phoneLastActivity.set(phone, now)
+  return isNewOrLongTime
 }
 
 /**
@@ -179,8 +192,12 @@ export async function POST(req: NextRequest) {
           try {
             const detailsAlreadySent = Boolean((call as any).detailsSent)
             if (!detailsAlreadySent) {
-              const followUpGreeting = `ආයුබෝවන්! MathsPS වෙත ඔබ ලබාදුන් ඇමතුමට ස්තූතියි. අපගේ පන්ති කාලසටහන් හෝ ගාස්තු විස්තර දැනගැනීමට ඔබට අවශ්‍ය ශ්‍රේණිය (6, 7, 8, 9, 10, 11) මෙහි එවන්න.`
-              await sendWhatsAppText(callerPhone, followUpGreeting)
+              const sendGreeting = shouldSendGreeting(callerPhone)
+              // Concise, friendly follow-up: Only prepend greeting if first time or after long time (>24h)
+              const followUpText = sendGreeting
+                ? 'ආයුබෝවන්! MathsPS ඇමතුමට ස්තූතියි. පන්ති විස්තර සඳහා ශ්‍රේණිය (5, 6, 7, 8, 9, 10, 11) මෙහි එවන්න.'
+                : 'පන්ති විස්තර ලබාගැනීමට ඔබට අවශ්‍ය ශ්‍රේණිය (5 - 11) මෙහි එවන්න.'
+              await sendWhatsAppText(callerPhone, followUpText)
             }
             await syncWhatsAppLead(callerPhone, null, undefined, `Inbound Voice Call (${callEvent})`)
           } catch (dispatchErr) {
@@ -213,6 +230,8 @@ export async function POST(req: NextRequest) {
 
       let aiResult = null
 
+      const isNewChat = shouldSendGreeting(senderPhone)
+
       if (msgType === 'audio') {
         // Parent sent a Voice Note (Audio message)
         try {
@@ -221,12 +240,15 @@ export async function POST(req: NextRequest) {
           aiResult = await generateParentAiResponse({
             audioBuffer: buffer,
             audioMimeType: mimeType,
-            callerPhone: senderPhone
+            callerPhone: senderPhone,
+            isNewConversation: isNewChat
           })
         } catch (audioErr: any) {
           console.error('Failed to process voice note audio:', audioErr)
           aiResult = {
-            replyText: 'ආයුබෝවන් MathsPS වෙතින්! ඔබගේ හඬ පණිවිඩය (Voice Note) ලැබුණි. කරුණාකර ඔබ විමසන ශ්‍රේණිය (6, 7, 8, 9, 10, 11) හෝ අවශ්‍ය විස්තර මෙහි කෙටි පණිවිඩයකින්ද දන්වන්න.',
+            replyText: isNewChat
+              ? 'ආයුබෝවන් MathsPS වෙතින්! ඔබගේ හඬ පණිවිඩය ලැබුණි. ඔබ විමසන ශ්‍රේණිය (5, 6, 7, 8, 9, 10, 11) මෙහි කෙටි පණිවිඩයකින් එවන්න.'
+              : 'ඔබගේ හඬ පණිවිඩය ලැබුණි. කරුණාකර ඔබ විමසන ශ්‍රේණිය (5 - 11) මෙහි එවන්න.',
             dispatchFlyerGrade: null,
             dispatchBank: false,
             leadInfo: null
@@ -236,7 +258,8 @@ export async function POST(req: NextRequest) {
         // Parent sent a Text or Singlish inquiry
         aiResult = await generateParentAiResponse({
           text: msgBody,
-          callerPhone: senderPhone
+          callerPhone: senderPhone,
+          isNewConversation: isNewChat
         })
       }
 

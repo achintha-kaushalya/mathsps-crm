@@ -128,12 +128,15 @@ export async function generateParentAiResponse(params: {
   audioBuffer?: Buffer
   audioMimeType?: string
   callerPhone?: string
+  isNewConversation?: boolean
 }): Promise<ParentAiResult> {
   const apiKey = process.env.GEMINI_API_KEY
   if (!apiKey) {
     console.warn('GEMINI_API_KEY not set in environment.')
     return {
-      replyText: 'ආයුබෝවන් MathsPS වෙතින්! පන්ති විස්තර සහ ගාස්තු විස්තර සඳහා කරුණාකර ඔබගේ ශ්‍රේණිය (6, 7, 8, 9, 10, 11) සඳහන් කරන්න.',
+      replyText: params.isNewConversation
+        ? 'ආයුබෝවන් MathsPS වෙතින්! පන්ති විස්තර සඳහා ඔබගේ ශ්‍රේණිය (5, 6, 7, 8, 9, 10, 11) සඳහන් කරන්න.'
+        : 'පන්ති විස්තර සඳහා ඔබගේ ශ්‍රේණිය (5 - 11) සඳහන් කරන්න.',
       dispatchFlyerGrade: null,
       dispatchFlyerUrl: null,
       dispatchBank: false,
@@ -190,12 +193,14 @@ ${coursesKnowledgeText}
   Payment slip WhatsApp: 071-3527040 (රිසිට් පත මත නම, වසර ලියා එවන්න).
 - Hotlines: 077 9649617 | සෘජු ඇමතුම්: 071 1826117 | Escalation: ${liveConfig.human_escalation_number || '071 063 1093'}.
 
-Tone & Messaging Style (ප්‍රබුද්ධ සර්ගේ හිතවත් ශෛලිය):
+Tone & Messaging Rules (ප්‍රබුද්ධ සර්ගේ හිතවත් ශෛලිය):
+- CRITICAL GREETING RULE: Do NOT start every message with "ආයුබෝවන්" (Ayubowan).
+  ${params.isNewConversation ? '- This is a new conversation (or after a long time): You may include a brief, warm greeting once at the start.' : '- This is an ONGOING conversation: DO NOT say "ආයුබෝවන්". Directly answer the question or provide details.'}
+- Keep messages SHORT, concise, and clean (1 to 3 short sentences max). Avoid unnecessary walls of text or repeated robotic intros.
 - Always respond in natural, respectful, and motivating Sinhala (සිංහල).
 - Speak warmly and encouragingly like Prabuddha Sampath Sir ("දඩම දඩ වැඩ ගොඩාක් එක්ක ලකුණු 100 ම හදන පන්තිය", "පොඩ්ඩනේ / පුතේ", "යාලුවන්ටත් කියන්න හොදේ").
 - When a parent asks about a grade, provide both Physical (කුරුණෑගල පේරාදෙණි) and Online Zoom options clearly.
 - Provide the official WhatsApp Group Link for that grade so they can join right away!
-- Keep replies clear, conversational, and direct (2-4 sentences).
 
 STRICT ACTION TRIGGER RULES:
 - "dispatchFlyerGrade": Set to grade number (5-11) if the parent inquired about a grade timetable or class flyer.
@@ -316,11 +321,12 @@ CRITICAL: Return ONLY a valid JSON object with the following exact keys:
   const detectedGrade = gradeMatch ? parseInt(gradeMatch[1]) : null
   const wantsBank = textLower.includes('bank') || textLower.includes('account') || textLower.includes('ගිණුම්') || textLower.includes('slip') || textLower.includes('fees') || textLower.includes('ගාස්තු')
 
-  let fallbackReply = 'ආයුබෝවන් MathsPS වෙතින්! මම ඔබගේ පන්ති සහ ගාස්තු විස්තර පිළිබඳ සහායකයා.'
+  const prefix = params.isNewConversation ? 'ආයුබෝවන්! ' : ''
+  let fallbackReply = params.isNewConversation ? 'ආයුබෝවන් MathsPS වෙතින්! මම ඔබගේ පන්ති විස්තර සහායකයා.' : 'MathsPS වෙතින් ඔබ විමසූ පන්ති විස්තර මෙසේය.'
   if (detectedGrade) {
-    fallbackReply = `ආයුබෝවන්! ${detectedGrade} ශ්‍රේණිය පන්ති කාලසටහන සහ විස්තර පත්‍රිකාව පහතින් අමුණා ඇත. වැඩිදුර තොරතුරු සඳහා අප අමතන්න.`
+    fallbackReply = `${prefix}${detectedGrade} ශ්‍රේණිය පන්ති කාලසටහන සහ විස්තර පත්‍රිකාව පහතින් අමුණා ඇත.`
   } else if (wantsBank) {
-    fallbackReply = 'ආයුබෝවන්! ගාස්තු ගෙවීම් සඳහා බැංකු ගිණුම් විස්තර පහතින් එවා ඇත.'
+    fallbackReply = `${prefix}ගාස්තු ගෙවීම් සඳහා බැංකු ගිණුම් විස්තර පහතින් දක්වා ඇත.`
   }
 
   return {
