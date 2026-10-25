@@ -64,6 +64,7 @@ export default function CoursesManagerPage() {
   const [formBillingType, setFormBillingType] = useState<BillingType>('MONTHLY')
   const [formDesc, setFormDesc] = useState('')
   const [formFlyerUrl, setFormFlyerUrl] = useState('')
+  const [formGroupLink, setFormGroupLink] = useState('')
   const [saving, setSaving] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
 
@@ -360,6 +361,7 @@ export default function CoursesManagerPage() {
       setFormBillingType('MONTHLY')
       setFormDesc('')
       setFormFlyerUrl('')
+      setFormGroupLink('')
     }
     setShowAiPanel(false)
     setShowModal(true)
@@ -375,6 +377,7 @@ export default function CoursesManagerPage() {
     setFormBillingType(course.billingType || (course.isStandalone ? 'ONE_TIME' : 'MONTHLY'))
     setFormDesc(course.description || '')
     setFormFlyerUrl(course.flyerUrl || '')
+    setFormGroupLink((course as any).groupLink || '')
     setShowAiPanel(false)
     setShowModal(true)
   }
@@ -385,6 +388,7 @@ export default function CoursesManagerPage() {
 
     const fee = parseFloat(formFee) || 1800
     const flyer = formFlyerUrl.trim() || undefined
+    const groupL = formGroupLink.trim() || undefined
 
     if (isFormStandalone) {
       const code = editingCode || (formCode.trim() ? formCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_') : `SPEC_${Date.now().toString().slice(-5)}`)
@@ -398,7 +402,8 @@ export default function CoursesManagerPage() {
           isStandalone: true,
           billingType: formBillingType,
           description: formDesc.trim() || undefined,
-          flyerUrl: flyer
+          flyerUrl: flyer,
+          groupLink: groupL
         } : c)
       } else {
         updatedStandalone = [...standaloneCourses.filter(c => c.code !== code), {
@@ -408,7 +413,8 @@ export default function CoursesManagerPage() {
           isStandalone: true,
           billingType: formBillingType,
           description: formDesc.trim() || undefined,
-          flyerUrl: flyer
+          flyerUrl: flyer,
+          groupLink: groupL
         }]
       }
 
@@ -428,7 +434,8 @@ export default function CoursesManagerPage() {
           grade: formGrade,
           billingType: formBillingType,
           description: formDesc.trim() || undefined,
-          flyerUrl: flyer
+          flyerUrl: flyer,
+          groupLink: groupL
         } : c)
       } else {
         updatedList = [...currentList.filter(c => c.code !== code), {
@@ -438,7 +445,8 @@ export default function CoursesManagerPage() {
           grade: formGrade,
           billingType: formBillingType,
           description: formDesc.trim() || undefined,
-          flyerUrl: flyer
+          flyerUrl: flyer,
+          groupLink: groupL
         }]
       }
 
@@ -1709,6 +1717,42 @@ export default function CoursesManagerPage() {
                           }}>
                             <ImageIcon size={16} style={{ opacity: 0.6, flexShrink: 0 }} />
                             <div>Paste an image URL above to see a preview thumbnail & auto-send to parents on WhatsApp.</div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* WhatsApp Group Link */}
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                            Official WhatsApp Group Link
+                          </label>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                            Auto-sent to joining students
+                          </span>
+                        </div>
+                        <input
+                          className="input-field"
+                          style={{ width: '100%', fontSize: 11.5, padding: '7px 10px' }}
+                          placeholder="e.g. https://chat.whatsapp.com/G2397Wv6uK7..."
+                          value={formGroupLink}
+                          onChange={e => setFormGroupLink(e.target.value)}
+                        />
+                        {formGroupLink ? (
+                          <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                            <CheckCircle2 size={12} style={{ color: '#10b981' }} />
+                            <a
+                              href={formGroupLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 11 }}
+                            >
+                              Test Group Link <ExternalLink size={10} />
+                            </a>
+                          </div>
+                        ) : (
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                            AI will send this WhatsApp invitation link whenever a parent or student asks how to join.
                           </div>
                         )}
                       </div>

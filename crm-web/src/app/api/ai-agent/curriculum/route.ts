@@ -6,21 +6,27 @@ export const dynamic = 'force-dynamic'
 
 const STANDARD_BANK_DETAILS = `🏛️ *MathsPS — ගාස්තු ගෙවීම් සඳහා බැංකු ගිණුම් විස්තර*
 
-ගිණුම් හිමියාගේ නම: *P. S. Perera / MathsPS*
-
 1️⃣ *Bank of Ceylon (BOC)*
-• ගිණුම් අංකය: *XXXXXXXXXX*
-• ශාඛාව: *Kandy City*
+• ගිණුම් අංකය: *76336481*
+• නම: *A.M.P.S.Adikari*
+• ශාඛාව: *Malkaduwawa*
 
-2️⃣ *Commercial Bank*
-• ගිණුම් අංකය: *XXXXXXXXXX*
-• ශාඛාව: *Kandy*
+2️⃣ *Hatton National Bank (HNB)*
+• ගිණුම් අංකය: *040020010793*
+• නම: *A.M.P.S.Adikari*
+• ශාඛාව: *Chilaw*
 
 3️⃣ *Sampath Bank*
-• ගිණුම් අංකය: *XXXXXXXXXX*
-• ශාඛාව: *Peradeniya*
+• ගිණුම් අංකය: *100652635393*
+• නම: *A.M.P.S.Adikari*
+• ශාඛාව: *Kurunegala Super*
 
-📸 මුදල් ගෙවූ පසු ලදුපත (Payment Slip) හෝ Online Receipt එක මෙම WhatsApp අංකයටම හෝ අපගේ CRM පද්ධතියට එවන්න.`
+4️⃣ *Commercial Bank*
+• ගිණුම් අංකය: *8160095026*
+• නම: *L.M. Hettiarachchi*
+• ශාඛාව: *Kurunegala*
+
+📸 මුදල් ගෙවූ රිසිට් පත මත "නම, වසර" ලියා *071-3527040* ට WhatsApp කරන්න.`
 
 /**
  * GET /api/ai-agent/curriculum
@@ -69,6 +75,7 @@ export async function GET() {
       billingType: string
       notes: string
       flyerUrl: string | null
+      groupLink?: string | null
       isStandalone: boolean
     }> = []
 
@@ -76,7 +83,7 @@ export async function GET() {
     Object.entries(gradeCourses).forEach(([gradeStr, list]) => {
       const g = Number(gradeStr)
       if (Array.isArray(list)) {
-        list.forEach(c => {
+        list.forEach((c: any) => {
           allCourses.push({
             code: c.code,
             name: c.name,
@@ -85,6 +92,7 @@ export async function GET() {
             billingType: c.billingType || 'MONTHLY',
             notes: c.description || `Grade ${g} Mathematics Course.`,
             flyerUrl: c.flyerUrl || null,
+            groupLink: c.groupLink || null,
             isStandalone: false
           })
         })
@@ -93,7 +101,7 @@ export async function GET() {
 
     // 2. Standalone courses
     if (Array.isArray(standaloneCourses)) {
-      standaloneCourses.forEach(c => {
+      standaloneCourses.forEach((c: any) => {
         allCourses.push({
           code: c.code,
           name: c.name,
@@ -102,6 +110,7 @@ export async function GET() {
           billingType: c.billingType || 'ONE_TIME',
           notes: c.description || 'Specialist Mathematics Masterclass.',
           flyerUrl: c.flyerUrl || null,
+          groupLink: c.groupLink || null,
           isStandalone: true
         })
       })
@@ -113,7 +122,16 @@ export async function GET() {
         name: 'MathsPS',
         tutor: 'Prabuddha Sampath Sir (B.Sc.)',
         grades: 'Grade 5 to 11',
-        bankDetails: STANDARD_BANK_DETAILS
+        bankDetails: STANDARD_BANK_DETAILS,
+        socialLinks: {
+          website: 'https://www.prabuddhamaths.com',
+          facebook: 'https://www.facebook.com/PrabuddhaMaths',
+          youtube: 'https://www.youtube.com/@prabuddhasampath4505',
+          tiktok: 'https://www.tiktok.com/@prabuddhasampath?is_from_webapp=1&sender_device=pc',
+          whatsappHotline: '0779649617',
+          directCall: '0711826117',
+          slipWhatsApp: '071-3527040'
+        }
       },
       courses: allCourses,
       timestamp: new Date().toISOString()

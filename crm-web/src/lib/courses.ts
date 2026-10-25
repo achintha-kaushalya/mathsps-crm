@@ -11,6 +11,7 @@ export interface CourseConfig {
   billingType?: BillingType
   description?: string // Rich physical, online, and syllabus notes for AI ingestion
   flyerUrl?: string // Promotional post image link for WhatsApp dispatch
+  groupLink?: string // WhatsApp community/group link for this grade/class
 }
 
 export interface GradeConfig {
@@ -24,12 +25,13 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
   5: [
     {
       code: 'GR5_FOUNDATION',
-      name: 'Grade 5–6 — Foundation Maths',
+      name: 'Grade 5–6 — Foundation Maths (පදනම් ගණිතය)',
       defaultFee: 1500,
       grade: 5,
       billingType: 'MONTHLY',
-      description: 'Physical & Online Foundation: ගණිතය මූලික සංකල්ප, ලකුණු 75+ ඉලක්ක කරගත් සරල ක්‍රමවේදය.',
-      flyerUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800'
+      groupLink: 'https://chat.whatsapp.com/ILXpa5icYao6Kwpk5Qvawn',
+      flyerUrl: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/2d0a1a83-67e5-40c8-9534-93963ea1fb98-5cbcd4f1-920c-49c6-9fc4-0fb1fd79330c.jpeg',
+      description: 'Online: ලංකාවටම Online — බදාදා හවස 6.00 ට.\n• ශිෂ්‍යත්වය නිමකළ 5 න් 6 ට යන පොඩ්ඩන්ගේ Logic එක හදන්නම ඇරඹෙන පදනම් ගණිතය.\n• WhatsApp Group: https://chat.whatsapp.com/ILXpa5icYao6Kwpk5Qvawn\n• LMS: www.prabuddhamaths.com | Tutes Speed Post මඟින් නිවසටම.'
     }
   ],
   6: [
@@ -39,8 +41,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 1500,
       grade: 6,
       billingType: 'MONTHLY',
-      description: 'Online Live Zoom: සෑම සඳුදා දිනකම සවස 3.30 - 6.00 (LMS Recordings සහිතව). මුල සිට සිද්ධාන්ත සහ වාර විභාග ප්‍රශ්න සාකච්ඡාව.',
-      flyerUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800'
+      description: 'Physical: කුරුණෑගල - පේරාදෙණි ආයතනය (රජපිහිල්ල පාර)\n• සාමාන්‍ය පන්තිය: අඟහරුවාදා ප.ව 2.30 - 4.30\n• රාත්‍රී පන්තිය: සඳුදා ප.ව 5.00 - 7.00\n• Paper Class: සිකුරාදා ප.ව 6.00 - 7.00 (Online)\nLMS / Recordings: www.prabuddhamaths.com | Contact: 077 9649617',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     }
   ],
   7: [
@@ -50,8 +52,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 1500,
       grade: 7,
       billingType: 'MONTHLY',
-      description: 'Online Live Zoom: සෑම අඟහරුවාදා දිනකම සවස 3.30 - 6.00 (LMS Recordings සහිතව). පාසල් පෙළපොත මුල සිට ආවරණය කිරීම.',
-      flyerUrl: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=800'
+      description: 'Physical: කුරුණෑගල - පේරාදෙණි ආයතනය (රජපිහිල්ල පාර)\n• සාමාන්‍ය පන්තිය: සෙනසුරාදා ප.ව 2.30 - 4.30\n• රාත්‍රී පන්තිය: ඉරිදා ප.ව 5.00 - 7.00\n• Paper Class: අඟහරුවාදා ප.ව 5.00 - 6.00 (Online)\nLMS / Recordings: www.prabuddhamaths.com | Contact: 077 9649617',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     }
   ],
   8: [
@@ -61,8 +63,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 1500,
       grade: 8,
       billingType: 'MONTHLY',
-      description: 'Online Live Zoom: සෑම බදාදා දිනකම සවස 3.30 - 6.00 (LMS Recordings සහිතව). වීජ ගණිතය සහ ජ්‍යාමිතිය ප්‍රායෝගික පුහුණුව.',
-      flyerUrl: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?q=80&w=800'
+      description: 'Physical: කුරුණෑගල - පේරාදෙණි ආයතනය (රජපිහිල්ල පාර)\n• සාමාන්‍ය පන්තිය: සඳුදා ප.ව 2.30 - 4.30\n• රාත්‍රී පන්තිය: සෙනසුරාදා ප.ව 5.00 - 7.00\n• Paper Class: අඟහරුවාදා ප.ව 6.00 - 7.00 (Online)\nLMS / Recordings: www.prabuddhamaths.com | Contact: 077 9649617',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     }
   ],
   9: [
@@ -72,8 +74,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 1500,
       grade: 9,
       billingType: 'MONTHLY',
-      description: 'Online Live Zoom: සෑම බ්‍රහස්පතින්දා දිනකම සවස 3.30 - 6.00 (LMS Recordings සහිතව). 9 ශ්‍රේණිය සම්පූර්ණ සිද්ධාන්ත.',
-      flyerUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?q=80&w=800'
+      description: 'Physical: කුරුණෑගල - පේරාදෙණි ආයතනය (රජපිහිල්ල පාර)\n• සාමාන්‍ය Theory: සෙනසුරාදා පෙ.ව 10.00 - 12.00 | රාත්‍රී Theory: සඳුදා ප.ව 7.00 - 9.00\n• Paper Class (Physical): සිකුරාදා ප.ව 3.00 - 5.00\n• Revision: අඟහරුවාදා ප.ව 9.30 - 10.30 (Online)\nLMS / Recordings: www.prabuddhamaths.com | Contact: 077 9649617',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     },
     {
       code: 'GR9_PAPER',
@@ -81,8 +83,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 1500,
       grade: 9,
       billingType: 'MONTHLY',
-      description: 'Online Live Zoom: ප්‍රශ්න පත්‍ර පන්තිය. පසුගිය වාර විභාග ප්‍රශ්න පත්‍ර සාකච්ඡාව.',
-      flyerUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?q=80&w=800'
+      description: 'Physical: කුරුණෑගල - පේරාදෙණි ආයතනය (රජපිහිල්ල පාර)\n• Paper Class (Physical): සිකුරාදා ප.ව 3.00 - 5.00\nLMS / Recordings: www.prabuddhamaths.com',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     },
     {
       code: 'GR9_BOTH',
@@ -90,8 +92,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 2500,
       grade: 9,
       billingType: 'MONTHLY',
-      description: 'සිද්ධාන්ත සහ ප්‍රශ්න පත්‍ර පන්ති දෙකම එකවර සහභාගී වන සිසුන් සඳහා විශේෂ පැකේජය.',
-      flyerUrl: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?q=80&w=800'
+      description: 'Physical: කුරුණෑගල - පේරාදෙණි ආයතනය (රජපිහිල්ල පාර)\n• Theory & Paper ඒකාබද්ධ පැකේජය\n• Revision: අඟහරුවාදා ප.ව 9.30 - 10.30 (Online)\nLMS / Recordings: www.prabuddhamaths.com | Contact: 077 9649617',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     }
   ],
   10: [
@@ -101,8 +103,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 1800,
       grade: 10,
       billingType: 'MONTHLY',
-      description: 'Physical & Online: සෑම සිකුරාදා දිනකම සවස 3.00 - 6.30 (Physical: MathsPS Kandy Hall | Online: Zoom Live). O/L ඉලක්කගත A සාමාර්ථ මඟපෙන්වීම.',
-      flyerUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800'
+      description: 'Physical: කුරුණෑගල - පේරාදෙණි ආයතනය (රජපිහිල්ල පාර)\n• සාමාන්‍ය Theory: සෙනසුරාදා ප.ව 12.00 - 3.00 | රාත්‍රී Theory: සෙනසුරාදා ප.ව 7.15 - 9.30\n• Paper Class (Physical): ඉරිදා ප.ව 3.00 - 5.00 හෝ බදාදා ප.ව 7.15 - 9.30\n• Revision: සිකුරාදා ප.ව 9.30 - 10.30 (Online)\nLMS / Recordings: www.prabuddhamaths.com | Contact: 077 9649617',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     },
     {
       code: 'GR10_PAPER',
@@ -110,8 +112,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 1800,
       grade: 10,
       billingType: 'MONTHLY',
-      description: 'සතිපතා Model Papers සහ Speed tests ලකුණු ලබාදීම සමඟ සාකච්ඡා කෙරේ.',
-      flyerUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800'
+      description: 'Physical: කුරුණෑගල - පේරාදෙණි ආයතනය (රජපිහිල්ල පාර)\n• Paper Class (Physical): ඉරිදා ප.ව 3.00 - 5.00 හෝ බදාදා ප.ව 7.15 - 9.30\nLMS / Recordings: www.prabuddhamaths.com',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     },
     {
       code: 'GR10_BOTH',
@@ -119,8 +121,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 3000,
       grade: 10,
       billingType: 'MONTHLY',
-      description: '10 ශ්‍රේණිය සිද්ධාන්ත සහ ප්‍රශ්න පත්‍ර ඒකාබද්ධ පූර්ණ පාඨමාලාව.',
-      flyerUrl: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800'
+      description: 'Physical: කුරුණෑගල - පේරාදෙණි ආයතනය (රජපිහිල්ල පාර)\n• 10 ශ්‍රේණිය Theory + Paper ඒකාබද්ධ පූර්ණ පාඨමාලාව\n• Revision: සිකුරාදා ප.ව 9.30 - 10.30 (Online)\nLMS / Recordings: www.prabuddhamaths.com | Contact: 077 9649617',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     }
   ],
   11: [
@@ -130,8 +132,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 1800,
       grade: 11,
       billingType: 'MONTHLY',
-      description: 'Physical & Online: සෑම සෙනසුරාදා දිනකම උදෑසන 8.00 - 12.30 (Physical Kandy Hall & Zoom Live). O/L සම්පූර්ණ විෂය නිර්දේශය ආවරණය කිරීම.',
-      flyerUrl: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=800'
+      description: 'Physical: කුරුණෑගල - පේරාදෙණි ආයතනය (රජපිහිල්ල පාර)\n• සාමාන්‍ය Theory: සෙනසුරාදා පෙ.ව 7.30 - 10.00 | රාත්‍රී Theory: සිකුරාදා ප.ව 7.00 - 9.30\n• Paper Class (Physical): ඉරිදා ප.ව 1.00 - 3.00 හෝ අඟහරුවාදා ප.ව 7.15 - 9.30\n• Revision: බදාදා ප.ව 9.30 - 11.30 (Online)\n• සතියට පැයක් ජ්‍යාමිතිය (නොමිලේ): සඳුදා ප.ව 9.30 - 10.30 (Online)\nLMS / Recordings: www.prabuddhamaths.com | Contact: 077 9649617',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     },
     {
       code: 'GR11_PAPER',
@@ -139,8 +141,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 1800,
       grade: 11,
       billingType: 'MONTHLY',
-      description: 'O/L Past Papers වසර 15 සහ Model Papers සාකච්ඡාව. ලකුණු ලබාදීම සහ තනි තනිව අඩුපාඩු නිවැරදි කිරීම.',
-      flyerUrl: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=800'
+      description: 'Physical: කුරුණෑගල - පේරාදෙණි ආයතනය (රජපිහිල්ල පාර)\n• Paper Class (Physical): ඉරිදා ප.ව 1.00 - 3.00 හෝ අඟහරුවාදා ප.ව 7.15 - 9.30\nLMS / Recordings: www.prabuddhamaths.com',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     },
     {
       code: 'GR11_REVISION',
@@ -148,8 +150,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 1800,
       grade: 11,
       billingType: 'MONTHLY',
-      description: 'විභාගයට පෙර කෙටි ක්‍රම සහ සිද්ධාන්ත ඉක්මන් පුනරීක්ෂණය.',
-      flyerUrl: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=800'
+      description: 'Online Live Zoom: බදාදා ප.ව 9.30 - 11.30 O/L ඉක්මන් පුනරීක්ෂණය\nLMS / Recordings: www.prabuddhamaths.com',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     },
     {
       code: 'GR11_BOTH',
@@ -157,8 +159,8 @@ export const DEFAULT_GRADE_COURSES: Record<number, CourseConfig[]> = {
       defaultFee: 3500,
       grade: 11,
       billingType: 'MONTHLY',
-      description: '11 ශ්‍රේණිය O/L A සාමාර්ථයක් සහතික කෙරෙන Theory, Paper සහ Revision සියලු පන්ති ඇතුළත් Full Package එක.',
-      flyerUrl: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=800'
+      description: 'Physical: කුරුණෑගල - පේරාදෙණි ආයතනය (රජපිහිල්ල පාර)\n• Theory + Paper + Revision + සතියට පැයක් නොමිලේ ජ්‍යාමිතිය සියල්ල ඇතුළත් Full Package\nLMS / Recordings: www.prabuddhamaths.com | Contact: 077 9649617',
+      flyerUrl: 'https://mathsps-lead-crm.vercel.app/flyers/kurunegala-peradeniya-schedule.jpg'
     }
   ]
 }

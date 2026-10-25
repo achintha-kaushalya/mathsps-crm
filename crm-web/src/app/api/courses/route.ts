@@ -12,7 +12,8 @@ const CourseConfigSchema = z.object({
   isStandalone: z.boolean().optional(),
   billingType: z.enum(['MONTHLY', 'ONE_TIME', 'TERM']).optional().default('MONTHLY'),
   description: z.string().optional().nullable().transform(v => v ?? undefined),
-  flyerUrl: z.string().optional().nullable().transform(v => v ?? undefined)
+  flyerUrl: z.string().optional().nullable().transform(v => v ?? undefined),
+  groupLink: z.string().optional().nullable().transform(v => v ?? undefined)
 }).passthrough()
 
 const SaveCoursesSchema = z.object({
