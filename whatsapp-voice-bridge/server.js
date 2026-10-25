@@ -428,7 +428,11 @@ function startMediaPump(callId) {
 
     let payload = silenceOpus
 
-    if (c.audioQueue.length > 0) {
+    // If WebRTC is still handshaking (connecting), keep transmitting silence comfort packets
+    // so WhatsApp RTP receiver synchronizes clock, jitter and sequence numbers before speech begins.
+    const isWebrtcReady = c.pc && c.pc.connectionState === 'connected'
+
+    if (c.audioQueue.length > 0 && isWebrtcReady) {
       if (!isPlayingSpeech) {
         if (c.audioQueue.length >= PRE_BUFFER_THRESHOLD) {
           isPlayingSpeech = true
