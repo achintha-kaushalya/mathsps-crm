@@ -23,21 +23,23 @@ export interface ParentAiResult {
 }
 
 const DEFAULT_TIMETABLES: Record<number, string> = {
-  6: 'සෑම සඳුදා දිනකම සවස 3.30 - 6.00',
-  7: 'සෑම අඟහරුවාදා දිනකම සවස 3.30 - 6.00',
-  8: 'සෑම බදාදා දිනකම සවස 3.30 - 6.00',
-  9: 'සෑම බ්‍රහස්පතින්දා දිනකම සවස 3.30 - 6.00',
-  10: 'සෑම සිකුරාදා දිනකම සවස 3.00 - 6.30',
-  11: 'සෑම සෙනසුරාදා දිනකම උදෑසන 8.00 - 12.30'
+  5: 'බදාදා හවස 6.00 ට (Online)',
+  6: 'සෙනසුරාදා පෙ.ව 8.00 - 10.30 (කුරුණෑගල පේරාදෙණි) | සිකුරාදා සවස 6.00 - 8.30 (Online)',
+  7: 'සෙනසුරාදා පෙ.ව 10.30 - 1.00 (කුරුණෑගල පේරාදෙණි) | බ්‍රහස්පතින්දා සවස 6.00 - 8.30 (Online)',
+  8: 'සෙනසුරාදා ප.ව 1.30 - 4.00 (කුරුණෑගල පේරාදෙණි) | අඟහරුවාදා සවස 6.00 - 8.30 (Online)',
+  9: 'සෙනසුරාදා ප.ව 4.00 - 6.30 (කුරුණෑගල පේරාදෙණි) | සඳුදා සවස 6.00 - 8.30 (Online)',
+  10: 'ඉරිදා පෙ.ව 8.00 - 10.30 (කුරුණෑගල පේරාදෙණි) | ඉරිදා සවස 6.00 - 8.30 (Online)',
+  11: 'ඉරිදා පෙ.ව 10.30 - 1.00 (කුරුණෑගල පේරාදෙණි) | සෙනසුරාදා සවස 6.00 - 8.30 (Online)'
 }
 
 const DEFAULT_FLYERS: Record<number, string> = {
-  6: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800',
-  7: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=800',
-  8: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?q=80&w=800',
-  9: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?q=80&w=800',
-  10: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800',
-  11: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=800'
+  5: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/2d0a1a83-67e5-40c8-9534-93963ea1fb98-5cbcd4f1-920c-49c6-9fc4-0fb1fd79330c.jpeg',
+  6: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/4da445c4-0afc-48bb-98c2-1855cff84dfc-d6c8f425-0941-420a-a599-9fe25ea977c0.jpeg',
+  7: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/3b51b1f6-ad7e-4629-bf34-ae4e8bcd2aea-4c1661d2-a9c7-4182-90a6-eb860ff6ef7f.jpeg',
+  8: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/03bb673a-a0c8-4ff1-a923-dccdb566ec1c-a9874783-c4a1-48ab-8807-22a1bfe9799c.jpeg',
+  9: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/cbacbad9-3fc8-4b75-885e-9748301e8f17-5b0b321f-bb6c-4db1-9d7f-f4ffc1b92318.jpeg',
+  10: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/891b362f-d3b0-457b-9e7b-7fb1746070fb-07cf26a8-277e-4b83-8181-657357760979.jpeg',
+  11: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/8580596b-6d43-44d0-93ff-f67eb9315128-5730abb1-a7f6-4ff1-ab82-3da6f6f52759.jpeg'
 }
 
 /**
@@ -53,33 +55,50 @@ export async function getLiveAiConfig() {
 
     if (supabaseUrl && serviceKey) {
       const supabase = createClient(supabaseUrl, serviceKey)
-      const { data } = await supabase
+      let { data } = await supabase
         .from('members')
         .select('notes')
-        .in('role', ['admin', 'owner'])
-        .limit(1)
+        .eq('name', 'Admin User')
         .maybeSingle()
+
+      if (!data) {
+        const res = await supabase
+          .from('members')
+          .select('notes')
+          .in('role', ['admin', 'owner'])
+          .limit(1)
+          .maybeSingle()
+        data = res.data
+      }
 
       if (data?.notes) {
         const parsed = JSON.parse(data.notes)
         if (parsed.grade_courses) gradeCourses = parsed.grade_courses
         if (parsed.standalone_courses) standaloneCourses = parsed.standalone_courses
-        if (parsed.ai_agent_config) {
-          return {
-            ...parsed.ai_agent_config,
-            grade_courses: gradeCourses,
-            standalone_courses: standaloneCourses
-          }
-        }
       }
     }
   } catch (e) {
     console.error('Error loading AI config from db, falling back to defaults:', e)
   }
 
+  // Derive real flyer map and timetable map directly from grade_courses if present
+  const derivedFlyers: Record<number, string> = { ...DEFAULT_FLYERS }
+  const derivedTimetables: Record<number, string> = { ...DEFAULT_TIMETABLES }
+
+  if (gradeCourses && Object.keys(gradeCourses).length > 0) {
+    Object.entries(gradeCourses).forEach(([grStr, courses]) => {
+      const gr = parseInt(grStr, 10)
+      if (Array.isArray(courses) && courses.length > 0) {
+        const first = courses[0]
+        if (first.flyerUrl) derivedFlyers[gr] = first.flyerUrl
+        if (first.description) derivedTimetables[gr] = first.description
+      }
+    })
+  }
+
   return {
-    timetables: DEFAULT_TIMETABLES,
-    class_flyers: DEFAULT_FLYERS,
+    timetables: derivedTimetables,
+    class_flyers: derivedFlyers,
     grade_courses: gradeCourses,
     standalone_courses: standaloneCourses,
     human_escalation_number: '071 063 1093'
@@ -176,8 +195,33 @@ Grade 11: ${liveConfig.timetables?.[11] || DEFAULT_TIMETABLES[11]}
     })
   }
 
-  const systemInstruction = `You are MathsPS AI Agent, the official intelligent voice and chat representative for Prabuddha Sampath Sir's Mathematics Institute in Sri Lanka (MathsPS).
-Your primary role is to talk with parents and students inquiring about classes (Grade 5 to Grade 11 and specialist courses).
+  const systemInstruction = `You are the official intelligent representative for Prabuddha Sampath Sir's Mathematics Classes in Sri Lanka (ප්‍රබුද්ධ සම්පත් සර්ගේ ගණිත පන්ති).
+DO NOT use the word or brand "MathsPS" anywhere! The official identity is always "ප්‍රබුද්ධ සම්පත්" / "Prabuddha Sampath Sir".
+
+Your primary role is to talk warmly, professionally, and dynamically with parents and students inquiring about classes (Grade 5 to Grade 11 and specialist courses).
+
+LANGUAGE & CONVERSATIONAL INTELLIGENCE RULES:
+1. DYNAMIC LANGUAGE MATCHING:
+   - If parent/student speaks or messages in Sinhala -> Respond in fluent, conversational, natural Sinhala / Singlish.
+   - If parent/student speaks or messages in English -> Immediately and smoothly switch to polite, warm, and natural English!
+   - If they mix Sinhala & English (Singlish) -> Respond in modern natural Singlish.
+2. NO ROBOTIC / BOOKISH SINHALA ("අමු සිංහල එපා"):
+   - DO NOT say awkward bookish terms like "න්‍යාය පන්ති" or "සිද්ධාන්ත පන්ති". Always say "Theory Class", "Paper Class", "Revision Class", "Zoom Live", "Recordings".
+   - Speak naturally like a friendly, educated coordinator in Sri Lanka.
+3. PRABUDDHA SIR'S MOTIVATIONAL STYLE & HIGHLIGHT EMOJIS:
+   - Structure messages with clean line breaks and 2-3 pleasant highlight emojis (e.g. 📚, ✨, 🎯, 💡, ⏰, 📍).
+   - Use warm Sri Lankan phrasing: "දඩම දඩ වැඩ ගොඩාක් එක්ක ලකුණු 100 ම හදන පන්තිය", "පොඩ්ඩනේ / පුතේ", "යාලුවන්ටත් කියන්න හොදේ".
+4. ACCURATE WHATSAPP GROUP LINKS FOR INQUIRED GRADES:
+   - When a parent asks for a group link (e.g., "Give me grade 7 group link", "10 වසර group link එක එවන්න"), PROVIDE THE EXACT OFFICIAL WHATSAPP GROUP LINK for that grade from the knowledge base below!
+   - Official WhatsApp Groups:
+     * Grade 5: https://chat.whatsapp.com/ILXpa5icYao6Kwpk5Qvawn
+     * Grade 6: https://chat.whatsapp.com/G2397Wv6uK7EIlRRTTCJf7
+     * Grade 7: https://chat.whatsapp.com/K5DxR5PRcu4AijDJOn3Pcw
+     * Grade 8: https://chat.whatsapp.com/ERL0mdGSGl9FbsBL2vvYgC
+     * Grade 9: https://chat.whatsapp.com/GHmmR9wPv7oIoc4PtUumNi
+     * Grade 10: https://chat.whatsapp.com/CreBv2ciwaB8To2wuqV1On
+     * Grade 11: https://chat.whatsapp.com/GfTX4ncYpzcGV6pQD3uEP4
+   - NEVER make up or send dummy group links like "grade7-mathsps"!
 
 Key Knowledge Base:
 - Teacher: Prabuddha Sampath Sir (B.Sc. / Renowned Mathematics Educator / ලංකාවේ Maths Brand එක).
@@ -193,17 +237,14 @@ ${coursesKnowledgeText}
   Payment slip WhatsApp: 071-3527040 (රිසිට් පත මත නම, වසර ලියා එවන්න).
 - Hotlines: 077 9649617 | සෘජු ඇමතුම්: 071 1826117 | Escalation: ${liveConfig.human_escalation_number || '071 063 1093'}.
 
-Tone & Messaging Rules (ප්‍රබුද්ධ සර්ගේ හිතවත් ශෛලිය):
+Tone & Messaging Rules:
 - CRITICAL GREETING RULE: Do NOT start every message with "ආයුබෝවන්" (Ayubowan).
   ${params.isNewConversation ? '- This is a new conversation (or after a long time): You may include a brief, warm greeting once at the start.' : '- This is an ONGOING conversation: DO NOT say "ආයුබෝවන්". Directly answer the question or provide details.'}
-- Keep messages SHORT, concise, and clean (1 to 3 short sentences max). Avoid unnecessary walls of text or repeated robotic intros.
-- Always respond in natural, respectful, and motivating Sinhala (සිංහල).
-- Speak warmly and encouragingly like Prabuddha Sampath Sir ("දඩම දඩ වැඩ ගොඩාක් එක්ක ලකුණු 100 ම හදන පන්තිය", "පොඩ්ඩනේ / පුතේ", "යාලුවන්ටත් කියන්න හොදේ").
-- When a parent asks about a grade, provide both Physical (කුරුණෑගල පේරාදෙණි) and Online Zoom options clearly.
-- Provide the official WhatsApp Group Link for that grade so they can join right away!
+- Keep messages neat, formatted with spacing and bullet points. Never dump all information into one giant paragraph.
+- When asked about class details, mention Physical (කුරුණෑගල පේරාදෙණි) and Online Zoom options clearly.
 
 STRICT ACTION TRIGGER RULES:
-- "dispatchFlyerGrade": Set to grade number (5-11) if the parent inquired about a grade timetable or class flyer.
+- "dispatchFlyerGrade": Set to grade number (5-11) if the parent inquired about a grade timetable, class flyer, or group link.
 - "dispatchFlyerUrl": If the parent asked about a specific course or grade, return that exact flyer URL!
 - "dispatchBank": ONLY set this to true if the parent SPECIFICALLY asked for bank accounts, fees payment details, or bank slip instructions.
 - "leadInfo": Extract studentName, grade, school ONLY if provided by the parent.

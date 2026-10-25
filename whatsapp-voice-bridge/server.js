@@ -30,42 +30,50 @@ const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 const GEMINI_VOICE_NAME = process.env.GEMINI_VOICE_NAME || 'Charon' // 'Charon' (Deep, calm, professional male), 'Aoede' (Warm, natural female)
 const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || 'https://mathsps-lead-crm.vercel.app/api/whatsapp/webhook'
 
-// Official MathsPS Content Data
+// Official Prabuddha Sampath Content Data
 const GRADE_FLYERS = {
-  6: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800',
-  7: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=800',
-  8: 'https://images.unsplash.com/photo-1509228468518-180dd4864904?q=80&w=800',
-  9: 'https://images.unsplash.com/photo-1580582932707-520aed937b7b?q=80&w=800',
-  10: 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800',
-  11: 'https://images.unsplash.com/photo-1596495578065-6e0763fa1178?q=80&w=800'
+  5: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/2d0a1a83-67e5-40c8-9534-93963ea1fb98-5cbcd4f1-920c-49c6-9fc4-0fb1fd79330c.jpeg',
+  6: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/4da445c4-0afc-48bb-98c2-1855cff84dfc-d6c8f425-0941-420a-a599-9fe25ea977c0.jpeg',
+  7: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/3b51b1f6-ad7e-4629-bf34-ae4e8bcd2aea-4c1661d2-a9c7-4182-90a6-eb860ff6ef7f.jpeg',
+  8: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/03bb673a-a0c8-4ff1-a923-dccdb566ec1c-a9874783-c4a1-48ab-8807-22a1bfe9799c.jpeg',
+  9: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/cbacbad9-3fc8-4b75-885e-9748301e8f17-5b0b321f-bb6c-4db1-9d7f-f4ffc1b92318.jpeg',
+  10: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/891b362f-d3b0-457b-9e7b-7fb1746070fb-07cf26a8-277e-4b83-8181-657357760979.jpeg',
+  11: 'https://wpp.raybeamdigital.com/assets/media/flow_nodes/8580596b-6d43-44d0-93ff-f67eb9315128-5730abb1-a7f6-4ff1-ab82-3da6f6f52759.jpeg'
 }
 
 const GRADE_TIMETABLES = {
-  6: 'සෑම සඳුදා දිනකම සවස 3.30 - 6.00',
-  7: 'සෑම අඟහරුවාදා දිනකම සවස 3.30 - 6.00',
-  8: 'සෑම බදාදා දිනකම සවස 3.30 - 6.00',
-  9: 'සෑම බ්‍රහස්පතින්දා දිනකම සවස 3.30 - 6.00',
-  10: 'සෑම සිකුරාදා දිනකම සවස 3.00 - 6.30',
-  11: 'සෑම සෙනසුරාදා දිනකම උදෑසන 8.00 - 12.30'
+  5: 'බදාදා හවස 6.00 ට (Online Zoom)',
+  6: 'සෙනසුරාදා පෙ.ව 8.00 - 10.30 (කුරුණෑගල පේරාදෙණි) | සිකුරාදා සවස 6.00 - 8.30 (Online)',
+  7: 'සෙනසුරාදා පෙ.ව 10.30 - 1.00 (කුරුණෑගල පේරාදෙණි) | බ්‍රහස්පතින්දා සවස 6.00 - 8.30 (Online)',
+  8: 'සෙනසුරාදා ප.ව 1.30 - 4.00 (කුරුණෑගල පේරාදෙණි) | අඟහරුවාදා සවස 6.00 - 8.30 (Online)',
+  9: 'සෙනසුරාදා ප.ව 4.00 - 6.30 (කුරුණෑගල පේරාදෙණි) | සඳුදා සවස 6.00 - 8.30 (Online)',
+  10: 'ඉරිදා පෙ.ව 8.00 - 10.30 (කුරුණෑගල පේරාදෙණි) | ඉරිදා සවස 6.00 - 8.30 (Online)',
+  11: 'ඉරිදා පෙ.ව 10.30 - 1.00 (කුරුණෑගල පේරාදෙණි) | සෙනසුරාදා සවස 6.00 - 8.30 (Online)'
 }
 
-const BANK_DETAILS_TEXT = `🏛️ *MathsPS — ගාස්තු ගෙවීම් සඳහා බැංකු ගිණුම් විස්තර*
-
-ගිණුම් හිමියාගේ නම: *P. S. Perera / MathsPS*
+const BANK_DETAILS_TEXT = `🏛️ *ප්‍රබුද්ධ සම්පත් — ගාස්තු ගෙවීම් සඳහා නිල බැංකු ගිණුම් විස්තර*
 
 1️⃣ *Bank of Ceylon (BOC)*
-• ගිණුම් අංකය: *XXXXXXXXXX*
-• ශාඛාව: *Kandy City*
+• ගිණුම් අංකය: *76336481*
+• නම: *A.M.P.S.Adikari*
+• ශාඛාව: *Malkaduwawa*
 
-2️⃣ *Commercial Bank*
-• ගිණුම් අංකය: *XXXXXXXXXX*
-• ශාඛාව: *Kandy*
+2️⃣ *Hatton National Bank (HNB)*
+• ගිණුම් අංකය: *040020010793*
+• නම: *A.M.P.S.Adikari*
+• ශාඛාව: *Chilaw*
 
 3️⃣ *Sampath Bank*
-• ගිණුම් අංකය: *XXXXXXXXXX*
-• ශාඛාව: *Peradeniya*
+• ගිණුම් අංකය: *100652635393*
+• නම: *A.M.P.S.Adikari*
+• ශාඛාව: *Kurunegala Super*
 
-📸 මුදල් ගෙවූ පසු ලදුපත (Payment Slip) හෝ Online Receipt එක මෙම WhatsApp අංකයටම හෝ අපගේ CRM පද්ධතියට එවන්න.`
+4️⃣ *Commercial Bank*
+• ගිණුම් අංකය: *8160095026*
+• නම: *L.M. Hettiarachchi*
+• ශාඛාව: *Kurunegala*
+
+📸 *මුදල් ගෙවූ රිසිට් පත මත "නම, වසර" ලියා 071-3527040 ට WhatsApp කරන්න.*`
 
 // In-memory debug logs for diagnosis
 const debugLogs = []
@@ -214,20 +222,23 @@ function dispatchDetailsForGrade(callId, query, includeBank = true) {
   let flyerCaption = undefined
 
   if (matchedCourse) {
-    msgText += `📚 *MathsPS — ${matchedCourse.name}*\n\n`
+    msgText += `📚 *ප්‍රබුද්ධ සම්පත් — ${matchedCourse.name}*\n\n`
     msgText += `💰 පාඨමාලා ගාස්තුව: *රු. ${matchedCourse.fee.toLocaleString()} (${matchedCourse.billingType === 'ONE_TIME' ? 'One-Time' : 'මාසිකව'})*\n`
     if (matchedCourse.notes) {
       msgText += `📌 විස්තර සහ වේලාවන්:\n${matchedCourse.notes}\n\n`
     }
+    if (matchedCourse.groupLink) {
+      msgText += `🔗 නිල WhatsApp සමූහය (Group Link):\n${matchedCourse.groupLink}\n\n`
+    }
     flyerUrl = matchedCourse.flyerUrl || (matchedCourse.grade ? GRADE_FLYERS[matchedCourse.grade] : null)
-    flyerCaption = `📊 MathsPS — ${matchedCourse.name}`
+    flyerCaption = `📊 ප්‍රබුද්ධ සම්පත් — ${matchedCourse.name}`
   } else if (gradeNum && GRADE_TIMETABLES[gradeNum]) {
-    msgText += `📚 *MathsPS — ${gradeNum} ශ්‍රේණිය පන්ති කාලසටහන*\n\n`
+    msgText += `📚 *ප්‍රබුද්ධ සම්පත් — ${gradeNum} ශ්‍රේණිය පන්ති කාලසටහන*\n\n`
     msgText += `👨‍🏫 ගුරුතුමා: *ප්‍රබුද්ධ සම්පත් සර් (B.Sc.)*\n`
     msgText += `⏰ වේලාව: *${GRADE_TIMETABLES[gradeNum]}*\n`
-    msgText += `📍 ක්‍රමවේදය: Physical පන්ති සහ Online Zoom Live (LMS Recordings සහිතව)\n\n`
+    msgText += `📍 ක්‍රමවේදය: Physical පන්ති (කුරුණෑගල පේරාදෙණි) සහ Online Zoom Live (LMS Recordings සහිතව)\n\n`
     flyerUrl = GRADE_FLYERS[gradeNum] || null
-    flyerCaption = `📊 MathsPS — ${gradeNum} ශ්‍රේණිය පන්ති විස්තර`
+    flyerCaption = `📊 ප්‍රබුද්ධ සම්පත් — ${gradeNum} ශ්‍රේණිය පන්ති විස්තර`
   }
 
   if (includeBank) {
@@ -235,7 +246,7 @@ function dispatchDetailsForGrade(callId, query, includeBank = true) {
   }
 
   if (!msgText) {
-    msgText = `ආයුබෝවන්! ඔබ MathsPS වෙතින් විමසූ පන්ති විස්තර මෙසේය.\nඅමතර විස්තර සඳහා ඕනෑම වේලාවක මෙම අංකයට පණිවිඩයක් එවන්න.`
+    msgText = `ආයුබෝවන්! ඔබ ප්‍රබුද්ධ සම්පත් සර්ගේ ගණිත පන්ති වෙතින් විමසූ විස්තර මෙසේය.\nඅමතර විස්තර සඳහා ඕනෑම වේලාවක මෙම අංකයට පණිවිඩයක් එවන්න.`
   }
 
   logEvent('DISPATCHING_WHATSAPP_DETAILS', { callId, phone: c.callerPhone, course: matchedCourse?.name || gradeNum, hasFlyer: Boolean(flyerUrl) })
@@ -277,8 +288,16 @@ function buildSystemPrompt() {
     ).join('\n')
   }
 
-  return `You are the Senior Admissions Coordinator for MathsPS (Prabuddha Sampath Sir's Mathematics Academy, Sri Lanka).
+  return `You are the Senior Admissions Coordinator for Prabuddha Sampath Sir's Mathematics Classes in Sri Lanka (ප්‍රබුද්ධ සම්පත් සර්ගේ ගණිත පන්ති).
+DO NOT use the word or technical brand "MathsPS" anywhere! Your official identity is "ප්‍රබුද්ධ සම්පත්" / "Prabuddha Sampath Sir".
 You are currently speaking directly with a parent or student on a live WhatsApp phone call.
+
+LANGUAGE & CONVERSATIONAL INTELLIGENCE:
+- If caller speaks Sinhala -> Speak in natural, friendly, modern Sri Lankan Sinhala / Singlish.
+- If caller speaks English -> Instantly and smoothly switch to polite, warm, and natural English!
+- Do NOT use awkward bookish Sinhala (අමු සිංහල එපා). Say "Theory Class", "Paper Class", "Revision Class", "Zoom Live", "Recordings".
+- When checking course details or schedules, politely ask for a moment:
+  * "මට පොඩි වෙලාවක් ලබා දෙන්න පුළුවන්ද මම class විස්තර බලනකන්?" or in English: "Could you please give me a brief moment while I check the class details for you?"
 
 CRITICAL SINHALA PRONUNCIATION & PHONETICS RULES:
 - Always speak purely in colloquial, natural, fluent Sri Lankan Sinhala with perfect native pronunciation.
@@ -298,21 +317,21 @@ CRITICAL SINHALA PRONUNCIATION & PHONETICS RULES:
   * Fees: E.g., "Rs. 2,500" speak as "රුපියල් දෙදහස් පන්සියයක්".
 
 Your personality and tone:
-- Speak in a warm, dignified, calm, articulate, and professional Sinhala (ගෞරවනීය, සුහදශීලී, පැහැදිලි කථන ශෛලියක්).
-- Address the caller respectfully using polite honorifics (e.g., "ඔබතුමා / ඔබතුමිය", "කරුණාවෙන්", "ස්තූතියි").
-- Do NOT sound like an automated robotic script. Use natural human conversational pacing, clear pronunciation, and concise answers (1 to 2 sentences per turn).
+- Speak in a warm, dignified, calm, articulate, and professional tone.
+- Address the caller respectfully (e.g., "ඔබතුමා / ඔබතුමිය", "පුතේ", "ස්තූතියි").
+- Keep answers concise and clear (1 to 2 sentences per turn).
 - Accurate facts:
   * Teacher: Prabuddha Sampath Sir (B.Sc.)
   * Available Courses & Schedules:
 ${curriculumText}
-  * Modes: Physical Classes & Online Live Zoom with LMS Recordings (www.prabuddhamaths.com).
-  * Payment: Bank of Ceylon (BOC), Commercial Bank, Sampath Bank.
+  * Modes: Physical Classes at Kurunegala Peradeniya & Online Live Zoom with LMS Recordings (www.prabuddhamaths.com).
+  * Payment: Bank of Ceylon (BOC), Commercial Bank, Sampath Bank, HNB.
 
 SENDING DETAILS TO WHATSAPP RULES:
 - If the caller asks to receive details on WhatsApp (e.g., "මට WhatsApp එකට විස්තර එවන්න", "Send me timetable on WhatsApp", "Bank details එවන්න"):
   1. If grade or course is unknown, ask: "ඔබතුමා විස්තර බලාපොරොත්තු වන්නේ කුමන ශ්‍රේණිය හෝ පාඨමාලාව සඳහාද?"
   2. If grade or course is known or once caller confirms, you MUST call the 'send_whatsapp_details' tool immediately!
-  3. When invoking the tool, say aloud: "මම දැන් ඔබතුමාගේ WhatsApp එකට විස්තර සහ පන්ති කාලසටහන එව්වා. කරුණාකර එය පරීක්ෂා කර බලන්න."
+  3. When invoking the tool, DO NOT say you are sending right now during the call! Say: "මම call එකෙන් පස්සේ ඔබතුමාගේ WhatsApp එකට විස්තර සහ පන්ති කාලසටහන එවන්නම්." (In English: "I will send you all the class details to your WhatsApp right after this call.")
 
 CALL CLOSING RULES:
 - When the caller says "thank you", "thanks", "ok thanks", "bye", "හරි ස්තූතියි", "එහෙනම් තියන්නම්", or wants to hang up:

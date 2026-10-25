@@ -195,8 +195,8 @@ export async function POST(req: NextRequest) {
               const sendGreeting = shouldSendGreeting(callerPhone)
               // Concise, friendly follow-up: Only prepend greeting if first time or after long time (>24h)
               const followUpText = sendGreeting
-                ? 'ආයුබෝවන්! MathsPS ඇමතුමට ස්තූතියි. පන්ති විස්තර සඳහා ශ්‍රේණිය (5, 6, 7, 8, 9, 10, 11) මෙහි එවන්න.'
-                : 'පන්ති විස්තර ලබාගැනීමට ඔබට අවශ්‍ය ශ්‍රේණිය (5 - 11) මෙහි එවන්න.'
+                ? 'ආයුබෝවන්! ප්‍රබුද්ධ සම්පත් සර්ගේ ගණිත පන්ති ඇමතුමට ස්තූතියි. පන්ති විස්තර සඳහා ඔබගේ ශ්‍රේණිය (5 - 11) මෙහි එවන්න.'
+                : 'පන්ති විස්තර ලබාගැනීමට ඔබ විමසන ශ්‍රේණිය (5 - 11) මෙහි එවන්න.'
               await sendWhatsAppText(callerPhone, followUpText)
             }
             await syncWhatsAppLead(callerPhone, null, undefined, `Inbound Voice Call (${callEvent})`)
@@ -264,23 +264,29 @@ export async function POST(req: NextRequest) {
       }
 
       if (aiResult) {
-        // 1. Send AI conversational response in Sinhala
-        await sendWhatsAppText(senderPhone, aiResult.replyText)
-
         const liveConfig = await getLiveAiConfig()
+        const delay = (ms: number) => new Promise(res => setTimeout(res, ms))
 
-        // 2. Auto-dispatch Flyer if inquired
+        // Step 1: Send Flyer FIRST if grade or flyer requested
         if (aiResult.dispatchFlyerUrl || aiResult.dispatchFlyerGrade) {
           const grade = aiResult.dispatchFlyerGrade
-          const flyerUrl = aiResult.dispatchFlyerUrl || (grade ? liveConfig.class_flyers?.[grade] : null) || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800'
-          const timetable = grade ? (liveConfig.timetables?.[grade] || '') : ''
-          const caption = `📊 *MathsPS ${grade ? `${grade} ශ්‍රේණිය ` : ''}පන්ති විස්තර*${timetable ? `\n⏰ ${timetable}` : ''}\nප්‍රබුද්ධ සම්පත් සර් (B.Sc)`
-
-          await sendWhatsAppImage(senderPhone, flyerUrl, caption)
+          const flyerUrl = aiResult.dispatchFlyerUrl || (grade ? liveConfig.class_flyers?.[grade] : null)
+          if (flyerUrl) {
+            const caption = `📊 *${grade ? `${grade} ශ්‍රේණිය ` : ''}පන්ති විස්තර*\n👨‍🏫 *ප්‍රබුද්ධ සම්පත් සර් (B.Sc)*`
+            await sendWhatsAppImage(senderPhone, flyerUrl, caption).catch(e => console.error('Flyer send error:', e))
+            // Realistic human pacing delay between flyer and explanation
+            await delay(1200)
+          }
         }
 
-        // 3. Auto-dispatch Bank Accounts packet if asked
+        // Step 2: Send Text Message Details
+        if (aiResult.replyText) {
+          await sendWhatsAppText(senderPhone, aiResult.replyText)
+        }
+
+        // Step 3: Send Bank Accounts separately with delay if specifically requested
         if (aiResult.dispatchBank) {
+          await delay(1500)
           await sendWhatsAppText(senderPhone, getStandardBankDetailsText())
         }
 

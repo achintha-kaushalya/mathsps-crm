@@ -103,28 +103,30 @@ export async function sendWhatsAppImage(to: string, imageUrl: string, caption?: 
   return result
 }
 
-/**
- * Standard Bank Details Message for Parents
- */
 export function getStandardBankDetailsText(studentCode?: string): string {
   const refCode = studentCode ? `\n⚠️ *බැංකු ලදුපතේ (Slip/Remark) සඳහන් කළ යුතු අංකය:* *${studentCode}*` : ''
 
-  return `🏛️ *MathsPS — ගාස්තු ගෙවීම් සඳහා බැංකු ගිණුම් විස්තර*
-
-ගිණුම් හිමියාගේ නම: *P. S. Perera / MathsPS*
+  return `🏛️ *ප්‍රබුද්ධ සම්පත් — ගාස්තු ගෙවීම් සඳහා නිල බැංකු ගිණුම් විස්තර*
 
 1️⃣ *Bank of Ceylon (BOC)*
-• ගිණුම් අංකය: *XXXXXXXXXX*
-• ශාඛාව: *Kandy City*
+• ගිණුම් අංකය: *76336481*
+• ගිණුම් නම: *A.M.P.S.Adikari*
+• ශාඛාව: *Malkaduwawa*
 
-2️⃣ *Commercial Bank*
-• ගිණුම් අංකය: *XXXXXXXXXX*
-• ශාඛාව: *Kandy*
+2️⃣ *Hatton National Bank (HNB)*
+• ගිණුම් අංකය: *040020010793*
+• ගිණුම් නම: *A.M.P.S.Adikari*
+• ශාඛාව: *Chilaw*
 
 3️⃣ *Sampath Bank*
-• ගිණුම් අංකය: *XXXXXXXXXX*
-• ශාඛාව: *Peradeniya*
-${refCode}
+• ගිණුම් අංකය: *100652635393*
+• ගිණුම් නම: *A.M.P.S.Adikari*
+• ශාඛාව: *Kurunegala Super*
 
-📸 මුදල් ගෙවූ පසු ලදුපත (Payment Slip) හෝ Online Receipt එක මෙම WhatsApp අංකයටම හෝ අපගේ CRM පද්ධතියට එවන්න.`
+4️⃣ *Commercial Bank*
+• ගිණුම් අංකය: *8160095026*
+• ගිණුම් නම: *L.M. Hettiarachchi*
+• ශාඛාව: *Kurunegala*
+${refCode}
+📸 *මුදල් ගෙවූ පසු රිසිට් පත (Slip) මත ශිෂ්‍යයාගේ "නම සහ වසර" පැහැදිලිව ලියා 071-3527040 අංකයට WhatsApp කරන්න.*`
 }

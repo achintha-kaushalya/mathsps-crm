@@ -4,7 +4,7 @@ import { DEFAULT_GRADE_COURSES, DEFAULT_STANDALONE_COURSES, CourseConfig } from 
 
 export const dynamic = 'force-dynamic'
 
-const STANDARD_BANK_DETAILS = `🏛️ *MathsPS — ගාස්තු ගෙවීම් සඳහා බැංකු ගිණුම් විස්තර*
+const STANDARD_BANK_DETAILS = `🏛️ *ප්‍රබුද්ධ සම්පත් — ගාස්තු ගෙවීම් සඳහා නිල බැංකු ගිණුම් විස්තර*
 
 1️⃣ *Bank of Ceylon (BOC)*
 • ගිණුම් අංකය: *76336481*
@@ -26,11 +26,11 @@ const STANDARD_BANK_DETAILS = `🏛️ *MathsPS — ගාස්තු ගෙව
 • නම: *L.M. Hettiarachchi*
 • ශාඛාව: *Kurunegala*
 
-📸 මුදල් ගෙවූ රිසිට් පත මත "නම, වසර" ලියා *071-3527040* ට WhatsApp කරන්න.`
+📸 *මුදල් ගෙවූ රිසිට් පත මත "නම, වසර" ලියා 071-3527040 ට WhatsApp කරන්න.*`
 
 /**
  * GET /api/ai-agent/curriculum
- * Secure, read-only Curriculum Knowledge API for MathsPS AI Agents (Voice Bridge & WhatsApp).
+ * Secure, read-only Curriculum Knowledge API for Prabuddha Sampath AI Agents (Voice Bridge & WhatsApp).
  * 
  * ZERO-TRUST SECURITY:
  * Exposes ONLY publicly shareable course titles, schedules, fees, flyers, and bank details.
@@ -46,12 +46,21 @@ export async function GET() {
 
     if (supabaseUrl && serviceKey) {
       const supabase = createClient(supabaseUrl, serviceKey)
-      const { data: adminRecord } = await supabase
+      let { data: adminRecord } = await supabase
         .from('members')
         .select('notes')
-        .in('role', ['admin', 'owner'])
-        .limit(1)
+        .eq('name', 'Admin User')
         .maybeSingle()
+
+      if (!adminRecord) {
+        const res = await supabase
+          .from('members')
+          .select('notes')
+          .in('role', ['admin', 'owner'])
+          .limit(1)
+          .maybeSingle()
+        adminRecord = res.data
+      }
 
       if (adminRecord?.notes) {
         try {
