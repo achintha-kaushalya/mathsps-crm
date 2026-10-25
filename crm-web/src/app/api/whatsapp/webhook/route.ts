@@ -161,8 +161,8 @@ export async function POST(req: NextRequest) {
 
       console.log(`[WhatsApp Call Event FULL] From: ${callerPhone}, Event: ${callEvent}, ID: ${callId}, Payload:`, JSON.stringify(call))
 
-      // Forward to persistent Voice Bridge if configured (Render / Fly.io / Local)
-      const voiceBridgeUrl = process.env.VOICE_BRIDGE_URL || 'https://mathsps-voice-bridge.onrender.com'
+      // Forward to persistent Voice Bridge in Singapore (Ultra-low latency to Sri Lanka)
+      const voiceBridgeUrl = process.env.VOICE_BRIDGE_URL || 'https://mathsps-voice-bridge-sg.onrender.com'
       if (voiceBridgeUrl) {
         try {
           const bridgeRes = await fetch(`${voiceBridgeUrl}/webhook/call`, {
