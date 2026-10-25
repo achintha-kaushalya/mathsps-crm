@@ -417,11 +417,7 @@ function startMediaPump(callId) {
   const silenceOpus = Buffer.from([0xf8, 0xff, 0xfe]) // 20ms Opus comfort silence
   let isPlayingSpeech = false
   let emptyTicks = 0
-  let lastValidOpus = silenceOpus
-  // Dynamic Jitter Buffer:
-  // Starts playback once 4 frames (80ms) accumulate to ensure smooth continuous stream
-  const JITTER_BUFFER_TARGET = 4 // 4 * 20ms = 80ms smooth jitter buffer
-  const MAX_QUEUE_FRAMES = 150   // 3.0s burst tolerance before gentle drain
+  const PRE_BUFFER_THRESHOLD = 3 // 3 * 20ms = 60ms initial buffer (fast pickup, no lag)
 
   call.mediaTimer = setInterval(() => {
     const c = activeCalls.get(callId)
@@ -432,37 +428,22 @@ function startMediaPump(callId) {
 
     let payload = silenceOpus
 
-    // High latency drift protection: only drain gently if dynamic stream queue exceeds 3 full seconds of backlog
-    if (c.audioQueue.length > MAX_QUEUE_FRAMES && !c.isPlayingGreeting) {
-      c.audioQueue.splice(0, c.audioQueue.length - MAX_QUEUE_FRAMES)
-    }
-
     if (c.audioQueue.length > 0) {
       if (!isPlayingSpeech) {
-        // Pre-roll: wait until queue hits the jitter target so speech plays continuous and buttery smooth
-        if (c.audioQueue.length >= JITTER_BUFFER_TARGET) {
+        if (c.audioQueue.length >= PRE_BUFFER_THRESHOLD) {
           isPlayingSpeech = true
           emptyTicks = 0
           payload = c.audioQueue.shift()
-          lastValidOpus = payload
         }
       } else {
         emptyTicks = 0
         payload = c.audioQueue.shift()
-        lastValidOpus = payload
       }
     } else {
-      if (c.isPlayingGreeting) {
-        c.isPlayingGreeting = false
-      }
       if (isPlayingSpeech) {
         emptyTicks++
-        // Packet Loss Concealment (PLC):
-        // If queue momentarily empties for < 8 ticks (160ms), repeat last packet or low-volume comfort frame
-        // instead of instant hard silence cut
-        if (emptyTicks <= 8) {
-          payload = silenceOpus // Comfort noise prevents harsh audio clicks
-        } else {
+        // Sustain playing state across small network gaps (up to 200ms = 10 ticks)
+        if (emptyTicks > 10) {
           isPlayingSpeech = false
         }
       }
@@ -518,27 +499,14 @@ function setupIncomingTrack(incomingTrack, call_id) {
             const chunk = callData.callerPcmBuffer.subarray(0, 2560)
             callData.callerPcmBuffer = callData.callerPcmBuffer.subarray(2560)
 
-            // VAD Energy Filter: Calculate peak amplitude in this 80ms chunk
-            // If caller is silent or has only ambient room noise (< 300 peak amplitude),
-            // suppress or don't trigger false interruptions while Gemini is actively speaking
-            let peakAmp = 0
-            for (let i = 0; i < 1280; i++) {
-              const amp = Math.abs(chunk.readInt16LE(i * 2))
-              if (amp > peakAmp) peakAmp = amp
-            }
-
-            // Only forward audio if there is actual acoustic voice energy (> 300 amplitude)
-            // or send zeroed quiet audio so Gemini maintains its context without false barge-in
-            if (peakAmp >= 300) {
-              callData.geminiWs.send(JSON.stringify({
-                realtimeInput: {
-                  mediaChunks: [{
-                    mimeType: 'audio/pcm;rate=16000',
-                    data: chunk.toString('base64')
-                  }]
-                }
-              }))
-            }
+            callData.geminiWs.send(JSON.stringify({
+              realtimeInput: {
+                mediaChunks: [{
+                  mimeType: 'audio/pcm;rate=16000',
+                  data: chunk.toString('base64')
+                }]
+              }
+            }))
           }
         }
       } catch (e) {
@@ -606,7 +574,6 @@ app.post('/webhook/call', async (req, res) => {
       opusEncoder: new OpusScript(48000, 1, OpusScript.Application.VOIP), // 48kHz native Opus encoder
       opusDecoder: new OpusScript(48000, 1, OpusScript.Application.VOIP),
       audioQueue: PRE_BUFFERED_GREETING_FRAMES.length > 0 ? [...PRE_BUFFERED_GREETING_FRAMES] : [],
-      isPlayingGreeting: PRE_BUFFERED_GREETING_FRAMES.length > 0,
       seq: 0,
       ts: 0,
       pcmBuffer: Buffer.alloc(0),
@@ -784,23 +751,9 @@ function initGeminiLiveConnection(callId) {
     try {
       const msg = JSON.parse(data.toString())
 
-      // 1. Setup complete -> Prime Gemini context: greeting already played, speak calmly and clearly
+      // 1. Setup complete -> Session ready for incoming caller audio
       if (msg.setupComplete) {
         logEvent('GEMINI_SETUP_COMPLETE', { callId })
-        try {
-          ws.send(JSON.stringify({
-            clientContent: {
-              turns: [{
-                role: 'user',
-                parts: [{ text: 'The caller has connected and the initial welcome greeting has just finished playing to them. Please listen to what they ask or say next, and respond in calm, clear, unhurried, natural Sinhala or English, speaking at a relaxed, steady pace.' }]
-              }],
-              turnComplete: true
-            }
-          }))
-          logEvent('GEMINI_CONTEXT_PRIMED', { callId })
-        } catch (initErr) {
-          logEvent('GEMINI_CONTEXT_PRIME_ERROR', { callId, error: initErr.message })
-        }
       }
 
       // 2. Handle Tool Calls from Gemini
