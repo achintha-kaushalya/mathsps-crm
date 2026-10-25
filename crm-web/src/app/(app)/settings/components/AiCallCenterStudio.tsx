@@ -587,19 +587,31 @@ export default function AiCallCenterStudio() {
                         gap: 10
                       }}
                     >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div>
-                          <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 6, background: 'rgba(245,158,11,0.15)', color: '#f59e0b' }}>
-                            {inq.source || 'VOICE CALL'}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ fontSize: 11, fontWeight: 800, padding: '4px 10px', borderRadius: 6, background: inq.source === 'WHATSAPP_CHAT' ? 'rgba(16,185,129,0.2)' : 'rgba(245,158,11,0.2)', color: inq.source === 'WHATSAPP_CHAT' ? '#10b981' : '#f59e0b', border: '1px solid rgba(255,255,255,0.08)' }}>
+                            {inq.source === 'WHATSAPP_CHAT' ? '💬 WHATSAPP CHAT' : '📞 VOICE CALL'}
                           </span>
-                          <span style={{ fontSize: 12, color: 'var(--text-muted)', marginLeft: 8 }}>
-                            From: {inq.callerPhone} · {new Date(inq.createdAt).toLocaleTimeString()}
+                          <span style={{ fontSize: 13, fontWeight: 700, color: '#38bdf8' }}>
+                            +{inq.callerPhone.replace(/^\+/, '')}
                           </span>
                         </div>
+                        <span style={{ fontSize: 11.5, color: 'var(--text-muted)' }}>
+                          📅 {new Date(inq.createdAt).toLocaleDateString()} · ⏰ {new Date(inq.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                        </span>
                       </div>
 
-                      <div style={{ fontSize: 13.5, fontWeight: 700, color: '#ffffff' }}>
-                        &ldquo;{inq.question}&rdquo;
+                      <div style={{
+                        padding: '12px 14px',
+                        borderRadius: 8,
+                        background: 'rgba(255, 255, 255, 0.05)',
+                        borderLeft: '3px solid #f59e0b',
+                        fontSize: 14,
+                        fontWeight: 700,
+                        color: '#f8fafc',
+                        lineHeight: 1.5
+                      }}>
+                        ❓ Question: &ldquo;{inq.question}&rdquo;
                       </div>
 
                       {activeReplyingId === inq.id ? (
