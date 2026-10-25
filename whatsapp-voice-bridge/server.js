@@ -279,15 +279,33 @@ function buildSystemPrompt() {
 
   return `You are the Senior Admissions Coordinator for MathsPS (Prabuddha Sampath Sir's Mathematics Academy, Sri Lanka).
 You are currently speaking directly with a parent or student on a live WhatsApp phone call.
+
+CRITICAL SINHALA PRONUNCIATION & PHONETICS RULES:
+- Always speak purely in colloquial, natural, fluent Sri Lankan Sinhala with perfect native pronunciation.
+- Pronounce key academy names clearly:
+  * "ප්‍රබුද්ධ සම්පත්" -> pronounce smoothly as "ප්‍රබුද්ධ සම්පත්" (Pra-buddha Sam-path).
+  * "පේරාදෙණි ආයතනය" -> pronounce clearly as "පේරාදෙණිය" (Pey-raa-deniya).
+  * "කුරුණෑගල" -> pronounce as "කුරුණෑගල" (Kuru-nae-gala).
+  * "රජපිහිල්ල පාර" -> pronounce as "රජපිහිල්ල පාර" (Raja-pihilla paara).
+- Numbers and Grades: Speak numbers as full Sinhala words aloud, NEVER read raw English digits or symbols:
+  * "Grade 6" -> speak aloud as "හය වසර" or "හයේ ශ්‍රේණිය"
+  * "Grade 7" -> speak aloud as "හත වසර" or "හතේ ශ්‍රේණිය"
+  * "Grade 8" -> speak aloud as "අට වසර" or "අටේ ශ්‍රේණිය"
+  * "Grade 9" -> speak aloud as "නවය වසර" or "නවයේ ශ්‍රේණිය"
+  * "Grade 10" -> speak aloud as "දහය වසර" or "දහයේ ශ්‍රේණිය"
+  * "Grade 11 / O/L" -> speak aloud as "එකොළහ වසර" or "ඕලෙවල් පන්තිය"
+  * Times: E.g., "8.00 - 10.30" speak as "උදෑසන අටේ සිට දහයයි තිහ දක්වා". E.g., "6.00" speak as "සවස හයට".
+  * Fees: E.g., "Rs. 2,500" speak as "රුපියල් දෙදහස් පන්සියයක්".
+
 Your personality and tone:
 - Speak in a warm, dignified, calm, articulate, and professional Sinhala (ගෞරවනීය, සුහදශීලී, පැහැදිලි කථන ශෛලියක්).
 - Address the caller respectfully using polite honorifics (e.g., "ඔබතුමා / ඔබතුමිය", "කරුණාවෙන්", "ස්තූතියි").
-- Do NOT sound like an automated robotic script. Use natural human conversational pacing, clear pronunciation, and concise answers (1 to 2 sentences per turn). Use the course notes creatively and naturally.
+- Do NOT sound like an automated robotic script. Use natural human conversational pacing, clear pronunciation, and concise answers (1 to 2 sentences per turn).
 - Accurate facts:
   * Teacher: Prabuddha Sampath Sir (B.Sc.)
   * Available Courses & Schedules:
 ${curriculumText}
-  * Modes: Physical Classes & Online Live Zoom with LMS Recordings.
+  * Modes: Physical Classes & Online Live Zoom with LMS Recordings (www.prabuddhamaths.com).
   * Payment: Bank of Ceylon (BOC), Commercial Bank, Sampath Bank.
 
 SENDING DETAILS TO WHATSAPP RULES:
@@ -377,7 +395,11 @@ function startMediaPump(callId) {
   const silenceOpus = Buffer.from([0xf8, 0xff, 0xfe]) // 20ms Opus comfort silence
   let isPlayingSpeech = false
   let emptyTicks = 0
-  const PRE_BUFFER_THRESHOLD = 3 // 3 * 20ms = 60ms initial buffer (fast pickup, no lag)
+  let lastValidOpus = silenceOpus
+  // Dynamic Jitter Buffer:
+  // Starts with 7 frames (140ms) buffer to absorb transcontinental network jitter (Render -> Colombo)
+  const JITTER_BUFFER_TARGET = 7 // 7 * 20ms = 140ms smooth jitter buffer
+  const MAX_QUEUE_FRAMES = 50   // Prevent latency drift over 1 second
 
   call.mediaTimer = setInterval(() => {
     const c = activeCalls.get(callId)
@@ -388,22 +410,34 @@ function startMediaPump(callId) {
 
     let payload = silenceOpus
 
+    // High latency drift protection: if queue gets unnaturally backed up, gently drain old frames
+    if (c.audioQueue.length > MAX_QUEUE_FRAMES) {
+      c.audioQueue.splice(0, c.audioQueue.length - JITTER_BUFFER_TARGET)
+    }
+
     if (c.audioQueue.length > 0) {
       if (!isPlayingSpeech) {
-        if (c.audioQueue.length >= PRE_BUFFER_THRESHOLD) {
+        // Pre-roll: wait until queue hits the jitter target so speech plays continuous and buttery smooth
+        if (c.audioQueue.length >= JITTER_BUFFER_TARGET) {
           isPlayingSpeech = true
           emptyTicks = 0
           payload = c.audioQueue.shift()
+          lastValidOpus = payload
         }
       } else {
         emptyTicks = 0
         payload = c.audioQueue.shift()
+        lastValidOpus = payload
       }
     } else {
       if (isPlayingSpeech) {
         emptyTicks++
-        // Sustain playing state across small network gaps (up to 200ms = 10 ticks)
-        if (emptyTicks > 10) {
+        // Packet Loss Concealment (PLC):
+        // If queue momentarily empties for < 8 ticks (160ms), repeat last packet or low-volume comfort frame
+        // instead of instant hard silence cut
+        if (emptyTicks <= 8) {
+          payload = silenceOpus // Comfort noise prevents harsh audio clicks
+        } else {
           isPlayingSpeech = false
         }
       }
