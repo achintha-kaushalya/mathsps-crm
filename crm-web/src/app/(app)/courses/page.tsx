@@ -19,7 +19,12 @@ import {
   BookmarkCheck,
   UserCheck,
   CreditCard,
-  Building2
+  Building2,
+  ChevronRight,
+  ChevronLeft,
+  X,
+  ExternalLink,
+  ImageIcon
 } from 'lucide-react'
 import {
   DEFAULT_GRADE_COURSES,
@@ -49,6 +54,7 @@ export default function CoursesManagerPage() {
 
   // Modal / Form state for Add / Edit Course
   const [showModal, setShowModal] = useState(false)
+  const [showAiPanel, setShowAiPanel] = useState(false)
   const [editingCode, setEditingCode] = useState<string | null>(null)
   const [isFormStandalone, setIsFormStandalone] = useState(false)
   const [formGrade, setFormGrade] = useState<number>(10)
@@ -321,6 +327,7 @@ export default function CoursesManagerPage() {
       setFormDesc('')
       setFormFlyerUrl('')
     }
+    setShowAiPanel(false)
     setShowModal(true)
   }
 
@@ -334,6 +341,7 @@ export default function CoursesManagerPage() {
     setFormBillingType(course.billingType || (course.isStandalone ? 'ONE_TIME' : 'MONTHLY'))
     setFormDesc(course.description || '')
     setFormFlyerUrl(course.flyerUrl || '')
+    setShowAiPanel(false)
     setShowModal(true)
   }
 
@@ -1249,263 +1257,481 @@ export default function CoursesManagerPage() {
       {/* Add / Edit Course Modal */}
       {showModal && (
         <div style={{
-          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 20,
-          backdropFilter: 'blur(4px)'
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.65)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 99999, padding: 16,
+          backdropFilter: 'blur(5px)'
         }}>
           <div style={{
-            maxWidth: 480, width: '100%', padding: 26, background: 'var(--bg-card)',
-            borderRadius: 16, border: '1px solid var(--border)', boxShadow: '0 20px 40px rgba(0,0,0,0.2)'
+            maxWidth: showAiPanel ? 880 : 500,
+            width: '100%',
+            maxHeight: 'calc(100vh - 100px)',
+            background: 'var(--bg-card)',
+            borderRadius: 18,
+            border: '1px solid var(--border)',
+            boxShadow: '0 24px 60px rgba(0,0,0,0.35)',
+            display: 'flex',
+            flexDirection: 'column',
+            transition: 'max-width 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+            overflow: 'hidden'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 18 }}>
-              <div style={{
-                width: 38, height: 38, borderRadius: 10, background: 'rgba(59,130,246,0.12)',
-                color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center'
-              }}>
-                <BookOpen size={20} />
-              </div>
-              <div>
-                <h3 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>
-                  {editingCode
-                    ? (isFormStandalone ? 'Edit Course' : `Edit Course Stream`)
-                    : (isFormStandalone ? 'Add New Course' : `Add New Course to Grade ${formGrade}`)}
-                </h3>
-                <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>
-                  Set course title, payment type, and default tuition fee
+            {/* Modal Header */}
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '16px 22px', borderBottom: '1px solid var(--border)', background: 'var(--bg-card)'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <div style={{
+                  width: 38, height: 38, borderRadius: 10, background: 'rgba(59,130,246,0.12)',
+                  color: 'var(--accent-blue)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                }}>
+                  <BookOpen size={20} />
                 </div>
-              </div>
-            </div>
-
-            <form onSubmit={handleSaveForm}>
-              {/* Target Scope Selection */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                  Course Category
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <button
-                    type="button"
-                    disabled={!!editingCode}
-                    onClick={() => setIsFormStandalone(false)}
-                    style={{
-                      padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                      border: !isFormStandalone ? '1.5px solid var(--accent-blue)' : '1px solid var(--border)',
-                      background: !isFormStandalone ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-card)',
-                      color: !isFormStandalone ? 'var(--accent-blue)' : 'var(--text-secondary)'
-                    }}
-                  >
-                    Grade Class
-                  </button>
-                  <button
-                    type="button"
-                    disabled={!!editingCode}
-                    onClick={() => setIsFormStandalone(true)}
-                    style={{
-                      padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                      border: isFormStandalone ? '1.5px solid var(--accent-blue)' : '1px solid var(--border)',
-                      background: isFormStandalone ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-card)',
-                      color: isFormStandalone ? 'var(--accent-blue)' : 'var(--text-secondary)'
-                    }}
-                  >
-                    Course
-                  </button>
-                </div>
-              </div>
-
-              {!isFormStandalone && (
-                <div style={{ marginBottom: 14 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                    Target Grade
-                  </label>
-                  <select
-                    className="input-field"
-                    value={formGrade}
-                    onChange={e => setFormGrade(parseInt(e.target.value))}
-                    disabled={!!editingCode}
-                    style={{ width: '100%', fontWeight: 600 }}
-                  >
-                    {grades.map(g => (
-                      <option key={g} value={g}>Grade {g}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                  Course Title <span style={{ color: 'var(--accent-red)' }}>*</span>
-                </label>
-                <input
-                  className="input-field"
-                  style={{ width: '100%' }}
-                  placeholder={isFormStandalone ? "e.g. Geometry Full Course (ජ්‍යාමිතිය)" : "e.g. Grade 10 — Theory"}
-                  value={formName}
-                  onChange={e => setFormName(e.target.value)}
-                  autoFocus
-                  required
-                />
-              </div>
-
-              {/* Billing / Payment Type */}
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                  Billing Type
-                </label>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                  <button
-                    type="button"
-                    onClick={() => setFormBillingType('ONE_TIME')}
-                    style={{
-                      padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                      border: formBillingType === 'ONE_TIME' ? '1.5px solid #10b981' : '1px solid var(--border)',
-                      background: formBillingType === 'ONE_TIME' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
-                      color: formBillingType === 'ONE_TIME' ? '#10b981' : 'var(--text-secondary)'
-                    }}
-                  >
-                    One-Time Fee
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setFormBillingType('MONTHLY')}
-                    style={{
-                      padding: '8px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
-                      border: formBillingType === 'MONTHLY' ? '1.5px solid var(--accent-blue)' : '1px solid var(--border)',
-                      background: formBillingType === 'MONTHLY' ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-card)',
-                      color: formBillingType === 'MONTHLY' ? 'var(--accent-blue)' : 'var(--text-secondary)'
-                    }}
-                  >
-                    Monthly Recurring
-                  </button>
-                </div>
-              </div>
-
-              <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                  {formBillingType === 'ONE_TIME' ? 'One-Time Course Fee (Rs.)' : 'Default Monthly Fee (Rs.)'} <span style={{ color: 'var(--accent-red)' }}>*</span>
-                </label>
-                <input
-                  type="number"
-                  className="input-field"
-                  style={{ width: '100%', fontWeight: 700, fontSize: 15 }}
-                  placeholder="2500"
-                  value={formFee}
-                  onChange={e => setFormFee(e.target.value)}
-                  required
-                />
-                {/* Fee Quick Presets */}
-                <div style={{ display: 'flex', gap: 6, marginTop: 8, flexWrap: 'wrap' }}>
-                  {['1500', '1800', '2000', '2500', '3000', '3500'].map(f => (
-                    <button
-                      key={f}
-                      type="button"
-                      onClick={() => setFormFee(f)}
-                      style={{
-                        padding: '3px 8px', borderRadius: 6, fontSize: 11, fontWeight: 600,
-                        background: formFee === f ? 'var(--accent-blue)' : 'var(--bg-base)',
-                        color: formFee === f ? '#fff' : 'var(--text-secondary)',
-                        border: '1px solid var(--border)', cursor: 'pointer'
-                      }}
-                    >
-                      Rs. {f}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Course Details & AI Knowledge Notes */}
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                    Course Details & AI Knowledge Notes
-                  </label>
-                  <span style={{ fontSize: 10, color: 'var(--accent-blue)', fontWeight: 600 }}>
-                    🤖 AI Reads This
-                  </span>
-                </div>
-                <textarea
-                  className="input-field"
-                  rows={4}
-                  style={{ width: '100%', fontFamily: 'inherit', fontSize: 12, lineHeight: 1.5, resize: 'vertical' }}
-                  placeholder={`e.g.:
-- Physical: MathsPS Kandy Hall (සෙනසුරාදා උදෑසන 8.00 - 10.30)
-- Online: සෙනසුරාදා සවස 3.00 - 5.30 Zoom Live + LMS Recordings
-- Notes: ජ්‍යාමිතිය ප්‍රමේය 20 ම සාකච්ඡා කෙරේ. Tute නිවසටම Speed Post මඟින් එවනු ලැබේ.`}
-                  value={formDesc}
-                  onChange={e => setFormDesc(e.target.value)}
-                />
-                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                  Include physical & online times, venue, and special notes. AI agent uses these key points naturally when talking with parents.
-                </div>
-              </div>
-
-              {/* Promotional Flyer Image Link */}
-              <div style={{ marginBottom: 14 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                    Promotional Flyer / Post Image Link
-                  </label>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
-                    Auto-sent on WhatsApp
-                  </span>
-                </div>
-                <input
-                  className="input-field"
-                  style={{ width: '100%', fontSize: 12 }}
-                  placeholder="e.g. https://images.unsplash.com/... or post image link"
-                  value={formFlyerUrl}
-                  onChange={e => setFormFlyerUrl(e.target.value)}
-                />
-                {formFlyerUrl && (
-                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10, padding: 8, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
-                    <img
-                      src={formFlyerUrl}
-                      alt="Flyer Preview"
-                      style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover' }}
-                      onError={(e: any) => { e.target.style.display = 'none' }}
-                    />
-                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-                      <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Flyer Preview Loaded</div>
-                      <div>This promotional post will be dispatched to parents when they ask about this course.</div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {!editingCode && (
-                <div style={{ marginBottom: 18 }}>
-                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                    Custom Identifier Code (Optional)
-                  </label>
-                  <input
-                    className="input-field"
-                    style={{ width: '100%' }}
-                    placeholder={isFormStandalone ? "e.g. GEOMETRY_FULL" : `e.g. GR${formGrade}_THEORY`}
-                    value={formCode}
-                    onChange={e => setFormCode(e.target.value)}
-                  />
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
-                    Leave blank to automatically generate unique code.
+                <div>
+                  <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, lineHeight: 1.2 }}>
+                    {editingCode
+                      ? (isFormStandalone ? 'Edit Course' : `Edit Course Stream`)
+                      : (isFormStandalone ? 'Add New Course' : `Add New Course to Grade ${formGrade}`)}
+                  </h3>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+                    {showAiPanel ? 'Curriculum parameters & dynamic AI agent knowledge' : 'Set course title, payment type, and default tuition fee'}
                   </div>
                 </div>
-              )}
+              </div>
 
-              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 22, borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAiPanel(!showAiPanel)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    padding: '6px 12px', borderRadius: 8, fontSize: 11, fontWeight: 700,
+                    background: showAiPanel ? 'rgba(59,130,246,0.15)' : 'var(--bg-base)',
+                    color: showAiPanel ? 'var(--accent-blue)' : 'var(--text-secondary)',
+                    border: '1px solid var(--border)', cursor: 'pointer', transition: 'all 0.15s'
+                  }}
+                  title={showAiPanel ? 'Collapse to simple width' : 'Expand width for AI notes & marketing post'}
+                >
+                  <Sparkles size={13} style={{ color: 'var(--accent-blue)' }} />
+                  <span>{showAiPanel ? 'Simple View' : 'AI Notes & Flyer'}</span>
+                  {showAiPanel ? <ChevronLeft size={14} /> : <ChevronRight size={14} />}
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setShowModal(false)}
-                  className="btn-secondary"
-                  style={{ padding: '8px 16px', fontWeight: 600 }}
+                  style={{
+                    background: 'none', border: 'none', cursor: 'pointer',
+                    color: 'var(--text-muted)', padding: 6, borderRadius: 8,
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                  }}
+                  title="Close modal"
                 >
-                  Cancel
+                  <X size={18} />
                 </button>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ padding: '8px 20px', fontWeight: 700, background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)' }}
-                  disabled={saving}
-                >
-                  {saving ? 'Saving...' : editingCode ? 'Save Changes' : '+ Create Course'}
-                </button>
+              </div>
+            </div>
+
+            {/* Modal Body / Form */}
+            <form onSubmit={handleSaveForm} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '18px 22px' }}>
+                <div style={{
+                  display: showAiPanel ? 'grid' : 'block',
+                  gridTemplateColumns: showAiPanel ? '1.05fr 1fr' : undefined,
+                  gap: showAiPanel ? 20 : undefined,
+                  alignItems: 'start'
+                }}>
+                  {/* Left Column / Core Settings */}
+                  <div>
+                    {/* Course Category */}
+                    <div style={{ marginBottom: 13 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                        Course Category
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <button
+                          type="button"
+                          disabled={!!editingCode}
+                          onClick={() => setIsFormStandalone(false)}
+                          style={{
+                            padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                            border: !isFormStandalone ? '1.5px solid var(--accent-blue)' : '1px solid var(--border)',
+                            background: !isFormStandalone ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-card)',
+                            color: !isFormStandalone ? 'var(--accent-blue)' : 'var(--text-secondary)'
+                          }}
+                        >
+                          Grade Class
+                        </button>
+                        <button
+                          type="button"
+                          disabled={!!editingCode}
+                          onClick={() => setIsFormStandalone(true)}
+                          style={{
+                            padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                            border: isFormStandalone ? '1.5px solid var(--accent-blue)' : '1px solid var(--border)',
+                            background: isFormStandalone ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-card)',
+                            color: isFormStandalone ? 'var(--accent-blue)' : 'var(--text-secondary)'
+                          }}
+                        >
+                          Course
+                        </button>
+                      </div>
+                    </div>
+
+                    {!isFormStandalone && (
+                      <div style={{ marginBottom: 13 }}>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                          Target Grade
+                        </label>
+                        <select
+                          className="input-field"
+                          value={formGrade}
+                          onChange={e => setFormGrade(parseInt(e.target.value))}
+                          disabled={!!editingCode}
+                          style={{ width: '100%', fontWeight: 600, padding: '7px 10px' }}
+                        >
+                          {grades.map(g => (
+                            <option key={g} value={g}>Grade {g}</option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+
+                    <div style={{ marginBottom: 13 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                        Course Title <span style={{ color: 'var(--accent-red)' }}>*</span>
+                      </label>
+                      <input
+                        className="input-field"
+                        style={{ width: '100%', padding: '7px 10px' }}
+                        placeholder={isFormStandalone ? "e.g. Geometry Full Course (ජ්‍යාමිතිය)" : "e.g. Grade 10 — Theory"}
+                        value={formName}
+                        onChange={e => setFormName(e.target.value)}
+                        autoFocus
+                        required
+                      />
+                    </div>
+
+                    {/* Billing / Payment Type */}
+                    <div style={{ marginBottom: 13 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                        Billing Type
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        <button
+                          type="button"
+                          onClick={() => setFormBillingType('ONE_TIME')}
+                          style={{
+                            padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                            border: formBillingType === 'ONE_TIME' ? '1.5px solid #10b981' : '1px solid var(--border)',
+                            background: formBillingType === 'ONE_TIME' ? 'rgba(16, 185, 129, 0.15)' : 'var(--bg-card)',
+                            color: formBillingType === 'ONE_TIME' ? '#10b981' : 'var(--text-secondary)'
+                          }}
+                        >
+                          One-Time Fee
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFormBillingType('MONTHLY')}
+                          style={{
+                            padding: '7px 12px', borderRadius: 8, fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                            border: formBillingType === 'MONTHLY' ? '1.5px solid var(--accent-blue)' : '1px solid var(--border)',
+                            background: formBillingType === 'MONTHLY' ? 'rgba(56, 189, 248, 0.15)' : 'var(--bg-card)',
+                            color: formBillingType === 'MONTHLY' ? 'var(--accent-blue)' : 'var(--text-secondary)'
+                          }}
+                        >
+                          Monthly Recurring
+                        </button>
+                      </div>
+                    </div>
+
+                    <div style={{ marginBottom: 13 }}>
+                      <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                        {formBillingType === 'ONE_TIME' ? 'One-Time Course Fee (Rs.)' : 'Default Monthly Fee (Rs.)'} <span style={{ color: 'var(--accent-red)' }}>*</span>
+                      </label>
+                      <input
+                        type="number"
+                        className="input-field"
+                        style={{ width: '100%', fontWeight: 700, fontSize: 14, padding: '7px 10px' }}
+                        placeholder="2500"
+                        value={formFee}
+                        onChange={e => setFormFee(e.target.value)}
+                        required
+                      />
+                      {/* Fee Quick Presets */}
+                      <div style={{ display: 'flex', gap: 5, marginTop: 6, flexWrap: 'wrap' }}>
+                        {['1500', '1800', '2000', '2500', '3000', '3500'].map(f => (
+                          <button
+                            key={f}
+                            type="button"
+                            onClick={() => setFormFee(f)}
+                            style={{
+                              padding: '2px 7px', borderRadius: 5, fontSize: 11, fontWeight: 600,
+                              background: formFee === f ? 'var(--accent-blue)' : 'var(--bg-base)',
+                              color: formFee === f ? '#fff' : 'var(--text-secondary)',
+                              border: '1px solid var(--border)', cursor: 'pointer'
+                            }}
+                          >
+                            Rs. {f}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {!editingCode && (
+                      <div style={{ marginBottom: 13 }}>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                          Custom Identifier Code (Optional)
+                        </label>
+                        <input
+                          className="input-field"
+                          style={{ width: '100%', padding: '7px 10px' }}
+                          placeholder={isFormStandalone ? "e.g. GEOMETRY_FULL" : `e.g. GR${formGrade}_THEORY`}
+                          value={formCode}
+                          onChange={e => setFormCode(e.target.value)}
+                        />
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                          Leave blank to automatically generate unique code.
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Quick Expand AI Panel Banner when closed */}
+                    {!showAiPanel && (
+                      <div
+                        onClick={() => setShowAiPanel(true)}
+                        style={{
+                          marginTop: 10,
+                          padding: '11px 14px',
+                          borderRadius: 10,
+                          background: 'rgba(59, 130, 246, 0.06)',
+                          border: '1.5px dashed rgba(59, 130, 246, 0.35)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{
+                            width: 32, height: 32, borderRadius: 8,
+                            background: 'rgba(59,130,246,0.15)',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            color: 'var(--accent-blue)', flexShrink: 0
+                          }}>
+                            <Sparkles size={16} />
+                          </div>
+                          <div>
+                            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                              AI Knowledge Notes & Promotional Flyer
+                              {(formDesc || formFlyerUrl) && (
+                                <span style={{ fontSize: 9, padding: '1px 5px', borderRadius: 4, background: 'rgba(16,185,129,0.15)', color: '#10b981', fontWeight: 700 }}>
+                                  Configured
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                              Click right arrow to expand & set physical/online schedule & flyer
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, fontWeight: 700, color: 'var(--accent-blue)', whiteSpace: 'nowrap' }}>
+                          <span>Expand</span>
+                          <ChevronRight size={15} />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right Column: AI Knowledge & Marketing Post Panel (Visible when showAiPanel is true) */}
+                  {showAiPanel && (
+                    <div style={{
+                      background: 'var(--bg-base)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 14,
+                      padding: '14px 16px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 12
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                            <Sparkles size={14} style={{ color: 'var(--accent-blue)' }} />
+                            AI Knowledge & Marketing Post
+                          </div>
+                          <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 1 }}>
+                            AI Agent uses these details when talking with parents
+                          </div>
+                        </div>
+                        <span style={{ fontSize: 10, color: 'var(--accent-blue)', fontWeight: 600, background: 'rgba(59,130,246,0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                          🤖 AI Reads This
+                        </span>
+                      </div>
+
+                      {/* Course Schedule & Knowledge Notes */}
+                      <div>
+                        <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
+                          Class Schedule & Knowledge Notes
+                        </label>
+                        <textarea
+                          className="input-field"
+                          rows={5}
+                          style={{ width: '100%', fontFamily: 'inherit', fontSize: 11.5, lineHeight: 1.5, resize: 'vertical', padding: '8px 10px' }}
+                          placeholder={`e.g.:
+- Physical: MathsPS Kandy Hall (සෙනසුරාදා උදෑසන 8.00 - 10.30)
+- Online: සෙනසුරාදා සවස 3.00 - 5.30 Zoom Live + LMS Recordings
+- Notes: ජ්‍යාමිතිය ප්‍රමේය 20 ම සාකච්ඡා කෙරේ. Tute Speed Post මඟින් නිවසටම ලැබේ.`}
+                          value={formDesc}
+                          onChange={e => setFormDesc(e.target.value)}
+                        />
+                        <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3 }}>
+                          Include physical & online times, venue, and special notes for AI voice/chat.
+                        </div>
+                      </div>
+
+                      {/* Promotional Flyer Image Link */}
+                      <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                          <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                            Promotional Flyer / Post Link
+                          </label>
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                            Auto-sent on WhatsApp
+                          </span>
+                        </div>
+                        <input
+                          className="input-field"
+                          style={{ width: '100%', fontSize: 11.5, padding: '7px 10px' }}
+                          placeholder="e.g. https://images.unsplash.com/... or flyer image link"
+                          value={formFlyerUrl}
+                          onChange={e => setFormFlyerUrl(e.target.value)}
+                        />
+
+                        {/* Small Image Preview */}
+                        {formFlyerUrl ? (
+                          <div style={{
+                            marginTop: 8,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 10,
+                            padding: 8,
+                            background: 'var(--bg-card)',
+                            borderRadius: 8,
+                            border: '1px solid var(--border)'
+                          }}>
+                            <img
+                              src={formFlyerUrl}
+                              alt="Flyer Preview"
+                              style={{
+                                width: 44,
+                                height: 44,
+                                borderRadius: 6,
+                                objectFit: 'cover',
+                                border: '1px solid var(--border)',
+                                flexShrink: 0
+                              }}
+                              onError={(e: any) => { e.target.style.display = 'none' }}
+                            />
+                            <div style={{ flex: 1, minWidth: 0, fontSize: 11 }}>
+                              <div style={{ fontWeight: 700, color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                <CheckCircle2 size={12} style={{ color: '#10b981' }} />
+                                Flyer Preview Loaded
+                              </div>
+                              <div style={{ color: 'var(--text-muted)', fontSize: 10, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {formFlyerUrl}
+                              </div>
+                              <div style={{ display: 'flex', gap: 8, marginTop: 3 }}>
+                                <a
+                                  href={formFlyerUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  style={{ color: 'var(--accent-blue)', textDecoration: 'none', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 3, fontSize: 10 }}
+                                >
+                                  View Full <ExternalLink size={10} />
+                                </a>
+                                <button
+                                  type="button"
+                                  onClick={() => setFormFlyerUrl('')}
+                                  style={{ background: 'none', border: 'none', color: 'var(--accent-red)', cursor: 'pointer', padding: 0, fontWeight: 600, fontSize: 10 }}
+                                >
+                                  Clear
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        ) : (
+                          <div style={{
+                            marginTop: 8,
+                            padding: '8px 10px',
+                            background: 'var(--bg-card)',
+                            borderRadius: 8,
+                            border: '1px dashed var(--border)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            color: 'var(--text-muted)',
+                            fontSize: 10.5
+                          }}>
+                            <ImageIcon size={16} style={{ opacity: 0.6, flexShrink: 0 }} />
+                            <div>Paste an image URL above to see a preview thumbnail & auto-send to parents on WhatsApp.</div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                padding: '12px 22px', borderTop: '1px solid var(--border)', background: 'var(--bg-card)'
+              }}>
+                <div>
+                  {!showAiPanel ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAiPanel(true)}
+                      style={{
+                        background: 'none', border: 'none', color: 'var(--accent-blue)',
+                        fontSize: 11.5, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: 0
+                      }}
+                    >
+                      <Sparkles size={13} /> AI Notes & Flyer <ChevronRight size={13} />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setShowAiPanel(false)}
+                      style={{
+                        background: 'none', border: 'none', color: 'var(--text-secondary)',
+                        fontSize: 11.5, fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, padding: 0
+                      }}
+                    >
+                      <ChevronLeft size={13} /> Simple View
+                    </button>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowModal(false)}
+                    className="btn-secondary"
+                    style={{ padding: '7px 14px', fontWeight: 600, fontSize: 12 }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="btn-primary"
+                    style={{ padding: '7px 18px', fontWeight: 700, fontSize: 12, background: 'linear-gradient(135deg, #2563eb 0%, #3b82f6 100%)' }}
+                    disabled={saving}
+                  >
+                    {saving ? 'Saving...' : editingCode ? 'Save Changes' : '+ Create Course'}
+                  </button>
+                </div>
               </div>
             </form>
           </div>
