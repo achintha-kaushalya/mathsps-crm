@@ -145,62 +145,108 @@ async function sendWhatsAppMessageToCaller(recipientPhone, text, imageUrl, capti
   return true
 }
 
+// In-memory curriculum cache synced from CRM
+let DYNAMIC_COURSES = []
+let DYNAMIC_BANK_DETAILS = BANK_DETAILS_TEXT
+
+async function refreshCurriculumFromCrm() {
+  try {
+    const crmBase = CRM_WEBHOOK_URL.replace(/\/api\/whatsapp\/webhook\/?$/, '')
+    const res = await fetch(`${crmBase}/api/ai-agent/curriculum`, { signal: AbortSignal.timeout(4000) })
+    if (res.ok) {
+      const data = await res.json()
+      if (data.courses && Array.isArray(data.courses) && data.courses.length > 0) {
+        DYNAMIC_COURSES = data.courses
+        logEvent('DYNAMIC_CURRICULUM_SYNCED', { count: DYNAMIC_COURSES.length })
+      }
+      if (data.academy?.bankDetails) {
+        DYNAMIC_BANK_DETAILS = data.academy.bankDetails
+      }
+    }
+  } catch (err) {
+    // Gracefully use local default data
+  }
+}
+
+// Initial fetch and 5-minute periodic refresh
+refreshCurriculumFromCrm()
+setInterval(refreshCurriculumFromCrm, 5 * 60 * 1000)
+
 // Active call sessions: callId -> session object
 const activeCalls = new Map()
 
 /**
- * Robust dispatcher for grade timetable & bank details
+ * Robust dispatcher for course flyer, notes & bank details
+ * Matches grade or specific course (e.g. Geometry) to the exact flyer
  */
-function dispatchDetailsForGrade(callId, rawGrade, includeBank = true) {
+function dispatchDetailsForGrade(callId, query, includeBank = true) {
   const c = activeCalls.get(callId)
   if (!c || !c.callerPhone) return false
 
+  const q = String(query || '').toLowerCase().trim()
+  let matchedCourse = null
+
+  // 1. Match against dynamic courses list if loaded
+  if (DYNAMIC_COURSES.length > 0 && q) {
+    matchedCourse = DYNAMIC_COURSES.find(crs => {
+      const name = crs.name.toLowerCase()
+      const code = crs.code.toLowerCase()
+      return name.includes(q) || code.includes(q) || (crs.grade && q.includes(String(crs.grade)))
+    })
+  }
+
+  // 2. Fallback to Grade regex
   let gradeNum = null
-  if (rawGrade) {
-    const str = String(rawGrade).toLowerCase()
-    const digitMatch = str.match(/\d+/)
-    if (digitMatch) {
-      gradeNum = parseInt(digitMatch[0], 10)
-    } else {
-      const wordMap = {
-        'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10, 'eleven': 11,
-        'හය': 6, 'හත': 7, 'අට': 8, 'නවය': 9, 'දහය': 10, 'එකොළහ': 11
-      }
-      for (const [w, g] of Object.entries(wordMap)) {
-        if (str.includes(w)) { gradeNum = g; break }
-      }
-    }
+  const digitMatch = q.match(/\d+/)
+  if (digitMatch) {
+    gradeNum = parseInt(digitMatch[0], 10)
+  }
+
+  if (!matchedCourse && gradeNum && DYNAMIC_COURSES.length > 0) {
+    matchedCourse = DYNAMIC_COURSES.find(crs => crs.grade === gradeNum)
   }
 
   c.detailsSent = true
   if (gradeNum) c.requestedGrade = gradeNum
 
   let msgText = ''
-  if (gradeNum && GRADE_TIMETABLES[gradeNum]) {
+  let flyerUrl = null
+  let flyerCaption = undefined
+
+  if (matchedCourse) {
+    msgText += `📚 *MathsPS — ${matchedCourse.name}*\n\n`
+    msgText += `💰 පාඨමාලා ගාස්තුව: *රු. ${matchedCourse.fee.toLocaleString()} (${matchedCourse.billingType === 'ONE_TIME' ? 'One-Time' : 'මාසිකව'})*\n`
+    if (matchedCourse.notes) {
+      msgText += `📌 විස්තර සහ වේලාවන්:\n${matchedCourse.notes}\n\n`
+    }
+    flyerUrl = matchedCourse.flyerUrl || (matchedCourse.grade ? GRADE_FLYERS[matchedCourse.grade] : null)
+    flyerCaption = `📊 MathsPS — ${matchedCourse.name}`
+  } else if (gradeNum && GRADE_TIMETABLES[gradeNum]) {
     msgText += `📚 *MathsPS — ${gradeNum} ශ්‍රේණිය පන්ති කාලසටහන*\n\n`
     msgText += `👨‍🏫 ගුරුතුමා: *ප්‍රබුද්ධ සම්පත් සර් (B.Sc.)*\n`
     msgText += `⏰ වේලාව: *${GRADE_TIMETABLES[gradeNum]}*\n`
     msgText += `📍 ක්‍රමවේදය: Physical පන්ති සහ Online Zoom Live (LMS Recordings සහිතව)\n\n`
+    flyerUrl = GRADE_FLYERS[gradeNum] || null
+    flyerCaption = `📊 MathsPS — ${gradeNum} ශ්‍රේණිය පන්ති විස්තර`
   }
+
   if (includeBank) {
-    msgText += `${BANK_DETAILS_TEXT}\n\n`
+    msgText += `${DYNAMIC_BANK_DETAILS || BANK_DETAILS_TEXT}\n\n`
   }
+
   if (!msgText) {
     msgText = `ආයුබෝවන්! ඔබ MathsPS වෙතින් විමසූ පන්ති විස්තර මෙසේය.\nඅමතර විස්තර සඳහා ඕනෑම වේලාවක මෙම අංකයට පණිවිඩයක් එවන්න.`
   }
 
-  const flyerUrl = gradeNum ? GRADE_FLYERS[gradeNum] : null
-  const flyerCaption = gradeNum ? `📊 MathsPS — ${gradeNum} ශ්‍රේණිය පන්ති විස්තර` : undefined
-
-  logEvent('DISPATCHING_WHATSAPP_DETAILS', { callId, phone: c.callerPhone, gradeNum, hasFlyer: Boolean(flyerUrl) })
+  logEvent('DISPATCHING_WHATSAPP_DETAILS', { callId, phone: c.callerPhone, course: matchedCourse?.name || gradeNum, hasFlyer: Boolean(flyerUrl) })
 
   sendWhatsAppMessageToCaller(c.callerPhone, msgText, flyerUrl, flyerCaption).then(() => {
-    logEvent('WHATSAPP_DISPATCH_SUCCESS', { callId, phone: c.callerPhone, grade: gradeNum })
+    logEvent('WHATSAPP_DISPATCH_SUCCESS', { callId, phone: c.callerPhone, course: matchedCourse?.name || gradeNum })
   }).catch(err => {
     logEvent('WHATSAPP_DISPATCH_ERROR', { callId, error: err.message })
   })
 
-  return { success: true, grade: gradeNum, phone: c.callerPhone }
+  return { success: true, course: matchedCourse?.name || gradeNum, phone: c.callerPhone }
 }
 
 // Pre-load instant studio greeting frames for 0.0s instant startup
@@ -216,34 +262,44 @@ try {
   console.warn('Could not pre-load greeting.opus.json:', loadErr.message)
 }
 
-// System prompt for Live Voice Agent
-const SYSTEM_PROMPT = `You are the Senior Admissions Coordinator for MathsPS (Prabuddha Sampath Sir's Mathematics Academy, Sri Lanka).
+/**
+ * Builds dynamic system prompt containing the latest course notes and schedules
+ */
+function buildSystemPrompt() {
+  let curriculumText = ''
+  if (DYNAMIC_COURSES.length > 0) {
+    curriculumText = DYNAMIC_COURSES.map(c => 
+      `• ${c.name} (Fee: Rs. ${c.fee}): ${c.notes || ''}`
+    ).join('\n')
+  } else {
+    curriculumText = Object.entries(GRADE_TIMETABLES).map(([gr, time]) => 
+      `• Grade ${gr}: ${time}`
+    ).join('\n')
+  }
+
+  return `You are the Senior Admissions Coordinator for MathsPS (Prabuddha Sampath Sir's Mathematics Academy, Sri Lanka).
 You are currently speaking directly with a parent or student on a live WhatsApp phone call.
 Your personality and tone:
 - Speak in a warm, dignified, calm, articulate, and professional Sinhala (ගෞරවනීය, සුහදශීලී, පැහැදිලි කථන ශෛලියක්).
 - Address the caller respectfully using polite honorifics (e.g., "ඔබතුමා / ඔබතුමිය", "කරුණාවෙන්", "ස්තූතියි").
-- Do NOT sound like an automated robotic script. Use natural human conversational pacing, clear pronunciation, and concise answers (1 to 2 sentences per turn).
+- Do NOT sound like an automated robotic script. Use natural human conversational pacing, clear pronunciation, and concise answers (1 to 2 sentences per turn). Use the course notes creatively and naturally.
 - Accurate facts:
   * Teacher: Prabuddha Sampath Sir (B.Sc.)
-  * Grades: Grade 6 to 11
-  * Grade 6: Every Monday 3.30 PM - 6.00 PM
-  * Grade 7: Every Tuesday 3.30 PM - 6.00 PM
-  * Grade 8: Every Wednesday 3.30 PM - 6.00 PM
-  * Grade 9: Every Thursday 3.30 PM - 6.00 PM
-  * Grade 10: Every Friday 3.00 PM - 6.30 PM
-  * Grade 11: Every Saturday 8.00 AM - 12.30 PM
-  * Class Modes: Physical Classes & Online Live Zoom with LMS Recordings.
+  * Available Courses & Schedules:
+${curriculumText}
+  * Modes: Physical Classes & Online Live Zoom with LMS Recordings.
   * Payment: Bank of Ceylon (BOC), Commercial Bank, Sampath Bank.
 
 SENDING DETAILS TO WHATSAPP RULES:
 - If the caller asks to receive details on WhatsApp (e.g., "මට WhatsApp එකට විස්තර එවන්න", "Send me timetable on WhatsApp", "Bank details එවන්න"):
-  1. If grade is unknown, ask: "ඔබතුමා විස්තර බලාපොරොත්තු වන්නේ කුමන ශ්‍රේණිය (6 සිට 11 දක්වා) සඳහාද?"
-  2. If grade is known or once caller confirms, you MUST call the 'send_whatsapp_details' tool immediately!
+  1. If grade or course is unknown, ask: "ඔබතුමා විස්තර බලාපොරොත්තු වන්නේ කුමන ශ්‍රේණිය හෝ පාඨමාලාව සඳහාද?"
+  2. If grade or course is known or once caller confirms, you MUST call the 'send_whatsapp_details' tool immediately!
   3. When invoking the tool, say aloud: "මම දැන් ඔබතුමාගේ WhatsApp එකට විස්තර සහ පන්ති කාලසටහන එව්වා. කරුණාකර එය පරීක්ෂා කර බලන්න."
 
 CALL CLOSING RULES:
 - When the caller says "thank you", "thanks", "ok thanks", "bye", "හරි ස්තූතියි", "එහෙනම් තියන්නම්", or wants to hang up:
   Politely conclude with "ස්තූතියි! සුභ දවසක් වේවා!" and call the 'end_call' tool immediately to hang up the phone call.`
+}
 
 /**
  * Health check & debug logs endpoints
@@ -629,7 +685,7 @@ function initGeminiLiveConnection(callId) {
           ]
         }],
         systemInstruction: {
-          parts: [{ text: SYSTEM_PROMPT }]
+          parts: [{ text: buildSystemPrompt() }]
         }
       }
     }))

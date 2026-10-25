@@ -12,6 +12,7 @@ const GEMINI_MODEL = 'gemini-3.8-flash'
 export interface ParentAiResult {
   replyText: string
   dispatchFlyerGrade: number | null
+  dispatchFlyerUrl?: string | null
   dispatchBank: boolean
   leadInfo: {
     studentName?: string
@@ -40,9 +41,12 @@ const DEFAULT_FLYERS: Record<number, string> = {
 }
 
 /**
- * Fetch dynamic AI config from Supabase admin record
+ * Fetch dynamic AI config & full curriculum from Supabase admin record
  */
 export async function getLiveAiConfig() {
+  let gradeCourses: Record<number, any[]> = {}
+  let standaloneCourses: any[] = []
+
   try {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -58,8 +62,14 @@ export async function getLiveAiConfig() {
 
       if (data?.notes) {
         const parsed = JSON.parse(data.notes)
+        if (parsed.grade_courses) gradeCourses = parsed.grade_courses
+        if (parsed.standalone_courses) standaloneCourses = parsed.standalone_courses
         if (parsed.ai_agent_config) {
-          return parsed.ai_agent_config
+          return {
+            ...parsed.ai_agent_config,
+            grade_courses: gradeCourses,
+            standalone_courses: standaloneCourses
+          }
         }
       }
     }
@@ -70,7 +80,9 @@ export async function getLiveAiConfig() {
   return {
     timetables: DEFAULT_TIMETABLES,
     class_flyers: DEFAULT_FLYERS,
-    human_escalation_number: '0710631093'
+    grade_courses: gradeCourses,
+    standalone_courses: standaloneCourses,
+    human_escalation_number: '071 063 1093'
   }
 }
 
@@ -123,6 +135,7 @@ export async function generateParentAiResponse(params: {
     return {
       replyText: 'ආයුබෝවන් MathsPS වෙතින්! පන්ති විස්තර සහ ගාස්තු විස්තර සඳහා කරුණාකර ඔබගේ ශ්‍රේණිය (6, 7, 8, 9, 10, 11) සඳහන් කරන්න.',
       dispatchFlyerGrade: null,
+      dispatchFlyerUrl: null,
       dispatchBank: false,
       leadInfo: null
     }
@@ -130,19 +143,42 @@ export async function generateParentAiResponse(params: {
 
   const liveConfig = await getLiveAiConfig()
 
+  // Format all courses and their rich notes/schedules for AI ingestion
+  let coursesKnowledgeText = ''
+  if (liveConfig.grade_courses && Object.keys(liveConfig.grade_courses).length > 0) {
+    Object.entries(liveConfig.grade_courses).forEach(([gr, list]) => {
+      coursesKnowledgeText += `\n[Grade ${gr} Classes]:\n`
+      if (Array.isArray(list)) {
+        list.forEach((c: any) => {
+          coursesKnowledgeText += `• ${c.name} (Fee: Rs. ${c.defaultFee}): ${c.description || 'Theory & paper class.'} [Flyer: ${c.flyerUrl || ''}]\n`
+        })
+      }
+    })
+  } else {
+    coursesKnowledgeText += `
+Grade 6: ${liveConfig.timetables?.[6] || DEFAULT_TIMETABLES[6]}
+Grade 7: ${liveConfig.timetables?.[7] || DEFAULT_TIMETABLES[7]}
+Grade 8: ${liveConfig.timetables?.[8] || DEFAULT_TIMETABLES[8]}
+Grade 9: ${liveConfig.timetables?.[9] || DEFAULT_TIMETABLES[9]}
+Grade 10: ${liveConfig.timetables?.[10] || DEFAULT_TIMETABLES[10]}
+Grade 11: ${liveConfig.timetables?.[11] || DEFAULT_TIMETABLES[11]}
+`
+  }
+
+  if (liveConfig.standalone_courses && Array.isArray(liveConfig.standalone_courses)) {
+    coursesKnowledgeText += `\n[Specialist Standalone Courses]:\n`
+    liveConfig.standalone_courses.forEach((c: any) => {
+      coursesKnowledgeText += `• ${c.name} (Fee: Rs. ${c.defaultFee}): ${c.description || 'Specialist masterclass.'} [Flyer: ${c.flyerUrl || ''}]\n`
+    })
+  }
+
   const systemInstruction = `You are MathsPS AI Agent, the official intelligent voice and chat representative for Prabuddha Sampath Sir's Mathematics Institute in Sri Lanka (MathsPS).
-Your primary role is to talk with parents and students inquiring about classes (Grade 6 to Grade 11).
+Your primary role is to talk with parents and students inquiring about classes (Grade 6 to Grade 11 and specialist courses).
 
 Key Knowledge Base:
 - Teacher: Prabuddha Sampath Sir (B.Sc. / Renowned Mathematics Educator).
-- Grades: Grade 6, 7, 8, 9, 10, 11 (O/L Mathematics).
-- Timetables:
-  Grade 6: ${liveConfig.timetables?.[6] || DEFAULT_TIMETABLES[6]}
-  Grade 7: ${liveConfig.timetables?.[7] || DEFAULT_TIMETABLES[7]}
-  Grade 8: ${liveConfig.timetables?.[8] || DEFAULT_TIMETABLES[8]}
-  Grade 9: ${liveConfig.timetables?.[9] || DEFAULT_TIMETABLES[9]}
-  Grade 10: ${liveConfig.timetables?.[10] || DEFAULT_TIMETABLES[10]}
-  Grade 11: ${liveConfig.timetables?.[11] || DEFAULT_TIMETABLES[11]}
+- Active Courses & Curriculum:
+${coursesKnowledgeText}
 - Modes: Physical classes & Online Zoom live classes with LMS video recording access.
 - Fees & Payments: Handled via Bank Deposit / CDM / Online Transfer (Bank of Ceylon, Commercial Bank, Sampath Bank).
 - Inquiries & Human Escalation: ${liveConfig.human_escalation_number || '071 063 1093'}.
@@ -150,19 +186,21 @@ Key Knowledge Base:
 Tone & Language Guidelines:
 - Always respond in natural, respectful, and polite Sinhala (සිංහල).
 - Speak warmly as an education coordinator talking to a Sri Lankan parent ("ආයුබෝවන් දෙමාපියනි / ආයුබෝවන්!").
-- Keep replies clear, conversational, and direct (1-3 concise sentences).
-- If the parent says "Hi" or "Hello", welcome them warmly and ask which grade (Grade 6 - 11) they are inquiring about.
+- Keep replies clear, conversational, and direct (1-3 concise sentences). Use the key points in the course description creatively and naturally.
+- If the parent says "Hi" or "Hello", welcome them warmly and ask which grade or course they are inquiring about.
 - If the parent says "Thank you", reply politely with "ඔබටත් ස්තූතියි! දරුවාගේ අධ්‍යාපන කටයුතු සාර්ථක වේවා!" and do NOT send flyers or bank details.
 
 STRICT ACTION TRIGGER RULES:
-- "dispatchFlyerGrade": ONLY set this to a grade number (6-11) if the parent SPECIFICALLY asked about that grade's class, times, or timetable. NEVER set this for "Hi", "Hello", or "Thank you".
-- "dispatchBank": ONLY set this to true if the parent SPECIFICALLY asked for bank accounts, fees payment details, or bank slip instructions. NEVER set this to true for greetings or thank you messages.
+- "dispatchFlyerGrade": Set to grade number (6-11) if the parent inquired about a grade timetable or class flyer.
+- "dispatchFlyerUrl": If the parent asked about a specific course (e.g. Geometry, Revision, or Grade 10) and a flyer URL is available in the course knowledge base, return that exact flyer URL!
+- "dispatchBank": ONLY set this to true if the parent SPECIFICALLY asked for bank accounts, fees payment details, or bank slip instructions.
 - "leadInfo": Extract studentName, grade, school ONLY if provided by the parent.
 
 CRITICAL: Return ONLY a valid JSON object with the following exact keys:
 {
   "replyText": "The Sinhala message to send to the parent",
   "dispatchFlyerGrade": number or null,
+  "dispatchFlyerUrl": string or null,
   "dispatchBank": boolean,
   "leadInfo": {
     "studentName": string or undefined,

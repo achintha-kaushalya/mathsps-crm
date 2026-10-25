@@ -57,6 +57,7 @@ export default function CoursesManagerPage() {
   const [formFee, setFormFee] = useState<string>('1800')
   const [formBillingType, setFormBillingType] = useState<BillingType>('MONTHLY')
   const [formDesc, setFormDesc] = useState('')
+  const [formFlyerUrl, setFormFlyerUrl] = useState('')
   const [saving, setSaving] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
 
@@ -309,6 +310,7 @@ export default function CoursesManagerPage() {
       setFormFee('2500')
       setFormBillingType('ONE_TIME')
       setFormDesc('')
+      setFormFlyerUrl('')
     } else {
       setIsFormStandalone(false)
       setFormGrade(target)
@@ -317,6 +319,7 @@ export default function CoursesManagerPage() {
       setFormFee(target >= 10 ? '1800' : '1500')
       setFormBillingType('MONTHLY')
       setFormDesc('')
+      setFormFlyerUrl('')
     }
     setShowModal(true)
   }
@@ -330,6 +333,7 @@ export default function CoursesManagerPage() {
     setFormFee(String(course.defaultFee))
     setFormBillingType(course.billingType || (course.isStandalone ? 'ONE_TIME' : 'MONTHLY'))
     setFormDesc(course.description || '')
+    setFormFlyerUrl(course.flyerUrl || '')
     setShowModal(true)
   }
 
@@ -338,6 +342,7 @@ export default function CoursesManagerPage() {
     if (!formName.trim()) return
 
     const fee = parseFloat(formFee) || 1800
+    const flyer = formFlyerUrl.trim() || undefined
 
     if (isFormStandalone) {
       const code = editingCode || (formCode.trim() ? formCode.trim().toUpperCase().replace(/[^A-Z0-9_]/g, '_') : `SPEC_${Date.now().toString().slice(-5)}`)
@@ -350,7 +355,8 @@ export default function CoursesManagerPage() {
           defaultFee: fee,
           isStandalone: true,
           billingType: formBillingType,
-          description: formDesc.trim() || undefined
+          description: formDesc.trim() || undefined,
+          flyerUrl: flyer
         } : c)
       } else {
         updatedStandalone = [...standaloneCourses.filter(c => c.code !== code), {
@@ -359,7 +365,8 @@ export default function CoursesManagerPage() {
           defaultFee: fee,
           isStandalone: true,
           billingType: formBillingType,
-          description: formDesc.trim() || undefined
+          description: formDesc.trim() || undefined,
+          flyerUrl: flyer
         }]
       }
 
@@ -378,7 +385,8 @@ export default function CoursesManagerPage() {
           defaultFee: fee,
           grade: formGrade,
           billingType: formBillingType,
-          description: formDesc.trim() || undefined
+          description: formDesc.trim() || undefined,
+          flyerUrl: flyer
         } : c)
       } else {
         updatedList = [...currentList.filter(c => c.code !== code), {
@@ -387,7 +395,8 @@ export default function CoursesManagerPage() {
           defaultFee: fee,
           grade: formGrade,
           billingType: formBillingType,
-          description: formDesc.trim() || undefined
+          description: formDesc.trim() || undefined,
+          flyerUrl: flyer
         }]
       }
 
@@ -1070,8 +1079,46 @@ export default function CoursesManagerPage() {
                         </span>
                       </div>
 
+                      {c.flyerUrl && (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 8,
+                          marginBottom: 10,
+                          padding: '6px 10px',
+                          borderRadius: 8,
+                          background: 'rgba(59, 130, 246, 0.08)',
+                          border: '1px solid rgba(59, 130, 246, 0.2)'
+                        }}>
+                          <img
+                            src={c.flyerUrl}
+                            alt={c.name}
+                            style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover' }}
+                            onError={(e: any) => { e.target.style.display = 'none' }}
+                          />
+                          <div>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-blue)', display: 'block' }}>
+                              🖼️ Post Attached
+                            </span>
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                              WhatsApp auto-dispatch ready
+                            </span>
+                          </div>
+                        </div>
+                      )}
+
                       {c.description && (
-                        <div style={{ fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: 12 }}>
+                        <div style={{
+                          fontSize: 12,
+                          color: 'var(--text-secondary)',
+                          lineHeight: 1.5,
+                          marginBottom: 12,
+                          whiteSpace: 'pre-line',
+                          background: 'var(--bg-base)',
+                          padding: '8px 10px',
+                          borderRadius: 8,
+                          border: '1px solid var(--border)'
+                        }}>
                           {c.description}
                         </div>
                       )}
@@ -1365,17 +1412,63 @@ export default function CoursesManagerPage() {
                 </div>
               </div>
 
+              {/* Course Details & AI Knowledge Notes */}
               <div style={{ marginBottom: 14 }}>
-                <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', display: 'block', marginBottom: 5 }}>
-                  Course Description (Optional)
-                </label>
-                <input
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    Course Details & AI Knowledge Notes
+                  </label>
+                  <span style={{ fontSize: 10, color: 'var(--accent-blue)', fontWeight: 600 }}>
+                    🤖 AI Reads This
+                  </span>
+                </div>
+                <textarea
                   className="input-field"
-                  style={{ width: '100%' }}
-                  placeholder="e.g. Comprehensive geometry concepts from Grade 6 to 11"
+                  rows={4}
+                  style={{ width: '100%', fontFamily: 'inherit', fontSize: 12, lineHeight: 1.5, resize: 'vertical' }}
+                  placeholder={`e.g.:
+- Physical: MathsPS Kandy Hall (සෙනසුරාදා උදෑසන 8.00 - 10.30)
+- Online: සෙනසුරාදා සවස 3.00 - 5.30 Zoom Live + LMS Recordings
+- Notes: ජ්‍යාමිතිය ප්‍රමේය 20 ම සාකච්ඡා කෙරේ. Tute නිවසටම Speed Post මඟින් එවනු ලැබේ.`}
                   value={formDesc}
                   onChange={e => setFormDesc(e.target.value)}
                 />
+                <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 4 }}>
+                  Include physical & online times, venue, and special notes. AI agent uses these key points naturally when talking with parents.
+                </div>
+              </div>
+
+              {/* Promotional Flyer Image Link */}
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 5 }}>
+                  <label style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    Promotional Flyer / Post Image Link
+                  </label>
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>
+                    Auto-sent on WhatsApp
+                  </span>
+                </div>
+                <input
+                  className="input-field"
+                  style={{ width: '100%', fontSize: 12 }}
+                  placeholder="e.g. https://images.unsplash.com/... or post image link"
+                  value={formFlyerUrl}
+                  onChange={e => setFormFlyerUrl(e.target.value)}
+                />
+                {formFlyerUrl && (
+                  <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 10, padding: 8, background: 'var(--bg-base)', borderRadius: 8, border: '1px solid var(--border)' }}>
+                    <img
+                      src={formFlyerUrl}
+                      alt="Flyer Preview"
+                      style={{ width: 48, height: 48, borderRadius: 6, objectFit: 'cover' }}
+                      onError={(e: any) => { e.target.style.display = 'none' }}
+                    />
+                    <div style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+                      <div style={{ fontWeight: 700, color: 'var(--text-primary)' }}>Flyer Preview Loaded</div>
+                      <div>This promotional post will be dispatched to parents when they ask about this course.</div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {!editingCode && (

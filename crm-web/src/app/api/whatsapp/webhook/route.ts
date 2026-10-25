@@ -247,11 +247,11 @@ export async function POST(req: NextRequest) {
         const liveConfig = await getLiveAiConfig()
 
         // 2. Auto-dispatch Flyer if inquired
-        if (aiResult.dispatchFlyerGrade) {
+        if (aiResult.dispatchFlyerUrl || aiResult.dispatchFlyerGrade) {
           const grade = aiResult.dispatchFlyerGrade
-          const flyerUrl = liveConfig.class_flyers?.[grade] || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800'
-          const timetable = liveConfig.timetables?.[grade] || ''
-          const caption = `📊 *MathsPS ${grade} ශ්‍රේණිය පන්ති විස්තර*${timetable ? `\n⏰ ${timetable}` : ''}\nප්‍රබුද්ධ සම්පත් සර් (B.Sc)`
+          const flyerUrl = aiResult.dispatchFlyerUrl || (grade ? liveConfig.class_flyers?.[grade] : null) || 'https://images.unsplash.com/photo-1635070041078-e363dbe005cb?q=80&w=800'
+          const timetable = grade ? (liveConfig.timetables?.[grade] || '') : ''
+          const caption = `📊 *MathsPS ${grade ? `${grade} ශ්‍රේණිය ` : ''}පන්ති විස්තර*${timetable ? `\n⏰ ${timetable}` : ''}\nප්‍රබුද්ධ සම්පත් සර් (B.Sc)`
 
           await sendWhatsAppImage(senderPhone, flyerUrl, caption)
         }

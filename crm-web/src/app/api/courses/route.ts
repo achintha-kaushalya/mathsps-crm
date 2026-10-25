@@ -9,7 +9,8 @@ const CourseConfigSchema = z.object({
   name: z.string().min(1),
   defaultFee: z.number().min(0),
   billingType: z.enum(['MONTHLY', 'ONE_TIME', 'TERM']),
-  description: z.string().optional()
+  description: z.string().optional(),
+  flyerUrl: z.string().optional()
 })
 
 const SaveCoursesSchema = z.object({
