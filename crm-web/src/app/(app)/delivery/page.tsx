@@ -424,18 +424,39 @@ export default function DeliveryPage() {
       })
   }, [allGroups, activeTab, areaFilter, selectedGrades, selectedCourses, includeStandaloneOnly, search, standaloneCourses, courseLabels])
 
+  // Helper: returns the exact student items in a household that match the active tab and current active filters (Grades, Courses, Standalone)
+  function getActiveEligibleStudents(g: DeliveryGroup) {
+    const baseList = activeTab === 'unexported'
+      ? g.students.filter(st => !st.dispatched)
+      : g.students
+
+    return baseList.filter(st => {
+      // If Grade filter active, only include matching grades
+      if (selectedGrades.length > 0 && !selectedGrades.includes(st.grade)) {
+        return false
+      }
+      // If Course filter active, only include matching courses
+      if (selectedCourses.length > 0 && !selectedCourses.includes(st.class_type)) {
+        return false
+      }
+      // If Standalone only filter active
+      if (includeStandaloneOnly) {
+        const isStandaloneCode = standaloneCourses.some(sc => sc.code === st.class_type)
+        if (!isStandaloneCode && st.grade !== 0) return false
+      }
+      return true
+    })
+  }
+
   // Count summaries
   const unexportedCount = useMemo(() => allGroups.filter(g => !g.isDispatched).length, [allGroups])
   const dispatchedCount = useMemo(() => allGroups.filter(g => g.isDispatched).length, [allGroups])
 
   const totalTutesCount = useMemo(() => {
     return visibleGroups.reduce((acc, g) => {
-      const count = activeTab === 'unexported'
-        ? g.students.filter(st => !st.dispatched).length
-        : g.students.length
-      return acc + count
+      return acc + getActiveEligibleStudents(g).length
     }, 0)
-  }, [visibleGroups, activeTab])
+  }, [visibleGroups, activeTab, selectedGrades, selectedCourses, includeStandaloneOnly, standaloneCourses])
 
   // Paginated Slicing for fast DOM rendering
   const totalPages = Math.max(1, Math.ceil(visibleGroups.length / pageSize))
@@ -504,7 +525,7 @@ export default function DeliveryPage() {
 
     targetGroups.forEach((g, gIdx) => {
       const itemNumber = gIdx + 1
-      const itemsToExport = activeTab === 'unexported' ? g.students.filter(st => !st.dispatched) : g.students
+      const itemsToExport = getActiveEligibleStudents(g)
 
       itemsToExport.forEach(st => {
         paymentIdsToUpdate.push(st.paymentId)
@@ -574,7 +595,7 @@ export default function DeliveryPage() {
     const seenLmsNumbers = new Set<string>()
 
     targetGroups.forEach(g => {
-      const items = activeTab === 'unexported' ? g.students.filter(st => !st.dispatched) : g.students
+      const items = getActiveEligibleStudents(g)
       items.forEach(st => {
         const lms = (st.lms_number || '').trim()
         if (lms) {
@@ -776,9 +797,7 @@ export default function DeliveryPage() {
           <div class="grid">
             ${targetGroups.map((g, gIdx) => {
               const itemNumber = gIdx + 1
-              const studentsToPrint = activeTab === 'unexported'
-                ? g.students.filter(st => !st.dispatched)
-                : g.students
+              const studentsToPrint = getActiveEligibleStudents(g)
 
               const uniquePsCodes = Array.from(new Set(studentsToPrint.map(s => s.ps_code))).join(', ')
 
@@ -837,9 +856,7 @@ export default function DeliveryPage() {
 
       const renderCard = (g: typeof g1, cardIndex: number) => {
         if (!g) return '<td style="width:50%; border:none;"></td>'
-        const studentsToPrint = activeTab === 'unexported'
-          ? g.students.filter(st => !st.dispatched)
-          : g.students
+        const studentsToPrint = getActiveEligibleStudents(g)
         const uniquePsCodes = Array.from(new Set(studentsToPrint.map(s => s.ps_code))).join(', ')
         const addrFormatted = formatEnvelopeAddress(g.address || '')
 
@@ -1785,17 +1802,32 @@ export default function DeliveryPage() {
                         </div>
 
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
-                          <span style={{
-                            fontSize: 11,
-                            fontWeight: 700,
-                            padding: '3px 8px',
-                            borderRadius: 6,
-                            background: isDispatched ? 'rgba(16, 185, 129, 0.15)' : 'rgba(249, 115, 22, 0.15)',
-                            color: isDispatched ? '#10b981' : '#f97316',
-                            border: `1px solid ${isDispatched ? 'rgba(16, 185, 129, 0.3)' : 'rgba(249, 115, 22, 0.3)'}`
-                          }}>
-                            {g.students.length} {g.students.length === 1 ? 'Tute' : 'Tutes'}
-                          </span>
+                          {(() => {
+                            const eligibleCount = getActiveEligibleStudents(g).length
+                            const totalPending = g.students.filter(s => !s.dispatched).length
+                            const hasExcludedSiblings = activeTab === 'unexported' && eligibleCount < totalPending
+
+                            return (
+                              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 3 }}>
+                                <span style={{
+                                  fontSize: 11,
+                                  fontWeight: 700,
+                                  padding: '3px 8px',
+                                  borderRadius: 6,
+                                  background: isDispatched ? 'rgba(16, 185, 129, 0.15)' : 'rgba(249, 115, 22, 0.15)',
+                                  color: isDispatched ? '#10b981' : '#f97316',
+                                  border: `1px solid ${isDispatched ? 'rgba(16, 185, 129, 0.3)' : 'rgba(249, 115, 22, 0.3)'}`
+                                }}>
+                                  {eligibleCount} {eligibleCount === 1 ? 'Tute' : 'Tutes'}
+                                </span>
+                                {hasExcludedSiblings && (
+                                  <span style={{ fontSize: 9.5, color: '#f59e0b', fontWeight: 600 }}>
+                                    +{totalPending - eligibleCount} sibling tute waiting
+                                  </span>
+                                )}
+                              </div>
+                            )
+                          })()}
                         </div>
                       </div>
 
@@ -1835,6 +1867,7 @@ export default function DeliveryPage() {
                       <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                         {g.students.map(st => {
                           const isPending = !st.dispatched
+                          const isEligibleInBatch = getActiveEligibleStudents(g).some(s => s.paymentId === st.paymentId)
 
                           return (
                             <div
@@ -1847,14 +1880,21 @@ export default function DeliveryPage() {
                                 fontSize: 12,
                                 padding: '8px 12px',
                                 borderRadius: 8,
-                                background: isPending ? 'rgba(249,115,22,0.08)' : 'var(--bg-card-hover)',
-                                border: `1px solid ${isPending ? 'rgba(249,115,22,0.22)' : 'var(--border)'}`
+                                background: isEligibleInBatch
+                                  ? 'rgba(249,115,22,0.12)'
+                                  : isPending
+                                  ? 'rgba(255,255,255,0.02)'
+                                  : 'var(--bg-card-hover)',
+                                border: isEligibleInBatch
+                                  ? '1px solid rgba(249,115,22,0.35)'
+                                  : `1px solid var(--border)`,
+                                opacity: isEligibleInBatch || !isPending ? 1 : 0.65
                               }}
                             >
                               <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
-                                <Package size={14} style={{ color: isPending ? '#ea580c' : '#10b981', flexShrink: 0 }} />
-                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: 'var(--text-primary)' }}>
-                                  <strong style={{ color: 'var(--accent-blue)', marginRight: 4 }}>{st.ps_code}</strong> · {st.full_name} <span style={{ color: 'var(--text-secondary)' }}>(Gr {st.grade})</span> — {courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type}
+                                <Package size={14} style={{ color: isEligibleInBatch ? '#ea580c' : isPending ? '#94a3b8' : '#10b981', flexShrink: 0 }} />
+                                <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: isEligibleInBatch ? 'var(--text-primary)' : 'var(--text-muted)' }}>
+                                  <strong style={{ color: isEligibleInBatch ? 'var(--accent-blue)' : 'var(--text-muted)', marginRight: 4 }}>{st.ps_code}</strong> · {st.full_name} <span style={{ color: 'var(--text-secondary)' }}>(Gr {st.grade})</span> — {courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type}
                                 </span>
                               </div>
 
@@ -1864,11 +1904,15 @@ export default function DeliveryPage() {
                                 padding: '2px 7px',
                                 borderRadius: 5,
                                 whiteSpace: 'nowrap',
-                                background: isPending ? 'rgba(249, 115, 22, 0.15)' : 'rgba(16, 185, 129, 0.15)',
-                                color: isPending ? '#ea580c' : '#10b981',
-                                border: `1px solid ${isPending ? 'rgba(249, 115, 22, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
+                                background: isEligibleInBatch
+                                  ? 'rgba(249, 115, 22, 0.2)'
+                                  : isPending
+                                  ? 'rgba(100, 116, 139, 0.15)'
+                                  : 'rgba(16, 185, 129, 0.15)',
+                                color: isEligibleInBatch ? '#ea580c' : isPending ? '#94a3b8' : '#10b981',
+                                border: `1px solid ${isEligibleInBatch ? 'rgba(249, 115, 22, 0.4)' : isPending ? 'rgba(100, 116, 139, 0.3)' : 'rgba(16, 185, 129, 0.3)'}`
                               }}>
-                                {isPending ? 'READY' : 'DISPATCHED'}
+                                {isEligibleInBatch ? 'READY IN BATCH' : isPending ? 'WAITING FILTER' : 'DISPATCHED'}
                               </span>
                             </div>
                           )
