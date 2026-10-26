@@ -635,7 +635,7 @@ export default function DeliveryPage() {
     setTimeout(() => setActionMessage(''), 6000)
   }
 
-  // Restore Dispatched items back to Unexported queue
+  // Restore Dispatched items back to Unexported queue (Single Card)
   async function revertDispatchedBatch(g: DeliveryGroup) {
     if (!confirm(`Revert ${g.parent_name} (${g.students.map(s => s.ps_code).join(', ')}) back to Ready to Export queue?`)) return
 
@@ -655,9 +655,64 @@ export default function DeliveryPage() {
         throw new Error(errData.error || 'Failed to revert dispatch')
       }
 
+      setActionMessage(`✓ Successfully reverted ${g.parent_name} back to Ready to Export!`)
+      setTimeout(() => setActionMessage(''), 6000)
+
       await loadDeliveryList()
     } catch (err: any) {
       alert('Failed to revert: ' + err.message)
+    } finally {
+      setMarking(false)
+    }
+  }
+
+  // Restore ALL Selected Dispatched Houses in Bulk back to Unexported queue
+  async function revertSelectedDispatchedBatches() {
+    const targetGroups = visibleGroups.filter(g => selectedHouseholds.has(g.household_id))
+    if (targetGroups.length === 0) {
+      alert('Please select at least one dispatched house to revert.')
+      return
+    }
+
+    const allPaymentIds: string[] = []
+    targetGroups.forEach(g => {
+      g.students.forEach(s => {
+        allPaymentIds.push(s.paymentId)
+      })
+    })
+
+    if (!confirm(`⚠️ Are you sure you want to revert all ${targetGroups.length} selected houses (${allPaymentIds.length} tutes) for ${MONTH_NAMES[month - 1]} ${year} back to Ready to Export?`)) {
+      return
+    }
+
+    setMarking(true)
+    try {
+      // Chunk in blocks of 200 in case of massive bulk batches
+      const CHUNK = 200
+      for (let i = 0; i < allPaymentIds.length; i += CHUNK) {
+        const chunkIds = allPaymentIds.slice(i, i + CHUNK)
+        const res = await fetch('/api/delivery', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'revert',
+            paymentIds: chunkIds
+          })
+        })
+
+        if (!res.ok) {
+          const errData = await res.json()
+          throw new Error(errData.error || 'Failed to revert dispatch batch')
+        }
+      }
+
+      setActionMessage(`✓ Successfully reverted ${targetGroups.length} houses (${allPaymentIds.length} tutes) back to Ready to Export!`)
+      setTimeout(() => setActionMessage(''), 6000)
+
+      setSelectedHouseholds(new Set())
+      await loadDeliveryList()
+    } catch (err: any) {
+      alert('Failed to bulk revert: ' + err.message)
     } finally {
       setMarking(false)
     }
@@ -1086,6 +1141,26 @@ export default function DeliveryPage() {
             </>
           ) : (
             <>
+              <button
+                onClick={revertSelectedDispatchedBatches}
+                disabled={selectedCount === 0 || marking}
+                className="btn-primary"
+                style={{
+                  background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  fontWeight: 600, fontSize: 12.5, padding: '7px 14px',
+                  boxShadow: '0 2px 8px rgba(239,68,68,0.25)',
+                  border: '1px solid rgba(239,68,68,0.3)',
+                  whiteSpace: 'nowrap',
+                  borderRadius: 8,
+                  opacity: selectedCount === 0 || marking ? 0.6 : 1,
+                  cursor: selectedCount === 0 || marking ? 'not-allowed' : 'pointer'
+                }}
+                title="Revert all selected houses back to Ready to Export queue"
+              >
+                <RotateCcw size={14} className={marking ? 'animate-spin' : ''} />
+                {marking ? 'Reverting...' : `Revert Selected (${selectedCount})`}
+              </button>
               <button
                 onClick={printBatchEnvelopes}
                 disabled={selectedCount === 0}
@@ -1672,6 +1747,28 @@ export default function DeliveryPage() {
             >
               Clear Page
             </button>
+
+            {activeTab === 'dispatched' && selectedCount > 0 && (
+              <button
+                onClick={revertSelectedDispatchedBatches}
+                disabled={marking}
+                className="btn-primary"
+                style={{
+                  padding: '4px 12px',
+                  fontSize: 12,
+                  borderRadius: 6,
+                  background: 'linear-gradient(135deg, #dc2626 0%, #ef4444 100%)',
+                  border: '1px solid rgba(239, 68, 68, 0.35)',
+                  boxShadow: '0 2px 6px rgba(239, 68, 68, 0.25)',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 5
+                }}
+              >
+                <RotateCcw size={12} className={marking ? 'animate-spin' : ''} />
+                {marking ? 'Reverting...' : `Revert Selected (${selectedCount})`}
+              </button>
+            )}
           </div>
 
           {/* Right: Page Size & Current View Stats */}
