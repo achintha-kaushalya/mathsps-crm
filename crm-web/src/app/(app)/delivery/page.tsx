@@ -909,54 +909,58 @@ export default function DeliveryPage() {
       const g1 = targetGroups[i]
       const g2 = targetGroups[i + 1]
 
-      const renderCard = (g: typeof g1, cardIndex: number) => {
+      const renderTopCell = (g: typeof g1, cardIndex: number) => {
+        if (!g) return '<td style="width:50%; border:none;"></td>'
+        const addrFormatted = formatEnvelopeAddress(g.address || '')
+        return `
+          <td style="width:50%; vertical-align:top; padding:8px 10px 4px 10px; border-top:2px solid #000; border-left:2px solid #000; border-right:2px solid #000; border-bottom:none; font-family:Arial, sans-serif; page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
+            <div style="border-bottom:1.5px solid #000; padding-bottom:3px; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:11pt; font-weight:bold; color:#000; letter-spacing:0.5px;">#${cardIndex}</span>
+              <span style="font-size:8pt; color:#555; text-transform:uppercase;">${MONTH_NAMES[month - 1]} ${year}</span>
+            </div>
+            <div style="font-size:11pt; font-weight:bold; color:#000; margin-bottom:3px;">
+              ${g.parent_name || 'Guardian / Student'}
+            </div>
+            <div style="font-size:9.5pt; color:#111; line-height:1.3; margin-bottom:4px;">
+              ${addrFormatted}
+            </div>
+            ${g.parent_phone ? `<div style="font-size:9.5pt; font-weight:bold;">☎ ${g.parent_phone}</div>` : ''}
+          </td>
+        `
+      }
+
+      const renderBottomCell = (g: typeof g1) => {
         if (!g) return '<td style="width:50%; border:none;"></td>'
         const studentsToPrint = getActiveEligibleStudents(g)
         const uniquePsCodes = Array.from(new Set(studentsToPrint.map(s => s.ps_code))).join(', ')
-        const addrFormatted = formatEnvelopeAddress(g.address || '')
-
         const courseLines = studentsToPrint.map(st => {
           const cName = courseLabels[st.class_type] || CLASS_LABELS[st.class_type] || st.class_type
           return `Gr ${st.grade || '—'} &bull; <b>${cName}</b>`
         }).join('<br/>')
 
         return `
-          <td style="width:50%; vertical-align:top; padding:6px; page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
-            <table class="envelope-table" style="width:100%; border:2px solid #000; border-collapse:collapse; padding:10px; font-family:Arial, sans-serif; page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
-              <tr style="page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
-                <td style="padding:10px; vertical-align:top; page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
-                  <div style="border-bottom:1.5px solid #000; padding-bottom:4px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
-                    <span style="font-size:12pt; font-weight:bold; color:#000; letter-spacing:0.5px;">#${cardIndex}</span>
-                    <span style="font-size:8.5pt; color:#555; text-transform:uppercase;">${MONTH_NAMES[month - 1]} ${year}</span>
-                  </div>
-                  <div style="font-size:12pt; font-weight:bold; color:#000; margin-bottom:4px;">
-                    ${g.parent_name || 'Guardian / Student'}
-                  </div>
-                  <div style="font-size:10pt; color:#111; line-height:1.35; margin-bottom:6px;">
-                    ${addrFormatted}
-                  </div>
-                  ${g.parent_phone ? `<div style="font-size:10pt; font-weight:bold;">☎ ${g.parent_phone}</div>` : ''}
-                </td>
-              </tr>
-              <tr style="page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
-                <td style="padding:10px; border-top:1.5px dashed #000; text-align:right; vertical-align:bottom; page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
-                  <div style="display:inline-block; border:1.5px solid #000; padding:2px 8px; font-size:10pt; font-weight:bold; margin-bottom:4px;">
-                    PS: ${uniquePsCodes || '—'}
-                  </div>
-                  <div style="font-size:9.5pt; line-height:1.3; color:#111;">
-                    ${courseLines}
-                  </div>
-                </td>
-              </tr>
-            </table>
+          <td style="width:50%; vertical-align:bottom; padding:4px 10px 8px 10px; border-left:2px solid #000; border-right:2px solid #000; border-bottom:2px solid #000; border-top:1.5px dashed #000; text-align:right; font-family:Arial, sans-serif; page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
+            <div style="display:inline-block; border:1.5px solid #000; padding:1px 6px; font-size:9pt; font-weight:bold; margin-bottom:3px;">
+              PS: ${uniquePsCodes || '—'}
+            </div>
+            <div style="font-size:9pt; line-height:1.25; color:#111;">
+              ${courseLines}
+            </div>
           </td>
         `
       }
 
       tableRows += `
-        <tr style="page-break-inside:avoid; mso-yfti-irow:${Math.floor(i / 2)};">
-          ${renderCard(g1, i + 1)}
-          ${renderCard(g2, i + 2)}
+        <tr style="page-break-inside:avoid; break-inside:avoid; mso-cant-split:true; mso-yfti-irow:${i};">
+          ${renderTopCell(g1, i + 1)}
+          ${renderTopCell(g2, i + 2)}
+        </tr>
+        <tr style="page-break-inside:avoid; break-inside:avoid; mso-cant-split:true; mso-yfti-irow:${i + 1};">
+          ${renderBottomCell(g1)}
+          ${renderBottomCell(g2)}
+        </tr>
+        <tr style="height:10px; border:none; mso-yfti-irow:${i + 2};">
+          <td style="height:10px; border:none;" colspan="2"></td>
         </tr>
       `
     }
