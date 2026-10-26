@@ -849,10 +849,10 @@ export default function DeliveryPage() {
         }).join('<br/>')
 
         return `
-          <td style="width:50%; vertical-align:top; padding:8px;">
-            <table style="width:100%; border:2px solid #000; border-collapse:collapse; padding:12px; font-family:Arial, sans-serif;">
-              <tr>
-                <td style="padding:10px; vertical-align:top;">
+          <td style="width:50%; vertical-align:top; padding:6px; page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
+            <table class="envelope-table" style="width:100%; border:2px solid #000; border-collapse:collapse; padding:10px; font-family:Arial, sans-serif; page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
+              <tr style="page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
+                <td style="padding:10px; vertical-align:top; page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
                   <div style="border-bottom:1.5px solid #000; padding-bottom:4px; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
                     <span style="font-size:12pt; font-weight:bold; color:#000; letter-spacing:0.5px;">#${cardIndex}</span>
                     <span style="font-size:8.5pt; color:#555; text-transform:uppercase;">${MONTH_NAMES[month - 1]} ${year}</span>
@@ -866,8 +866,8 @@ export default function DeliveryPage() {
                   ${g.parent_phone ? `<div style="font-size:10pt; font-weight:bold;">☎ ${g.parent_phone}</div>` : ''}
                 </td>
               </tr>
-              <tr>
-                <td style="padding:10px; border-top:1.5px dashed #000; text-align:right; vertical-align:bottom;">
+              <tr style="page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
+                <td style="padding:10px; border-top:1.5px dashed #000; text-align:right; vertical-align:bottom; page-break-inside:avoid; break-inside:avoid; mso-cant-split:true;">
                   <div style="display:inline-block; border:1.5px solid #000; padding:2px 8px; font-size:10pt; font-weight:bold; margin-bottom:4px;">
                     PS: ${uniquePsCodes || '—'}
                   </div>
@@ -882,7 +882,7 @@ export default function DeliveryPage() {
       }
 
       tableRows += `
-        <tr>
+        <tr style="page-break-inside:avoid; mso-yfti-irow:${Math.floor(i / 2)};">
           ${renderCard(g1, i + 1)}
           ${renderCard(g2, i + 2)}
         </tr>
@@ -906,7 +906,7 @@ export default function DeliveryPage() {
           <style>
             @page {
               size: A4 portrait;
-              margin: 10mm 10mm 10mm 10mm;
+              margin: 10mm 8mm 10mm 8mm;
               mso-page-orientation: portrait;
             }
             body {
@@ -918,6 +918,21 @@ export default function DeliveryPage() {
               border-collapse: collapse;
               mso-table-lspace: 0pt;
               mso-table-rspace: 0pt;
+            }
+            tr {
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              mso-cant-split: true;
+            }
+            td {
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              mso-cant-split: true;
+            }
+            .envelope-table {
+              page-break-inside: avoid !important;
+              break-inside: avoid !important;
+              mso-cant-split: true;
             }
           </style>
         </head>
