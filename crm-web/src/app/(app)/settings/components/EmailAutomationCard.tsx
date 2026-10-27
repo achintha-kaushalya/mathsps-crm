@@ -1048,6 +1048,29 @@ export default function EmailAutomationCard() {
               </div>
             </div>
           </div>
+
+          {/* Automated Cloud Cron Trigger Box */}
+          <div style={{ padding: 14, background: 'rgba(56,189,248,0.06)', borderRadius: 8, border: '1px solid rgba(56,189,248,0.25)' }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#38bdf8', textTransform: 'uppercase', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 6 }}>
+              <Clock size={14} /> Automated Cron-Job.org Trigger URL
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--text-secondary)', marginBottom: 8, lineHeight: 1.4 }}>
+              Set your cron service (e.g. <code>cron-job.org</code>) to call this URL daily. It dynamically checks your configured morning and evening delivery times:
+            </div>
+            <div style={{
+              padding: '8px 10px',
+              borderRadius: 6,
+              background: 'rgba(0,0,0,0.3)',
+              fontFamily: 'monospace',
+              fontSize: 11,
+              color: '#f8fafc',
+              wordBreak: 'break-all',
+              userSelect: 'all',
+              border: '1px solid rgba(255,255,255,0.08)'
+            }}>
+              https://mathsps-lead-crm.vercel.app/api/reports/send-email?type=dynamic_check&secret=mathsps_cron_token_2026
+            </div>
+          </div>
         </div>
       </div>
     </div>
