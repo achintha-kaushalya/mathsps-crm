@@ -29,6 +29,24 @@ const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN || ''
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || ''
 const GEMINI_VOICE_NAME = process.env.GEMINI_VOICE_NAME || 'Charon' // 'Charon' (Deep, calm, professional male), 'Aoede' (Warm, natural female)
 const CRM_WEBHOOK_URL = process.env.CRM_WEBHOOK_URL || 'https://mathsps-lead-crm.vercel.app/api/whatsapp/webhook'
+const VOICE_BRIDGE_SECRET = process.env.VOICE_BRIDGE_SECRET
+
+/**
+ * Authentication middleware for internal CRM <-> Voice Bridge communication
+ * Strictly enforces configured VOICE_BRIDGE_SECRET (Fail-closed: no hardcoded fallbacks, header only)
+ */
+function requireBridgeAuth(req, res, next) {
+  if (!VOICE_BRIDGE_SECRET) {
+    return res.status(500).json({ error: 'Server misconfiguration: VOICE_BRIDGE_SECRET not set' })
+  }
+  const authHeader = req.headers['authorization'] || ''
+  const token = authHeader.replace(/^Bearer\s+/i, '')
+  
+  if (token === VOICE_BRIDGE_SECRET) {
+    return next()
+  }
+  return res.status(401).json({ error: 'Unauthorized bridge access' })
+}
 
 // Official Prabuddha Sampath Content Data
 const GRADE_FLYERS = {
@@ -366,7 +384,7 @@ app.get('/', (req, res) => {
   })
 })
 
-app.get('/debug-logs', (req, res) => {
+app.get('/debug-logs', requireBridgeAuth, (req, res) => {
   try {
     res.json({
       status: 'ok',
@@ -536,7 +554,7 @@ function setupIncomingTrack(incomingTrack, call_id) {
  * Inbound Call Signaling Hook
  * Receives incoming call offers from Meta or forwarded by Vercel Webhook
  */
-app.post('/webhook/call', async (req, res) => {
+app.post('/webhook/call', requireBridgeAuth, async (req, res) => {
   try {
     const { call_id, from, session, action, sdp, event, raw_call } = req.body
 
@@ -560,6 +578,24 @@ app.post('/webhook/call', async (req, res) => {
       terminateCall(call_id)
       logEvent('CALL_TERMINATED', { call_id })
       return res.json({ status: 'terminated' })
+    }
+
+    // Validate that incomingSdp is a valid non-empty string before allocating WebRTC resources
+    if (!incomingSdp || typeof incomingSdp !== 'string' || incomingSdp.trim().length === 0 || incomingSdp.length > 65536) {
+      logEvent('INVALID_SDP_REJECTED', { call_id, sdpType: typeof incomingSdp })
+      return res.status(400).json({ error: 'Invalid or oversized SDP offer string' })
+    }
+
+    // If an existing call with the same ID is present, safely terminate and clear prior session
+    if (activeCalls.has(call_id)) {
+      terminateCall(call_id)
+    }
+
+    // Hard Concurrency Cap: Reject excess calls to protect server memory & CPU
+    const MAX_CONCURRENT_CALLS = 15
+    if (activeCalls.size >= MAX_CONCURRENT_CALLS) {
+      logEvent('MAX_CONCURRENT_CALLS_REACHED', { call_id, activeCount: activeCalls.size })
+      return res.status(429).json({ error: 'Voice bridge at maximum call capacity' })
     }
 
     // Initialize werift WebRTC PeerConnection
@@ -596,6 +632,10 @@ app.post('/webhook/call', async (req, res) => {
       callerPcmBuffer: Buffer.alloc(0),
       mediaTimer: null,
       autoHangupTimer: null,
+      maxDurationTimer: setTimeout(() => {
+        logEvent('MAX_CALL_DURATION_REACHED', { call_id })
+        terminateCall(call_id)
+      }, 5 * 60 * 1000), // Hard 5-minute safety ceiling per call
       detailsSent: false,
       requestedGrade: null
     }
@@ -696,6 +736,9 @@ app.post('/webhook/call', async (req, res) => {
       sdp: localSdp
     })
   } catch (err) {
+    if (req.body && req.body.call_id) {
+      terminateCall(req.body.call_id)
+    }
     logEvent('CALL_HANDLING_EXCEPTION', { error: err.message, stack: err.stack })
     return res.status(500).json({ error: err.message })
   }
@@ -849,7 +892,10 @@ function initGeminiLiveConnection(callId) {
               const crmBase = CRM_WEBHOOK_URL.replace(/\/api\/whatsapp\/webhook\/?$/, '')
               fetch(`${crmBase}/api/ai-agent/learning`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                  'Content-Type': 'application/json',
+                  ...(VOICE_BRIDGE_SECRET ? { 'Authorization': `Bearer ${VOICE_BRIDGE_SECRET}` } : {})
+                },
                 body: JSON.stringify({
                   action: 'escalate',
                   callerPhone,
@@ -906,7 +952,10 @@ function initGeminiLiveConnection(callId) {
                 // Upsample 24kHz to 48kHz with interpolation and encode with 48kHz Opus
                 const chunk48 = upsample24to48(chunk24)
                 const opusFrame = c.opusEncoder.encode(chunk48, 960)
-                c.audioQueue.push(opusFrame)
+                // Bound queue to 2500 frames (~50 seconds) to prevent unbounded memory growth
+                if (c.audioQueue.length < 2500) {
+                  c.audioQueue.push(opusFrame)
+                }
               } catch (encErr) {
                 // Ignore encode error
               }
@@ -988,6 +1037,9 @@ function terminateCall(callId) {
     dispatchDetailsForGrade(callId, call.requestedGrade, true)
   }
 
+  if (call.maxDurationTimer) {
+    clearTimeout(call.maxDurationTimer)
+  }
   if (call.autoHangupTimer) {
     clearTimeout(call.autoHangupTimer)
   }

@@ -9,15 +9,15 @@ export const dynamic = 'force-dynamic'
  * Lets admins converse with the MathsPS Parent AI Agent and inspect triggered actions.
  */
 export async function POST(req: Request) {
-  const authResult = await requireAuth(req)
+  const authResult = await requireAuth(req, ['admin', 'owner'])
   if ('errorResponse' in authResult) return authResult.errorResponse
 
   try {
     const body = await req.json()
-    const message = body.message?.trim()
+    const message = typeof body?.message === 'string' ? body.message.trim() : ''
 
-    if (!message) {
-      return apiError('Message is required', 400)
+    if (!message || message.length > 1000) {
+      return apiError('Valid message (1-1000 chars) is required', 400)
     }
 
     const aiResult = await generateParentAiResponse({ text: message })

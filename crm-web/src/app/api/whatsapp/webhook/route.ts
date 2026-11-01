@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import crypto from 'crypto'
 import { sendWhatsAppText, sendWhatsAppImage, getStandardBankDetailsText } from '@/lib/whatsapp'
 import { generateParentAiResponse, downloadWhatsAppMedia, getLiveAiConfig } from '@/lib/gemini'
 import { createClient } from '@supabase/supabase-js'
@@ -6,6 +7,32 @@ import { createClient } from '@supabase/supabase-js'
 export const dynamic = 'force-dynamic'
 
 const VERIFY_TOKEN = process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN || 'mathsps_ai_callcenter_secret_2026'
+
+/**
+ * Validates Meta X-Hub-Signature-256 against raw request bytes
+ * Strictly enforces 64-char hex format and fails closed without throwing
+ */
+function verifyMetaSignature(rawBody: string, signatureHeader: string | null): boolean {
+  const appSecret = process.env.META_APP_SECRET
+  // Explicit opt-in only in non-production environments for automated testing: fail-closed in production
+  if (!appSecret) {
+    if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_UNSIGNED_WEBHOOK === 'true') return true
+    return false
+  }
+
+  if (!signatureHeader || !signatureHeader.startsWith('sha256=')) return false
+  const signature = signatureHeader.slice(7)
+  // Ensure exactly 64 hexadecimal characters to prevent timingSafeEqual throwing length mismatches
+  if (!/^[0-9a-fA-F]{64}$/.test(signature)) return false
+
+  try {
+    const hmac = crypto.createHmac('sha256', appSecret)
+    const digest = hmac.update(rawBody).digest('hex')
+    return crypto.timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(digest, 'hex'))
+  } catch {
+    return false
+  }
+}
 
 /**
  * [REQ-WA-01] Meta Webhook Verification Challenge (GET)
@@ -134,7 +161,19 @@ function shouldSendGreeting(phone: string): boolean {
  */
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
+    const rawBody = await req.text()
+    const signature = req.headers.get('x-hub-signature-256')
+
+    if (!verifyMetaSignature(rawBody, signature)) {
+      return NextResponse.json({ error: 'Invalid Meta signature' }, { status: 401 })
+    }
+
+    let body: any
+    try {
+      body = JSON.parse(rawBody)
+    } catch {
+      return NextResponse.json({ error: 'Malformed JSON payload' }, { status: 400 })
+    }
 
     // Fast ACK: Return 200 immediately to prevent Meta timeout retries (Skill: Performance)
     const entry = body.entry?.[0]
@@ -163,11 +202,15 @@ export async function POST(req: NextRequest) {
 
       // Forward to persistent Voice Bridge in Singapore (Ultra-low latency to Sri Lanka)
       const voiceBridgeUrl = process.env.VOICE_BRIDGE_URL || 'https://mathsps-voice-bridge-sg.onrender.com'
+      const bridgeSecret = process.env.VOICE_BRIDGE_SECRET || process.env.CRON_SECRET || 'mathsps_voice_bridge_secret_2026'
       if (voiceBridgeUrl) {
         try {
           const bridgeRes = await fetch(`${voiceBridgeUrl}/webhook/call`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${bridgeSecret}`
+            },
             body: JSON.stringify({
               call_id: callId,
               from: callerPhone,
@@ -285,9 +328,13 @@ export async function POST(req: NextRequest) {
         if ((aiResult as any).needsEscalation || (aiResult as any).unansweredQuestion) {
           try {
             const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://mathsps-lead-crm.vercel.app'
+            const secret = process.env.VOICE_BRIDGE_SECRET || process.env.CRON_SECRET || ''
             await fetch(`${baseUrl}/api/ai-agent/learning`, {
               method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                ...(secret ? { 'Authorization': `Bearer ${secret}` } : {})
+              },
               body: JSON.stringify({
                 action: 'escalate',
                 callerPhone: senderPhone,

@@ -1,11 +1,13 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { requireAuth } from '@/lib/api/guard'
+import { logServerAudit } from '@/lib/api/audit'
 
 export async function POST(request: Request) {
   // 0. Enforce authenticated Admin/Owner session
   const authResult = await requireAuth(request, ['admin', 'owner'])
   if ('errorResponse' in authResult) return authResult.errorResponse
+  const { auth } = authResult
 
   try {
     const body = await request.json()
@@ -86,14 +88,31 @@ export async function POST(request: Request) {
     }
 
     if (action === 'toggle_active') {
+      // Prevent admin from deactivating their own account
+      if (auth.member?.id === memberId && newActive === false) {
+        return NextResponse.json({ error: 'Cannot deactivate your own active administrator account.' }, { status: 400 })
+      }
+
       const { data: member, error: dbErr } = await supabaseAdmin
         .from('members')
         .update({ active: newActive })
         .eq('id', memberId)
-        .select()
+        .select('id, name, email, role, active')
         .single()
 
       if (dbErr) throw dbErr
+
+      await logServerAudit({
+        supabaseAdmin,
+        action: 'MEMBER_ROLE_CHANGE',
+        entityType: 'member',
+        entityId: memberId,
+        newData: { active: newActive },
+        userName: auth.member?.name || auth.user.email,
+        userEmail: auth.user.email,
+        userId: auth.user.id
+      })
+
       return NextResponse.json({ success: true, member })
     }
 
@@ -228,7 +247,7 @@ export async function POST(request: Request) {
         .from('members')
         .update({ notes: notesStr })
         .eq('id', memberId)
-        .select()
+        .select('id, name, email, role, active')
         .single()
 
       if (dbErr) throw dbErr
@@ -242,7 +261,7 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'New password must be at least 6 characters.' }, { status: 400 })
       }
 
-      const { data: member } = await supabaseAdmin.from('members').select('*').eq('id', memberId).single()
+      const { data: member } = await supabaseAdmin.from('members').select('id, name, email, role').eq('id', memberId).single()
       if (!member?.email) {
         return NextResponse.json({ error: 'Member does not have an active login email account.' }, { status: 400 })
       }
@@ -258,11 +277,27 @@ export async function POST(request: Request) {
       })
 
       if (resetErr) throw resetErr
+
+      await logServerAudit({
+        supabaseAdmin,
+        action: 'MEMBER_ROLE_CHANGE',
+        entityType: 'member',
+        entityId: memberId,
+        newData: { action: 'PASSWORD_RESET', targetEmail: member.email },
+        userName: auth.member?.name || auth.user.email,
+        userEmail: auth.user.email,
+        userId: auth.user.id
+      })
+
       return NextResponse.json({ success: true, message: `Password reset successfully for ${member.name}` })
     }
 
     if (action === 'delete_member') {
-      const { data: member } = await supabaseAdmin.from('members').select('*').eq('id', memberId).single()
+      if (auth.member?.id === memberId) {
+        return NextResponse.json({ error: 'Cannot delete your own active administrator account.' }, { status: 400 })
+      }
+
+      const { data: member } = await supabaseAdmin.from('members').select('id, name, email, role').eq('id', memberId).single()
       
       // Delete from members table
       const { error: dbErr } = await supabaseAdmin.from('members').delete().eq('id', memberId)
@@ -276,6 +311,18 @@ export async function POST(request: Request) {
           await supabaseAdmin.auth.admin.deleteUser(targetUser.id)
         }
       }
+
+      await logServerAudit({
+        supabaseAdmin,
+        action: 'MEMBER_ROLE_CHANGE',
+        entityType: 'member',
+        entityId: memberId,
+        oldData: member,
+        newData: { deleted: true },
+        userName: auth.member?.name || auth.user.email,
+        userEmail: auth.user.email,
+        userId: auth.user.id
+      })
 
       return NextResponse.json({ success: true, memberId })
     }

@@ -1,57 +1,26 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-import { createServerClient } from '@supabase/ssr'
-import { cookies } from 'next/headers'
+import { requireAuth } from '@/lib/api/guard'
 
 export const dynamic = 'force-dynamic'
 
 export async function GET(req: Request) {
   try {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-
-    // 1. Mandatory Session Authentication check
-    let user = null
-    try {
-      const cookieStore = await cookies()
-      const authClient = createServerClient(supabaseUrl, anonKey, {
-        cookies: {
-          getAll() { return cookieStore.getAll() },
-          setAll() {}
-        }
-      })
-      const { data } = await authClient.auth.getUser()
-      user = data.user
-    } catch {
-      const cookieHeader = req.headers.get('cookie') || ''
-      const authClient = createServerClient(supabaseUrl, anonKey, {
-        cookies: {
-          getAll() {
-            return cookieHeader.split(';').map(c => {
-              const [name, ...val] = c.trim().split('=')
-              return { name, value: val.join('=') }
-            }).filter(c => c.name && c.value)
-          },
-          setAll() {}
-        }
-      })
-      const { data } = await authClient.auth.getUser()
-      user = data.user
-    }
-
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized. Please login.' }, { status: 401 })
-    }
-
-    // 2. Query leads via secure service role client
-    const supabase = createClient(supabaseUrl, serviceKey, {
-      auth: { persistSession: false }
-    })
+    const authResult = await requireAuth(req)
+    if ('errorResponse' in authResult) return authResult.errorResponse
+    const { auth } = authResult
+    const supabase = auth.supabaseAdmin
 
     const url = new URL(req.url)
     const startDate = url.searchParams.get('startDate')
     const endDate = url.searchParams.get('endDate')
+
+    // Enforce RBAC lead assignment scoping for non-admin staff
+    const scopedAssignees = auth.canViewAll
+      ? []
+      : Array.from(new Set([
+          auth.member?.name?.trim() || '',
+          ...auth.allowedMembers.map(m => m.trim())
+        ])).filter(Boolean)
 
     // Fetch all leads using exact count and pagination (1000 per page)
     let allLeads: any[] = []
@@ -59,8 +28,16 @@ export async function GET(req: Request) {
 
     let query = supabase
       .from('leads')
-      .select('assigned_member,grade,status,campaign,date_added,created_at,paid', { count: 'exact' })
+      .select('id,assigned_member,grade,status,campaign,date_added,created_at,paid', { count: 'exact' })
+      .order('id', { ascending: true })
 
+    if (!auth.canViewAll) {
+      if (scopedAssignees.length > 0) {
+        query = query.in('assigned_member', scopedAssignees)
+      } else {
+        query = query.eq('assigned_member', auth.member?.name || 'none')
+      }
+    }
     if (startDate) query = query.gte('date_added', startDate)
     if (endDate) query = query.lte('date_added', endDate)
 
@@ -69,30 +46,42 @@ export async function GET(req: Request) {
     if (firstError) throw firstError
     if (firstBatch) allLeads.push(...firstBatch)
 
-    const totalRows = totalCount || 0
+    const totalRows = Math.min(totalCount || 0, 30000)
     
-    // Fetch remaining batches in parallel
+    // Fetch remaining batches with bounded concurrency (max 5 parallel pages at a time)
     if (totalRows > pageSize) {
-      const pagePromises: Promise<any>[] = []
+      const offsets: number[] = []
       for (let offset = pageSize; offset < totalRows; offset += pageSize) {
-        pagePromises.push(
-          (async () => {
+        offsets.push(offset)
+      }
+
+      const maxConcurrency = 5
+      for (let i = 0; i < offsets.length; i += maxConcurrency) {
+        const chunk = offsets.slice(i, i + maxConcurrency)
+        const results = await Promise.all(
+          chunk.map(async (offset) => {
             let pQuery = supabase
               .from('leads')
-              .select('assigned_member,grade,status,campaign,date_added,created_at,paid')
+              .select('id,assigned_member,grade,status,campaign,date_added,created_at,paid')
+              .order('id', { ascending: true })
 
+            if (!auth.canViewAll) {
+              if (scopedAssignees.length > 0) {
+                pQuery = pQuery.in('assigned_member', scopedAssignees)
+              } else {
+                pQuery = pQuery.eq('assigned_member', auth.member?.name || 'none')
+              }
+            }
             if (startDate) pQuery = pQuery.gte('date_added', startDate)
             if (endDate) pQuery = pQuery.lte('date_added', endDate)
 
             return await pQuery.range(offset, offset + pageSize - 1)
-          })()
+          })
         )
-      }
-
-      const results = await Promise.all(pagePromises)
-      for (const res of results) {
-        if (res.error) throw res.error
-        if (res.data) allLeads.push(...res.data)
+        for (const res of results) {
+          if (res.error) throw res.error
+          if (res.data) allLeads.push(...res.data)
+        }
       }
     }
 

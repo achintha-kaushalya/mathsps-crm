@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic'
  * Returns payments in range, registered students count, and auditor/staff collection breakdowns.
  */
 export async function GET(req: Request) {
-  const authResult = await requireAuth(req)
+  const authResult = await requireAuth(req, ['admin', 'owner'])
   if ('errorResponse' in authResult) return authResult.errorResponse
   const { auth } = authResult
 

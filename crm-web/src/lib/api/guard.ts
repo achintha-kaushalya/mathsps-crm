@@ -146,14 +146,20 @@ export async function requireAuth(
     realtime: { transport: DummyWs as any }
   })
 
-  // 3. Resolve true role from members table
-  const { data: member } = await supabaseAdmin
+  // 3. Resolve true role from members table (Fail closed: user MUST exist and be active in members)
+  const { data: member, error: memberError } = await supabaseAdmin
     .from('members')
     .select('id, name, email, role, notes, active')
     .eq('email', user.email)
-    .single()
+    .maybeSingle()
 
-  if (member && member.active === false) {
+  if (memberError || !member) {
+    return {
+      errorResponse: apiError('Forbidden: No active staff membership found for this account.', 403)
+    }
+  }
+
+  if (member.active === false) {
     return {
       errorResponse: apiError('Account deactivated. Contact system administrator.', 403)
     }

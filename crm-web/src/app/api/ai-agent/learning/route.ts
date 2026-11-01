@@ -1,23 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
 import { sendWhatsAppText } from '@/lib/whatsapp'
+import { requireAuth } from '@/lib/api/guard'
 
 export const dynamic = 'force-dynamic'
 
-function getAdminClient() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  if (!url || !key) throw new Error('Missing Supabase credentials')
-  return createClient(url, key)
-}
-
 /**
  * GET: Retrieve unresolved questions list & learned knowledge base
+ * Protected: Requires authenticated staff session
  */
 export async function GET(req: NextRequest) {
   try {
-    const supabase = getAdminClient()
-    const { data: adminRecord } = await supabase
+    const authResult = await requireAuth(req)
+    if ('errorResponse' in authResult) return authResult.errorResponse
+    const { auth } = authResult
+
+    const { data: adminRecord } = await auth.supabaseAdmin
       .from('members')
       .select('notes')
       .eq('name', 'Admin User')
@@ -55,10 +52,44 @@ export async function GET(req: NextRequest) {
  * 3. 'delete_knowledge': Remove obsolete learned rule
  */
 export async function POST(req: NextRequest) {
+  let body: any
   try {
-    const supabase = getAdminClient()
-    const body = await req.json()
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ success: false, error: 'Malformed JSON payload' }, { status: 400 })
+  }
+
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    return NextResponse.json({ success: false, error: 'Invalid JSON body object' }, { status: 400 })
+  }
+
+  try {
     const { action } = body
+
+    // 'escalate' can be invoked by internal voice-bridge or webhook using shared secret or authenticated staff
+    let supabase: any
+    if (action === 'escalate') {
+      const authHeader = req.headers.get('authorization') || ''
+      const bearerToken = authHeader.replace(/^Bearer\s+/i, '')
+      const isSecretMatch = (process.env.VOICE_BRIDGE_SECRET && bearerToken === process.env.VOICE_BRIDGE_SECRET) ||
+                            (process.env.CRON_SECRET && bearerToken === process.env.CRON_SECRET)
+
+      if (!isSecretMatch) {
+        const authResult = await requireAuth(req)
+        if ('errorResponse' in authResult) return authResult.errorResponse
+        supabase = authResult.auth.supabaseAdmin
+      } else {
+        const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+        const key = process.env.SUPABASE_SERVICE_ROLE_KEY!
+        const { createClient } = await import('@supabase/supabase-js')
+        supabase = createClient(url, key)
+      }
+    } else {
+      // 'resolve_and_teach', 'delete_knowledge', 'dismiss_inquiry' are strictly Admin/Owner only
+      const authResult = await requireAuth(req, ['admin', 'owner'])
+      if ('errorResponse' in authResult) return authResult.errorResponse
+      supabase = authResult.auth.supabaseAdmin
+    }
 
     const { data: adminRecord } = await supabase
       .from('members')

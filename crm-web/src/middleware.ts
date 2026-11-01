@@ -45,23 +45,24 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // 4. Role-Based Access Control (RBAC)
+  // 4. Role-Based Access Control (RBAC) — Strictly derived from members table (never trust user_metadata)
   if (user) {
     const email = user.email
-    let userRole = user.user_metadata?.role || 'member'
+    let userRole = 'member'
 
-    // Fetch database member notes for sub_role fallback
+    // Fetch database member record
     if (email) {
-      const { data: dbMem } = await supabase.from('members').select('role, notes').eq('email', email).single()
-      if (dbMem) {
-        if (dbMem.role) userRole = dbMem.role
-        try {
-          if (dbMem.notes) {
-            const perms = JSON.parse(dbMem.notes)
-            if (perms.sub_role) userRole = perms.sub_role
-          }
-        } catch {}
+      const { data: dbMem } = await supabase.from('members').select('role, notes, active').eq('email', email).maybeSingle()
+      if (!dbMem || dbMem.active === false) {
+        return NextResponse.redirect(new URL('/login', request.url))
       }
+      if (dbMem.role) userRole = dbMem.role
+      try {
+        if (dbMem.notes) {
+          const perms = JSON.parse(dbMem.notes)
+          if (perms.sub_role) userRole = perms.sub_role
+        }
+      } catch {}
     }
 
     // Admin-only routes (Dashboard is open to all authenticated staff)

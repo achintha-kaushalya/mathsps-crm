@@ -13,7 +13,7 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ ps_code: string }> }
 ) {
-  const authResult = await requireAuth(req)
+  const authResult = await requireAuth(req, ['admin', 'owner', 'payments'])
   if ('errorResponse' in authResult) return authResult.errorResponse
   const { auth } = authResult
 
@@ -60,7 +60,7 @@ export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ ps_code: string }> }
 ) {
-  const authResult = await requireAuth(req)
+  const authResult = await requireAuth(req, ['admin', 'owner', 'payments'])
   if ('errorResponse' in authResult) return authResult.errorResponse
   const { auth } = authResult
 

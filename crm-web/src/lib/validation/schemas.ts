@@ -4,16 +4,22 @@ import { z } from 'zod'
  * Single Payment Item for a class/course
  */
 export const PaymentItemSchema = z.object({
-  class_type: z.string().min(1, { message: 'Class/course code is required' }),
-  amount_due: z.number().min(0, { message: 'Amount due must be 0 or positive' }),
+  class_type: z.string().min(1, { message: 'Class/course code is required' }).max(80, { message: 'Course code cannot exceed 80 characters' }),
+  amount_due: z.number()
+    .min(0, { message: 'Amount due must be 0 or positive' })
+    .max(500000, { message: 'Amount due exceeds maximum allowed limit' })
+    .refine(val => Number(val.toFixed(2)) === val, {
+      message: 'Amount due cannot have more than 2 decimal places'
+    }),
   amount_paid: z.number()
     .min(0, { message: 'Amount paid must be 0 or positive' })
+    .max(500000, { message: 'Amount paid exceeds maximum allowed limit' })
     .refine(val => Number(val.toFixed(2)) === val, {
       message: 'Amount paid cannot have more than 2 decimal places'
     }),
   deliver_tute: z.boolean().optional().default(false),
   enrollment_id: z.string().uuid().optional().nullable(),
-  fee: z.number().min(0).optional()
+  fee: z.number().min(0).max(500000).optional()
 })
 
 export type PaymentItemInput = z.infer<typeof PaymentItemSchema>
@@ -27,13 +33,21 @@ export const PaymentCreateSchema = z.object({
   year: z.number().int().min(2024).max(new Date().getFullYear() + 1, {
     message: `Year must be between 2024 and ${new Date().getFullYear() + 1}`
   }),
-  payment_type: z.string().min(1, { message: 'Payment type is required' }),
-  bank_name: z.string().optional().nullable(),
-  date_paid: z.string().min(1, { message: 'Payment date is required' }),
+  payment_type: z.enum(['BANK', 'ONLINE', 'CASH', 'FREE', 'IMS'], {
+    message: 'Payment type must be BANK, ONLINE, CASH, FREE, or IMS'
+  }),
+  bank_name: z.string().max(100).optional().nullable(),
+  date_paid: z.string().regex(/^\d{4}-\d{2}-\d{2}/, { message: 'Payment date must be in YYYY-MM-DD format' }),
   added_to_group: z.boolean().optional().default(false),
   notes: z.string().max(1000).optional().nullable(),
   slip_url: z.string().url().optional().nullable().or(z.literal('')),
-  items: z.array(PaymentItemSchema).min(1, { message: 'At least one class payment item is required' })
+  items: z.array(PaymentItemSchema)
+    .min(1, { message: 'At least one class payment item is required' })
+    .max(20, { message: 'Cannot process more than 20 class items in a single batch' })
+    .refine(items => {
+      const codes = items.map(i => i.class_type.trim().toUpperCase())
+      return new Set(codes).size === codes.length
+    }, { message: 'Duplicate class_type items are not allowed in the same payment submission' })
 }).refine(data => {
   // If payment_type is BANK/ONLINE and deliver_tute is true, amount_paid MUST be > 0 (No zero-dollar delivery fraud)
   if (data.payment_type !== 'FREE') {
@@ -67,8 +81,8 @@ export type PaymentUpdateStatusInput = z.infer<typeof PaymentUpdateStatusSchema>
  * Enrollment Item Schema for student registration
  */
 export const EnrollmentItemSchema = z.object({
-  courseCode: z.string().min(1, { message: 'Course code is required' }),
-  fee: z.number().min(0, { message: 'Fee must be 0 or positive' }).refine(fee => fee > 0, {
+  courseCode: z.string().min(1, { message: 'Course code is required' }).max(80, { message: 'Course code cannot exceed 80 characters' }),
+  fee: z.number().min(0, { message: 'Fee must be 0 or positive' }).max(500000).refine(fee => fee > 0, {
     message: 'Standard course enrollment fee must be greater than 0'
   }),
   isStandalone: z.boolean().optional()
@@ -78,31 +92,31 @@ export const EnrollmentItemSchema = z.object({
  * Student Creation Schema (includes household, enrollments, and optional immediate payment)
  */
 export const StudentCreateSchema = z.object({
-  ps_code: z.string().min(3, { message: 'PS Code is required' }),
+  ps_code: z.string().min(3, { message: 'PS Code is required' }).max(30),
   full_name: z.string().min(1, { message: 'Student name is required' }).max(100, { message: 'Student name cannot exceed 100 characters' }),
   grade: z.number().int().min(1).max(13, { message: 'Grade must be between 1 and 13' }),
   lms_number: z.string().regex(/^[a-zA-Z0-9_\-\.\s]*$/, { message: 'LMS number contains invalid characters' }).max(50).optional().nullable(),
-  fcode_ref: z.string().optional().nullable(),
+  fcode_ref: z.string().max(30).optional().nullable(),
   parent_name: z.string().min(1, { message: 'Parent/Guardian name is required' }).max(100),
   parent_phone: z.string().regex(/^\d{9,11}$/, { message: 'Parent phone must contain 9 to 11 digits only' }),
   address: z.string().min(1, { message: 'Address is required for delivery' }).max(300),
-  area: z.string().optional().nullable(),
-  enrollments: z.array(EnrollmentItemSchema).min(1, { message: 'At least one class enrollment is required' }),
+  area: z.string().max(100).optional().nullable(),
+  enrollments: z.array(EnrollmentItemSchema).min(1, { message: 'At least one class enrollment is required' }).max(20),
   immediate_payment: z.object({
     month: z.number().int().min(1).max(12),
     year: z.number().int().min(2024).max(new Date().getFullYear() + 1),
-    payment_type: z.string().min(1),
-    bank_name: z.string().optional().nullable(),
+    payment_type: z.enum(['BANK', 'ONLINE', 'CASH', 'FREE', 'IMS']),
+    bank_name: z.string().max(100).optional().nullable(),
     date_paid: z.string().optional().nullable(),
     added_to_group: z.boolean().optional(),
-    notes: z.string().optional().nullable(),
+    notes: z.string().max(1000).optional().nullable(),
     items: z.array(z.object({
-      courseCode: z.string(),
-      amount_paid: z.number().min(0).refine(val => Number(val.toFixed(2)) === val, {
+      courseCode: z.string().max(80),
+      amount_paid: z.number().min(0).max(500000).refine(val => Number(val.toFixed(2)) === val, {
         message: 'Amount paid cannot have more than 2 decimal places'
       }),
       deliver_tute: z.boolean().optional()
-    }))
+    })).max(20)
   }).optional().nullable()
 }).refine(data => {
   // If immediate payment specified with deliver_tute, require positive amount_paid unless FREE
@@ -127,9 +141,9 @@ export const StudentUpdateSchema = z.object({
   full_name: z.string().min(1).max(100).optional().nullable(),
   grade: z.number().int().min(1).max(13).optional().nullable(),
   school: z.string().max(150).optional().nullable(),
-  notes: z.string().optional().nullable(),
-  lms_number: z.string().optional().nullable(),
-  fcode_ref: z.string().optional().nullable()
+  notes: z.string().max(2000).optional().nullable(),
+  lms_number: z.string().max(50).optional().nullable(),
+  fcode_ref: z.string().max(30).optional().nullable()
 })
 
 export type StudentUpdateInput = z.infer<typeof StudentUpdateSchema>
@@ -142,7 +156,7 @@ export const HouseholdUpdateSchema = z.object({
   parent_name: z.string().min(1).max(100).optional().nullable(),
   parent_phone: z.string().regex(/^\d{9,11}$/).optional().nullable(),
   address: z.string().max(300).optional().nullable(),
-  area: z.string().optional().nullable()
+  area: z.string().max(100).optional().nullable()
 })
 
 export type HouseholdUpdateInput = z.infer<typeof HouseholdUpdateSchema>

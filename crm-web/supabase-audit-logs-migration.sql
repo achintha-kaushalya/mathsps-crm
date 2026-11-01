@@ -24,12 +24,18 @@ CREATE INDEX IF NOT EXISTS idx_audit_logs_user ON public.audit_logs(user_email);
 -- Enable Row Level Security (RLS)
 ALTER TABLE public.audit_logs ENABLE ROW LEVEL SECURITY;
 
--- Allow authenticated users to insert audit logs
-CREATE POLICY "Allow authenticated insert audit_logs" ON public.audit_logs
-    FOR INSERT TO authenticated
-    WITH CHECK (true);
+-- Block direct client/browser inserts: Audit logs MUST be written strictly by the server service_role
+DROP POLICY IF EXISTS "Allow authenticated insert audit_logs" ON public.audit_logs;
 
--- Allow authenticated users to view audit logs
-CREATE POLICY "Allow authenticated select audit_logs" ON public.audit_logs
+-- Restrict reading audit logs strictly to active Admin and Owner staff
+DROP POLICY IF EXISTS "Allow authenticated select audit_logs" ON public.audit_logs;
+CREATE POLICY "Allow admin select audit_logs" ON public.audit_logs
     FOR SELECT TO authenticated
-    USING (true);
+    USING (
+      EXISTS (
+        SELECT 1 FROM public.members m
+        WHERE m.email = (auth.jwt() ->> 'email')
+          AND m.active = true
+          AND m.role IN ('admin', 'owner')
+      )
+    );

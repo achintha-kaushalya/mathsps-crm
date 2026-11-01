@@ -39,7 +39,7 @@ const DEFAULT_AI_CONFIG = {
 }
 
 export async function GET(req: Request) {
-  const authResult = await requireAuth(req)
+  const authResult = await requireAuth(req, ['admin', 'owner'])
   if ('errorResponse' in authResult) return authResult.errorResponse
   const { auth } = authResult
 

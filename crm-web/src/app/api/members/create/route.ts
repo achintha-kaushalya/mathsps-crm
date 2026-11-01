@@ -40,14 +40,18 @@ export async function POST(request: Request) {
       cookies: { getAll() { return [] }, setAll() {} }
     })
 
-    // Verify true database role
+    // Verify true database role (NEVER trust user_metadata for admin authorization)
     const { data: dbCallingMember } = await supabaseAdmin
       .from('members')
-      .select('role')
+      .select('role, active')
       .eq('email', callingEmail)
-      .single()
+      .maybeSingle()
 
-    const callingRole = dbCallingMember?.role || callingUser.user_metadata?.role || 'member'
+    if (!dbCallingMember || dbCallingMember.active === false) {
+      return NextResponse.json({ error: 'Permission denied. Active staff account required.' }, { status: 403 })
+    }
+
+    const callingRole = dbCallingMember.role
     if (callingRole !== 'admin' && callingRole !== 'owner') {
       return NextResponse.json({ error: 'Permission denied. Admin privileges required.' }, { status: 403 })
     }

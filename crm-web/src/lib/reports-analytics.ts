@@ -44,10 +44,23 @@ export function sanitizePhoneForWhatsApp(phone?: string | null): string {
 }
 
 /**
+ * Escapes CSV cell values and neutralizes Spreadsheet Formula Injection (=, +, -, @, tab, CR)
+ */
+export function escapeCsvCell(val: any): string {
+  const raw = String(val ?? '').trim()
+  // Neutralize formula execution in Excel / Google Sheets
+  const safe = /^[=+\-@\t\r]/.test(raw) ? `'${raw}` : raw
+  return `"${safe.replace(/"/g, '""')}"`
+}
+
+/**
  * Reusable Standard CSV Exporter
  */
 export function exportTableToCsv(filename: string, headers: string[], rows: string[][]): void {
-  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\r\n')
+  const csvContent = [
+    headers.map(escapeCsvCell).join(','),
+    ...rows.map(r => r.map(escapeCsvCell).join(','))
+  ].join('\r\n')
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -80,7 +93,7 @@ export function exportLmsBulkCsv(filename: string, students: { name: string; mob
   const headers = ['name', 'mobile']
   const rows = students
     .filter(s => s.mobile && s.mobile.trim().length >= 9)
-    .map(s => `"${(s.name || '').replace(/"/g, '""')}",${formatMobileForLms(s.mobile)}`)
+    .map(s => `${escapeCsvCell(s.name || '')},${formatMobileForLms(s.mobile)}`)
 
   const csvContent = [headers.join(','), ...rows].join('\r\n')
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' })

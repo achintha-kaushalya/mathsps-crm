@@ -9,7 +9,7 @@ export const dynamic = 'force-dynamic'
  * Securely fetches payments with optional filtering (by student_id, month, year, or limit)
  */
 export async function GET(req: Request) {
-  const authResult = await requireAuth(req)
+  const authResult = await requireAuth(req, ['admin', 'owner', 'payments'])
   if ('errorResponse' in authResult) return authResult.errorResponse
   const { auth } = authResult
 
@@ -69,8 +69,8 @@ export async function GET(req: Request) {
  * updates enrollments and student balances, and records enterprise audit log.
  */
 export async function POST(req: Request) {
-  // 1. Require staff / payments / admin authentication
-  const authResult = await requireAuth(req)
+  // 1. Require payments / admin / owner role authorization
+  const authResult = await requireAuth(req, ['admin', 'owner', 'payments'])
   if ('errorResponse' in authResult) return authResult.errorResponse
   const { auth } = authResult
 
@@ -125,7 +125,7 @@ export async function POST(req: Request) {
 
       createdPayments.push(payment)
 
-      // Ensure enrollment exists or fee is synchronized
+      // Ensure enrollment exists or fee is synchronized (Scoped strictly to payload.student_id to prevent cross-student IDOR)
       if (item.fee !== undefined) {
         if (!item.enrollment_id) {
           await auth.supabaseAdmin.from('enrollments').upsert(
@@ -142,6 +142,8 @@ export async function POST(req: Request) {
             .from('enrollments')
             .update({ fee_amount: item.fee })
             .eq('id', item.enrollment_id)
+            .eq('student_id', payload.student_id)
+            .eq('class_type', item.class_type)
         }
       }
 
@@ -179,8 +181,8 @@ export async function POST(req: Request) {
  * and writes enterprise audit log.
  */
 export async function DELETE(req: Request) {
-  // 1. Require staff / payments / admin authentication
-  const authResult = await requireAuth(req)
+  // 1. Require admin / owner / payments authorization
+  const authResult = await requireAuth(req, ['admin', 'owner', 'payments'])
   if ('errorResponse' in authResult) return authResult.errorResponse
   const { auth } = authResult
 

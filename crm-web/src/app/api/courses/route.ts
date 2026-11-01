@@ -49,19 +49,31 @@ export async function GET(req: Request) {
       adminRecord = res.data
     }
 
-    let config = null
+    let coursesConfig = null
     if (adminRecord?.notes) {
       try {
-        config = JSON.parse(adminRecord.notes)
+        const fullNotes = JSON.parse(adminRecord.notes)
+        // Strict allowlist: return ONLY explicit course structure and fee fields aligned with UI and POST schema
+        coursesConfig = {
+          grade_courses: fullNotes.grade_courses || {},
+          standalone_courses: fullNotes.standalone_courses || [],
+          payment_methods: fullNotes.payment_methods || [],
+          banks: fullNotes.banks || [],
+          courses: fullNotes.courses || [],
+          bank_accounts: fullNotes.bank_accounts || [],
+          grades: fullNotes.grades || [],
+          class_types: fullNotes.class_types || [],
+          delivery_fees: fullNotes.delivery_fees || {}
+        }
       } catch {}
     }
 
     return apiSuccess(
-      { config },
+      { config: coursesConfig },
       200,
       undefined,
       {
-        'Cache-Control': 'private, max-age=60, stale-while-revalidate=300'
+        'Cache-Control': 'private, no-cache, no-store'
       }
     )
   } catch (err: any) {
@@ -74,7 +86,7 @@ export async function GET(req: Request) {
  * Strictly Admin-Only endpoint to persist course structures, fees, and bank options
  */
 export async function POST(req: Request) {
-  const authResult = await requireAuth(req)
+  const authResult = await requireAuth(req, ['admin', 'owner'])
   if ('errorResponse' in authResult) return authResult.errorResponse
   const { auth } = authResult
 

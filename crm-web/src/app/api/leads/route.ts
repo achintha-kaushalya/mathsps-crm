@@ -28,9 +28,13 @@ export async function GET(req: Request) {
 
   try {
     const url = new URL(req.url)
-    const page = Math.max(0, parseInt(url.searchParams.get('page') || '0', 10))
-    const pageSize = Math.min(100, Math.max(10, parseInt(url.searchParams.get('pageSize') || '50', 10)))
-    const search = url.searchParams.get('search')?.trim() || ''
+    const rawPage = parseInt(url.searchParams.get('page') || '0', 10)
+    const page = Number.isFinite(rawPage) ? Math.max(0, rawPage) : 0
+    const rawPageSize = parseInt(url.searchParams.get('pageSize') || '50', 10)
+    const pageSize = Number.isFinite(rawPageSize) ? Math.min(100, Math.max(10, rawPageSize)) : 50
+    const rawSearch = url.searchParams.get('search')?.trim() || ''
+    // Sanitize search to prevent PostgREST filter injection
+    const search = rawSearch.replace(/[(),]/g, '').slice(0, 60)
     const status = url.searchParams.get('status')?.trim() || ''
     const memberFilter = url.searchParams.get('member')?.trim() || ''
 
@@ -39,11 +43,11 @@ export async function GET(req: Request) {
       .select('*', { count: 'exact' })
       .order('created_at', { ascending: false })
 
-    // 1. Enforce Role Visibility Scoping
+    // 1. Enforce Role Visibility Scoping (Preserve original case for Postgres .in() matching)
     if (!auth.canViewAll) {
       const allowed = Array.from(new Set([
-        auth.member?.name?.trim().toLowerCase() || '',
-        ...auth.allowedMembers.map(m => m.trim().toLowerCase())
+        auth.member?.name?.trim() || '',
+        ...auth.allowedMembers.map(m => m.trim())
       ])).filter(Boolean)
 
       if (allowed.length > 0) {
@@ -225,16 +229,20 @@ export async function PATCH(req: Request) {
       }
     }
 
-    // 3. Prepare update payload
+    // 3. Prepare update payload (Restrict 'paid' and 'assigned_member' changes to admins/managers)
     const updateObj: Record<string, any> = {}
     if (payload.status !== undefined) updateObj.status = payload.status
-    if (payload.assigned_member !== undefined) updateObj.assigned_member = payload.assigned_member
+    if (payload.assigned_member !== undefined && auth.canViewAll) {
+      updateObj.assigned_member = payload.assigned_member
+    }
     if (payload.grade !== undefined) updateObj.grade = payload.grade
     if (payload.comments !== undefined) updateObj.comments = payload.comments
     if (payload.campaign !== undefined) updateObj.campaign = payload.campaign
     if (payload.second_call_done !== undefined) updateObj.second_call_done = payload.second_call_done
     if (payload.second_call_notes !== undefined) updateObj.second_call_notes = payload.second_call_notes
-    if (payload.paid !== undefined) updateObj.paid = payload.paid
+    if (payload.paid !== undefined && (auth.isAdmin || auth.role === 'payments')) {
+      updateObj.paid = payload.paid
+    }
     if (payload.ps_code_ref !== undefined) updateObj.ps_code_ref = payload.ps_code_ref
 
     // If phone is updated, normalize and check repeat

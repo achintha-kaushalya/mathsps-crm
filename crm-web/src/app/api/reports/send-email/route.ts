@@ -17,19 +17,16 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const reportTypeParam = searchParams.get('type')
 
-    // Flexible & Secure Cron Verification:
-    // 1. Accepts Authorization: Bearer <CRON_SECRET> header (e.g. from Vercel Crons or cron-job.org HTTP header)
-    // 2. Accepts ?secret= or ?key= query parameter (e.g. cron-job.org URL format)
-    // 3. Accepts system default cron key ('mathsps_cron_token_2026')
+    // Secure Cron Verification: Requires configured server CRON_SECRET or authenticated staff session
     const authHeader = request.headers.get('authorization')
     const secretQuery = searchParams.get('secret') || searchParams.get('key') || searchParams.get('token')
-    const configuredCronSecret = process.env.CRON_SECRET || 'mathsps_cron_token_2026'
+    const configuredCronSecret = process.env.CRON_SECRET
 
-    const isHeaderValid = authHeader && (authHeader === `Bearer ${configuredCronSecret}` || authHeader === `Bearer mathsps_cron_token_2026`)
-    const isQueryValid = secretQuery && (secretQuery === configuredCronSecret || secretQuery === 'mathsps_cron_token_2026')
+    const isHeaderValid = configuredCronSecret && authHeader === `Bearer ${configuredCronSecret}`
+    const isQueryValid = configuredCronSecret && secretQuery === configuredCronSecret
 
     if (!isHeaderValid && !isQueryValid) {
-      // In development or manual testing without secret token, require staff login session
+      // If no valid CRON_SECRET matches, require admin/owner login session (Fail-closed)
       const authResult = await requireAuth(request, ['admin', 'owner'])
       if ('errorResponse' in authResult) return authResult.errorResponse
     }
@@ -216,18 +213,26 @@ export async function POST(request: Request) {
   const { searchParams } = new URL(request.url)
   const authHeader = request.headers.get('authorization')
   const secretQuery = searchParams.get('secret') || searchParams.get('key') || searchParams.get('token')
-  const configuredCronSecret = process.env.CRON_SECRET || 'mathsps_cron_token_2026'
+  const configuredCronSecret = process.env.CRON_SECRET
 
-  const isHeaderValid = authHeader && (authHeader === `Bearer ${configuredCronSecret}` || authHeader === `Bearer mathsps_cron_token_2026`)
-  const isQueryValid = secretQuery && (secretQuery === configuredCronSecret || secretQuery === 'mathsps_cron_token_2026')
+  const isHeaderValid = Boolean(configuredCronSecret && authHeader === `Bearer ${configuredCronSecret}`)
+  const isQueryValid = Boolean(configuredCronSecret && secretQuery === configuredCronSecret)
+  const isCronCaller = isHeaderValid || isQueryValid
 
-  if (!isHeaderValid && !isQueryValid) {
+  if (!isCronCaller) {
     const authResult = await requireAuth(request, ['admin', 'owner'])
     if ('errorResponse' in authResult) return authResult.errorResponse
   }
 
   try {
     const body = await request.json()
+    // Prevent SSRF to internal networks if smtpHost is passed
+    if (body.smtpHost && (
+      /^(localhost|127\.|10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|169\.254\.)/i.test(body.smtpHost.trim()) ||
+      body.smtpHost.includes('internal')
+    )) {
+      return NextResponse.json({ error: 'Invalid or forbidden SMTP host' }, { status: 400 })
+    }
     const result = await dispatchReportEmail(body)
     return NextResponse.json(result)
   } catch (error: any) {

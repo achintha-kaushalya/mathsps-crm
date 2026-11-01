@@ -92,13 +92,17 @@ export async function PATCH(
 
     const updateObj: Record<string, any> = {}
     if (payload.status !== undefined) updateObj.status = payload.status
-    if (payload.assigned_member !== undefined) updateObj.assigned_member = payload.assigned_member
+    if (payload.assigned_member !== undefined && auth.canViewAll) {
+      updateObj.assigned_member = payload.assigned_member
+    }
     if (payload.grade !== undefined) updateObj.grade = payload.grade
     if (payload.comments !== undefined) updateObj.comments = payload.comments
     if (payload.campaign !== undefined) updateObj.campaign = payload.campaign
     if (payload.second_call_done !== undefined) updateObj.second_call_done = payload.second_call_done
     if (payload.second_call_notes !== undefined) updateObj.second_call_notes = payload.second_call_notes
-    if (payload.paid !== undefined) updateObj.paid = payload.paid
+    if (payload.paid !== undefined && (auth.isAdmin || auth.role === 'payments')) {
+      updateObj.paid = payload.paid
+    }
     if (payload.ps_code_ref !== undefined) updateObj.ps_code_ref = payload.ps_code_ref
 
     const { data: updated, error: updErr } = await auth.supabaseAdmin

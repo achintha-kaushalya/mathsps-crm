@@ -10,15 +10,18 @@ export const dynamic = 'force-dynamic'
  * Searches or lists students with pagination and household details
  */
 export async function GET(req: Request) {
-  const authResult = await requireAuth(req)
+  const authResult = await requireAuth(req, ['admin', 'owner', 'payments'])
   if ('errorResponse' in authResult) return authResult.errorResponse
   const { auth } = authResult
 
   try {
     const url = new URL(req.url)
-    const query = url.searchParams.get('q') || ''
+    const rawQuery = url.searchParams.get('q') || ''
+    // Sanitize query to prevent PostgREST filter injection via commas or parens
+    const query = rawQuery.replace(/[(),]/g, '').trim().slice(0, 60)
     const grade = url.searchParams.get('grade')
-    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100)
+    const rawLimit = parseInt(url.searchParams.get('limit') || '50', 10)
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(1, rawLimit), 100) : 50
 
     let dbQuery = auth.supabaseAdmin
       .from('students')
@@ -61,7 +64,7 @@ export async function GET(req: Request) {
  * Creates household, student, enrollments, and optional immediate payments atomically with audit trail.
  */
 export async function POST(req: Request) {
-  const authResult = await requireAuth(req)
+  const authResult = await requireAuth(req, ['admin', 'owner', 'payments'])
   if ('errorResponse' in authResult) return authResult.errorResponse
   const { auth } = authResult
 

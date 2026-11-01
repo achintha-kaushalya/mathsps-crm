@@ -3,9 +3,11 @@ FROM node:20-alpine
 WORKDIR /app
 
 COPY package*.json ./
-RUN npm install --production
+RUN npm ci --omit=dev || npm install --production
 
-COPY . .
+COPY server.js ./
+
+USER node
 
 EXPOSE 8080
 

@@ -130,35 +130,22 @@ export default function DeliveryPage() {
 
     async function fetchServerCourses() {
       try {
-        let { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').maybeSingle()
-        if (!adminRecord) {
-          const res = await supabase.from('members').select('notes').eq('email', 'admin@mathsps.com').maybeSingle()
-          adminRecord = res.data
-        }
-        if (!adminRecord) {
-          const res = await supabase.from('members').select('notes').in('role', ['admin', 'owner']).limit(1).maybeSingle()
-          adminRecord = res.data
-        }
-        if (!adminRecord) {
-          const res = await supabase.from('members').select('notes').limit(1).maybeSingle()
-          adminRecord = res.data
-        }
-
-        if (adminRecord?.notes) {
-          try {
-            const notesObj = JSON.parse(adminRecord.notes)
-            const gc = notesObj.grade_courses || notesObj.gradeCourses
-            const sc = notesObj.standalone_courses || notesObj.standaloneCourses
-            if (gc || sc) {
-              if (gc) setGradeCourses(gc)
-              if (sc) setStandaloneCourses(sc)
-              setCourseLabels(getAllCourseLabels(gc || DEFAULT_GRADE_COURSES, sc || DEFAULT_STANDALONE_COURSES))
-              localStorage.setItem('MATHSPS_COURSES_CACHE', JSON.stringify({
-                grade_courses: gc || DEFAULT_GRADE_COURSES,
-                standalone_courses: sc || DEFAULT_STANDALONE_COURSES
-              }))
-            }
-          } catch {}
+        const res = await fetch('/api/courses')
+        if (!res.ok) return
+        const json = await res.json()
+        const notesObj = json?.data?.config || json?.config
+        if (notesObj) {
+          const gc = notesObj.grade_courses || notesObj.gradeCourses
+          const sc = notesObj.standalone_courses || notesObj.standaloneCourses
+          if (gc || sc) {
+            if (gc) setGradeCourses(gc)
+            if (sc) setStandaloneCourses(sc)
+            setCourseLabels(getAllCourseLabels(gc || DEFAULT_GRADE_COURSES, sc || DEFAULT_STANDALONE_COURSES))
+            localStorage.setItem('MATHSPS_COURSES_CACHE', JSON.stringify({
+              grade_courses: gc || DEFAULT_GRADE_COURSES,
+              standalone_courses: sc || DEFAULT_STANDALONE_COURSES
+            }))
+          }
         }
       } catch (err) {
         console.error('Error loading server courses:', err)

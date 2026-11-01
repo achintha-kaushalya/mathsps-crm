@@ -33,7 +33,7 @@ import LmsBulkExporterTab from './components/LmsBulkExporterTab'
 import DebtAgingTab from './components/DebtAgingTab'
 import DataQualityAuditTab from './components/DataQualityAuditTab'
 
-export function isNewRegistrationPsCode(psCode: string | null | undefined): boolean {
+function isNewRegistrationPsCode(psCode: string | null | undefined): boolean {
   if (!psCode) return false
   const clean = psCode.toUpperCase().trim()
   const num = parseInt(clean.replace(/\D/g, ''), 10)

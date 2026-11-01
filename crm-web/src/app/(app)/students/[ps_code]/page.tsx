@@ -72,24 +72,14 @@ export default function StudentDetailPage() {
       }
     })
 
-    // Fetch custom courses & fees & payment options
+    // Fetch custom courses & fees & payment options via safe allowlisted endpoint
     const loadAdminConfig = async () => {
-      let { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').maybeSingle()
-      if (!adminRecord) {
-        const res = await supabase.from('members').select('notes').eq('email', 'admin@mathsps.com').maybeSingle()
-        adminRecord = res.data
-      }
-      if (!adminRecord) {
-        const res = await supabase.from('members').select('notes').in('role', ['admin', 'owner']).limit(1).maybeSingle()
-        adminRecord = res.data
-      }
-      if (!adminRecord) {
-        const res = await supabase.from('members').select('notes').limit(1).maybeSingle()
-        adminRecord = res.data
-      }
-      if (adminRecord?.notes) {
-        try {
-          const notesObj = JSON.parse(adminRecord.notes)
+      try {
+        const res = await fetch('/api/courses')
+        if (!res.ok) return
+        const json = await res.json()
+        const notesObj = json?.data?.config || json?.config
+        if (notesObj) {
           const gc = notesObj.grade_courses || DEFAULT_GRADE_COURSES
           const sc = notesObj.standalone_courses || DEFAULT_STANDALONE_COURSES
           setCourseLabels(getAllCourseLabels(gc, sc))
@@ -99,8 +89,8 @@ export default function StudentDetailPage() {
           if (notesObj.banks && Array.isArray(notesObj.banks)) {
             setBanks(notesObj.banks)
           }
-        } catch (e) {}
-      }
+        }
+      } catch (e) {}
     }
 
     loadAdminConfig()

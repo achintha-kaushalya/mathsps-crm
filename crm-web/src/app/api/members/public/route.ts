@@ -7,10 +7,10 @@ export async function GET() {
     const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     const supabaseAdmin = createClient(supabaseUrl, serviceKey)
 
-    // Return active public staff profiles for login selector (safe public fields only)
+    // Return active public staff profiles for login selector (safe public fields ONLY - NEVER return notes or secrets)
     const { data: members, error } = await supabaseAdmin
       .from('members')
-      .select('id, name, email, role, active, notes')
+      .select('id, name, email, role, active')
       .eq('active', true)
       .order('name', { ascending: true })
 

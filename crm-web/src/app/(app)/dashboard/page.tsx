@@ -80,27 +80,36 @@ export default function AnalyticsDashboard() {
   const [paidThisMonth, setPaidThisMonth] = useState(0)
   const [totalStudents, setTotalStudents] = useState(0)
 
-  // Fetch all leads using fast parallel chunking
+  // Fetch leads via RBAC-enforced server analytics endpoint (excludes heavy comments, caps concurrency)
   async function fetchAllLeadsSequential(): Promise<LeadRow[]> {
+    const res = await fetch('/api/leads/analytics')
+    if (res.ok) {
+      const json = await res.json()
+      return (json.leads || []) as LeadRow[]
+    }
+
+    // Fallback with bounded concurrency (max 4 parallel pages) and no heavy comments field
     const pageSize = 1000
-    // Get total count first to spawn exact parallel chunks
     const { count } = await supabase.from('leads').select('id', { count: 'exact', head: true })
-    const totalCount = count || 20000
+    const totalCount = Math.min(count || 0, 25000)
     const numBatches = Math.ceil(totalCount / pageSize)
-
-    const batchPromises = Array.from({ length: numBatches }, (_, i) => {
-      const from = i * pageSize
-      return supabase
-        .from('leads')
-        .select('id,assigned_member,grade,status,campaign,date_added,created_at,paid,comments')
-        .range(from, from + pageSize - 1)
-    })
-
-    const results = await Promise.all(batchPromises)
     let allLeads: LeadRow[] = []
-    for (const res of results) {
-      if (res.data && res.data.length > 0) {
-        allLeads.push(...res.data)
+
+    const concurrency = 4
+    for (let i = 0; i < numBatches; i += concurrency) {
+      const slice = Array.from({ length: Math.min(concurrency, numBatches - i) }, (_, idx) => {
+        const from = (i + idx) * pageSize
+        return supabase
+          .from('leads')
+          .select('id,assigned_member,grade,status,campaign,date_added,created_at,paid')
+          .order('id', { ascending: true })
+          .range(from, from + pageSize - 1)
+      })
+      const results = await Promise.all(slice)
+      for (const r of results) {
+        if (r.data && r.data.length > 0) {
+          allLeads.push(...r.data)
+        }
       }
     }
     return allLeads
@@ -230,7 +239,7 @@ export default function AnalyticsDashboard() {
       if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current)
       debounceTimerRef.current = setTimeout(() => {
         loadData()
-      }, 1500)
+      }, 10000) // Coalesce rapid realtime events to 10s interval to prevent full-dataset reload storms
     }
 
     const ch = supabase.channel('analytics-rt')
