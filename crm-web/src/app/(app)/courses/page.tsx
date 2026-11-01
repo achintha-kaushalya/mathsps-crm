@@ -1078,14 +1078,17 @@ export default function CoursesManagerPage() {
                       flexDirection: 'column',
                       justifyContent: 'space-between',
                       gap: 14,
+                      minWidth: 0,
+                      height: '100%',
+                      overflow: 'hidden',
                       boxShadow: '0 2px 10px rgba(0, 0, 0, 0.04)',
                       transition: 'all 0.2s ease'
                     }}
                   >
-                    <div>
+                    <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minWidth: 0 }}>
                       {/* Top Header: Name + Code */}
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 8, marginBottom: 8 }}>
-                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>
+                        <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3, minWidth: 0, wordBreak: 'break-word' }}>
                           {c.name}
                         </div>
                         <span style={{
@@ -1096,7 +1099,8 @@ export default function CoursesManagerPage() {
                           padding: '2px 7px',
                           borderRadius: 6,
                           fontWeight: 700,
-                          whiteSpace: 'nowrap'
+                          whiteSpace: 'nowrap',
+                          flexShrink: 0
                         }}>
                           {c.code}
                         </span>
@@ -1143,10 +1147,10 @@ export default function CoursesManagerPage() {
                           <img
                             src={c.flyerUrl}
                             alt={c.name}
-                            style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover' }}
+                            style={{ width: 32, height: 32, borderRadius: 6, objectFit: 'cover', flexShrink: 0 }}
                             onError={(e: any) => { e.target.style.display = 'none' }}
                           />
-                          <div>
+                          <div style={{ minWidth: 0 }}>
                             <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--accent-blue)', display: 'block' }}>
                               🖼️ Post Attached
                             </span>
@@ -1164,6 +1168,10 @@ export default function CoursesManagerPage() {
                           lineHeight: 1.5,
                           marginBottom: 12,
                           whiteSpace: 'pre-line',
+                          wordBreak: 'break-word',
+                          overflowWrap: 'anywhere',
+                          overflow: 'hidden',
+                          flex: 1,
                           background: 'var(--bg-base)',
                           padding: '8px 10px',
                           borderRadius: 8,
@@ -1178,6 +1186,7 @@ export default function CoursesManagerPage() {
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'space-between',
+                        marginTop: 'auto',
                         background: 'var(--bg-card-hover)',
                         padding: '10px 12px',
                         borderRadius: 10,
