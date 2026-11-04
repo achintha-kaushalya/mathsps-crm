@@ -17,20 +17,6 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url)
     const reportTypeParam = searchParams.get('type')
 
-    // Secure Cron Verification: Requires configured server CRON_SECRET or authenticated staff session
-    const authHeader = request.headers.get('authorization')
-    const secretQuery = searchParams.get('secret') || searchParams.get('key') || searchParams.get('token')
-    const configuredCronSecret = process.env.CRON_SECRET
-
-    const isHeaderValid = configuredCronSecret && authHeader === `Bearer ${configuredCronSecret}`
-    const isQueryValid = configuredCronSecret && secretQuery === configuredCronSecret
-
-    if (!isHeaderValid && !isQueryValid) {
-      // If no valid CRON_SECRET matches, require admin/owner login session (Fail-closed)
-      const authResult = await requireAuth(request, ['admin', 'owner'])
-      if ('errorResponse' in authResult) return authResult.errorResponse
-    }
-
     // Supabase Admin/Server Client to retrieve live database settings
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
     const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -51,6 +37,21 @@ export async function GET(request: Request) {
       }
     } catch (e) {
       console.warn('Could not load email_settings from DB, using fallback env:', e)
+    }
+
+    // Secure Cron Verification:
+    // If process.env.CRON_SECRET is set, enforce it strictly; otherwise use dbSettings.cronSecret configured in DB
+    const authHeader = request.headers.get('authorization')
+    const secretQuery = searchParams.get('secret') || searchParams.get('key') || searchParams.get('token')
+    const configuredCronSecret = process.env.CRON_SECRET || dbSettings.cronSecret
+
+    const isHeaderValid = Boolean(configuredCronSecret && authHeader === `Bearer ${configuredCronSecret}`)
+    const isQueryValid = Boolean(configuredCronSecret && secretQuery === configuredCronSecret)
+
+    if (!isHeaderValid && !isQueryValid) {
+      // If no valid CRON_SECRET matches, require admin/owner login session (Fail-closed)
+      const authResult = await requireAuth(request, ['admin', 'owner'])
+      if ('errorResponse' in authResult) return authResult.errorResponse
     }
 
     const provider = dbSettings.provider || (process.env.EMAIL_PROVIDER as 'smtp' | 'resend') || 'smtp'
@@ -113,12 +114,12 @@ export async function GET(request: Request) {
       const lastDispatched: Record<string, string> = dbSettings.last_dispatched || {}
       const todayDateStr = slTime.toISOString().slice(0, 10)
 
-      // Match within 12-minute window of scheduled time (only if NOT already sent today)
+      // Match within 45-minute window of scheduled time (only if NOT already sent today)
       function isWithinWindow(schedTime: string, currTime: string) {
         const [sh, sm] = schedTime.split(':').map(Number)
         const [ch, cm] = currTime.split(':').map(Number)
         const diff = (ch * 60 + cm) - (sh * 60 + sm)
-        return diff >= 0 && diff <= 12
+        return diff >= 0 && diff <= 45
       }
 
       if (morningEnabled && lastDispatched.morning !== todayDateStr && isWithinWindow(morningTime, currentTimeStr)) {
@@ -213,7 +214,21 @@ export async function POST(request: Request) {
   const { searchParams } = new URL(request.url)
   const authHeader = request.headers.get('authorization')
   const secretQuery = searchParams.get('secret') || searchParams.get('key') || searchParams.get('token')
-  const configuredCronSecret = process.env.CRON_SECRET
+
+  let dbCronSecret: string | undefined
+  if (!process.env.CRON_SECRET) {
+    try {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+      const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      const supabase = createClient(supabaseUrl, supabaseKey)
+      const { data: adminRecord } = await supabase.from('members').select('notes').eq('name', 'Admin User').single()
+      if (adminRecord?.notes) {
+        dbCronSecret = JSON.parse(adminRecord.notes)?.email_settings?.cronSecret
+      }
+    } catch {}
+  }
+
+  const configuredCronSecret = process.env.CRON_SECRET || dbCronSecret
 
   const isHeaderValid = Boolean(configuredCronSecret && authHeader === `Bearer ${configuredCronSecret}`)
   const isQueryValid = Boolean(configuredCronSecret && secretQuery === configuredCronSecret)

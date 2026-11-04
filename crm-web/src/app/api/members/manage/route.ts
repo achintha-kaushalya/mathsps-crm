@@ -240,7 +240,10 @@ export async function POST(request: Request) {
 
       const notesStr = JSON.stringify({
         ...existingNotes,
-        email_settings: email_settings || {}
+        email_settings: {
+          ...(existingNotes?.email_settings || {}),
+          ...(email_settings || {})
+        }
       })
 
       const { data: member, error: dbErr } = await supabaseAdmin
