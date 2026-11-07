@@ -54,6 +54,10 @@ export async function GET(request: Request) {
       if ('errorResponse' in authResult) return authResult.errorResponse
     }
 
+    if (searchParams.get('action') === 'get_config') {
+      return NextResponse.json({ email_settings: dbSettings })
+    }
+
     const provider = dbSettings.provider || (process.env.EMAIL_PROVIDER as 'smtp' | 'resend') || 'smtp'
     const recipients = (dbSettings.recipients && dbSettings.recipients.length > 0)
       ? dbSettings.recipients
@@ -114,12 +118,12 @@ export async function GET(request: Request) {
       const lastDispatched: Record<string, string> = dbSettings.last_dispatched || {}
       const todayDateStr = slTime.toISOString().slice(0, 10)
 
-      // Match within 45-minute window of scheduled time (only if NOT already sent today)
+      // Match within 90-minute window of scheduled time (only if NOT already sent today)
       function isWithinWindow(schedTime: string, currTime: string) {
         const [sh, sm] = schedTime.split(':').map(Number)
         const [ch, cm] = currTime.split(':').map(Number)
         const diff = (ch * 60 + cm) - (sh * 60 + sm)
-        return diff >= 0 && diff <= 45
+        return diff >= -5 && diff <= 90
       }
 
       if (morningEnabled && lastDispatched.morning !== todayDateStr && isWithinWindow(morningTime, currentTimeStr)) {
@@ -249,6 +253,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid or forbidden SMTP host' }, { status: 400 })
     }
     const result = await dispatchReportEmail(body)
+
+    // Auto-persist working credentials & recipients to Admin User DB record so automated server crons always have the latest working SMTP/Resend settings
+    if (result?.success) {
+      try {
+        const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
+        const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        const supabase = createClient(supabaseUrl, supabaseKey)
+        const { data: adminUser } = await supabase.from('members').select('id, notes').eq('name', 'Admin User').maybeSingle()
+        if (adminUser?.id) {
+          let existing: any = {}
+          try { existing = JSON.parse(adminUser.notes || '{}') } catch {}
+          const prevEmailSettings = existing.email_settings || {}
+          const updatedEmailSettings = {
+            ...prevEmailSettings,
+            ...(body.provider ? { provider: body.provider } : {}),
+            ...(body.smtpUser ? { smtpUser: body.smtpUser.trim() } : {}),
+            ...(body.smtpPass ? { smtpPass: body.smtpPass.trim() } : {}),
+            ...(body.senderApiKey ? { apiKey: body.senderApiKey.trim() } : {}),
+            ...(body.fromEmail !== undefined ? { fromEmail: body.fromEmail.trim() } : {}),
+            ...(Array.isArray(body.recipients) && body.recipients.length > 0 ? { recipients: body.recipients } : {})
+          }
+          await supabase
+            .from('members')
+            .update({ notes: JSON.stringify({ ...existing, email_settings: updatedEmailSettings }) })
+            .eq('id', adminUser.id)
+        }
+      } catch (syncErr) {
+        console.warn('Could not auto-sync working email credentials to DB:', syncErr)
+      }
+    }
+
     return NextResponse.json(result)
   } catch (error: any) {
     console.error('Email report send error:', error)

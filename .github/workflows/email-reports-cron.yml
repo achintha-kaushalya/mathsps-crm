@@ -1,0 +1,31 @@
+name: Automated Executive Email Reports
+
+on:
+  schedule:
+    # 07:00 AM Sri Lanka Time (01:30 UTC) — Daily Morning Operations Brief
+    - cron: '30 1 * * *'
+    # 08:00 AM Sri Lanka Time (02:30 UTC) — Monthly Financial Close (1st)
+    - cron: '30 2 * * *'
+    # 08:30 AM Sri Lanka Time (03:00 UTC) — Mid-Month At-Risk Audit (15th)
+    - cron: '0 3 * * *'
+    # 08:30 PM Sri Lanka Time (15:00 UTC) — Daily Evening Day-End Summary
+    - cron: '0 15 * * *'
+    # 09:30 PM Sri Lanka Time (16:00 UTC) — Weekly Velocity Digest (Sunday)
+    - cron: '0 16 * * *'
+  workflow_dispatch:
+
+jobs:
+  dispatch-email-reports:
+    name: Trigger Dynamic Email Report Dispatcher
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Call MathsPS CRM Email Dispatcher
+        run: |
+          RESPONSE=$(curl -s -w "\nHTTP_STATUS:%{http_code}" "https://mathsps-lead-crm.vercel.app/api/reports/send-email?type=dynamic_check&secret=mathsps_cron_token_2026")
+          echo "$RESPONSE"
+          STATUS=$(echo "$RESPONSE" | tr -d '\n' | sed -e 's/.*HTTP_STATUS://')
+          if [ "$STATUS" -ge 400 ]; then
+            echo "Email dispatch endpoint returned HTTP $STATUS"
+            exit 1
+          fi

@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     const body = await request.json()
     const { action, memberId, newRole, newActive, adminPassword, newMemberPassword, permissions } = body
 
-    if (!action || (!memberId && action !== 'update_custom_courses')) {
+    if (!action || (!memberId && action !== 'update_custom_courses' && action !== 'update_email_settings')) {
       return NextResponse.json({ error: 'Action is required.' }, { status: 400 })
     }
 
@@ -224,12 +224,22 @@ export async function POST(request: Request) {
     if (action === 'update_email_settings') {
       const { email_settings } = body
 
-      // Get current admin user metadata
-      const { data: adminMem } = await supabaseAdmin
-        .from('members')
-        .select('notes')
-        .eq('id', memberId)
-        .single()
+      let adminMem: any = null
+      if (memberId) {
+        const { data } = await supabaseAdmin.from('members').select('id, notes').eq('id', memberId).maybeSingle()
+        adminMem = data
+      }
+      if (!adminMem) {
+        const { data } = await supabaseAdmin.from('members').select('id, notes').eq('name', 'Admin User').maybeSingle()
+        adminMem = data
+      }
+      if (!adminMem) {
+        const { data } = await supabaseAdmin.from('members').select('id, notes').in('role', ['admin', 'owner']).limit(1).maybeSingle()
+        adminMem = data
+      }
+      if (!adminMem?.id) {
+        return NextResponse.json({ error: 'Admin record not found.' }, { status: 404 })
+      }
 
       let existingNotes: any = {}
       try {
@@ -249,7 +259,7 @@ export async function POST(request: Request) {
       const { data: member, error: dbErr } = await supabaseAdmin
         .from('members')
         .update({ notes: notesStr })
-        .eq('id', memberId)
+        .eq('id', adminMem.id)
         .select('id, name, email, role, active')
         .single()
 

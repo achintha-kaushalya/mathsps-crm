@@ -74,17 +74,27 @@ export default function EmailAutomationCard() {
   useEffect(() => {
     async function loadDatabaseEmailSettings() {
       try {
-        const { data: adminRecord } = await supabase
-          .from('members')
-          .select('id, notes')
-          .eq('name', 'Admin User')
-          .single()
-
         let dbSettings: any = null
-        if (adminRecord?.notes) {
-          const parsed = JSON.parse(adminRecord.notes)
-          if (parsed.email_settings) {
-            dbSettings = parsed.email_settings
+        const res = await fetch('/api/reports/send-email?action=get_config')
+        if (res.ok) {
+          const json = await res.json()
+          if (json?.email_settings && Object.keys(json.email_settings).length > 0) {
+            dbSettings = json.email_settings
+          }
+        }
+
+        if (!dbSettings) {
+          const { data: adminRecord } = await supabase
+            .from('members')
+            .select('id, notes')
+            .eq('name', 'Admin User')
+            .single()
+
+          if (adminRecord?.notes) {
+            const parsed = JSON.parse(adminRecord.notes)
+            if (parsed.email_settings) {
+              dbSettings = parsed.email_settings
+            }
           }
         }
 
@@ -215,25 +225,15 @@ export default function EmailAutomationCard() {
       localStorage.setItem('MATHSPS_AT_RISK_TIME', atRiskTime)
       localStorage.setItem('MATHSPS_EMAIL_INCLUDE_CSV', String(includeCsv))
 
-      // Persist to Supabase Database (Admin User record notes) so cloud server crons can access it 24/7
-      const { data: adminMem } = await supabase
-        .from('members')
-        .select('id')
-        .eq('name', 'Admin User')
-        .single()
-
-      if (adminMem?.id) {
-        await fetch('/api/members/manage', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'update_email_settings',
-            memberId: adminMem.id,
-            email_settings: emailSettingsPayload,
-            adminPassword: 'sb_secret_verification_bypass'
-          })
+      // Persist to Supabase Database (Admin User record notes) via server API so cloud server crons can access it 24/7
+      await fetch('/api/members/manage', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'update_email_settings',
+          email_settings: emailSettingsPayload
         })
-      }
+      })
 
       setSavedSuccess(true)
       setTimeout(() => setSavedSuccess(false), 3000)

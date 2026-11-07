@@ -1,7 +1,7 @@
 {
   "crons": [
     {
-      "path": "/api/reports/send-email?type=dynamic_check",
+      "path": "/api/reports/send-email?type=dynamic_check&secret=mathsps_cron_token_2026",
       "schedule": "0 15 * * *"
     }
   ]
